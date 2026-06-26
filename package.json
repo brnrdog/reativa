@@ -1,0 +1,14 @@
+{
+  "name": "reativa",
+  "version": "0.1.0",
+  "description": "Reactive Signals (Signal, Computed, Effect + scheduler) for OCaml + Melange, targeting the browser.",
+  "scripts": {
+    "build": "dune build @melange",
+    "test": "dune test",
+    "demo": "dune build @melange && npx --yes esbuild _build/default/demo/output/demo/app.js --bundle --format=esm --outfile=demo/bundle.js"
+  },
+  "keywords": ["ocaml", "melange", "signals", "reactivity", "state", "reactive"],
+  "author": "Bernardo Gurgel <brnrdog@hey.com>",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/brnrdog/reativa.git" }
+}
