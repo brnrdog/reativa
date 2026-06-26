@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build & native test (OCaml ${{ matrix.ocaml-compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ocaml-compiler:
+          - "5.2.x"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only --with-test
+
+      - name: Build (native)
+        run: opam exec -- dune build
+
+      - name: Run native behavioral tests
+        run: opam exec -- dune test
+
+  melange-build:
+    name: Melange JS build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.2.x"
+
+      - name: Install dependencies (incl. melange)
+        run: |
+          opam install . --deps-only --with-test
+          opam install melange
+
+      - name: Build Melange (JS) target
+        run: opam exec -- dune build @melange
