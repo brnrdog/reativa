@@ -1,11 +1,11 @@
 # reativa
 
-A lightweight, high-performance reactive **signals** library for **OCaml**.
+(Experimental) A lightweight, high-performance reactive **signals** library for **OCaml**.
 
-reativa is a complete port of
+reativa is a port of
 [rescript-signals](https://github.com/brnrdog/rescript-signals), rewritten in
-idiomatic OCaml. It implements the same three primitives — `Signal`, `Computed`,
-`Effect` — backed by a push/pull, level-ordered reactive scheduler.
+idiomatic OCaml. It implements the same three reactive primitives: `Signal`, `Computed`, 
+and `Effect`.
 
 ```ocaml
 open Reativa
