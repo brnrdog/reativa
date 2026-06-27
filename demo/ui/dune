@@ -5,5 +5,5 @@
  (target output)
  (libraries reativa reativa_ui)
  (preprocess
-  (pps melange.ppx))
+  (pps melange.ppx reativa_jsx_ppx))
  (module_systems es6))

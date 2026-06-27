@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>reativa — JSX PPX demo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; color: #1a1a1a; }
+      h1 { margin-bottom: 0.25rem; }
+      .sub { color: #666; margin-top: 0; }
+      .card { border: 1px solid #e3e3e3; border-radius: 0.75rem; padding: 1rem 1.25rem; margin: 1rem 0; }
+      .card h2 { margin-top: 0; font-size: 1.1rem; }
+      .row { display: flex; gap: 0.75rem; align-items: baseline; margin: 0.5rem 0; }
+      .label { width: 6rem; color: #666; }
+      .value { font-variant-numeric: tabular-nums; font-weight: 600; }
+      button { font-size: 1rem; padding: 0.3rem 0.8rem; cursor: pointer; }
+      button:disabled { cursor: not-allowed; opacity: 0.5; }
+      input { font-size: 1rem; padding: 0.3rem 0.5rem; flex: 1; }
+      ul { margin: 0.5rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>reativa JSX PPX</h1>
+    <p class="sub">A proof of concept that lowers JSX-like markup to the View function API.</p>
+
+    <div id="app"></div>
+
+    <!-- Built by npm run demo:ui:jsx. -->
+    <script type="module" src="./jsx_bundle.js"></script>
+  </body>
+</html>

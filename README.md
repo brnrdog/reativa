@@ -46,6 +46,17 @@ geared towards React; rather than pull in that dependency for a proof of
 concept, this first cut ships the plain **function API** that JSX would desugar
 to anyway. A custom JSX ppx is a natural follow-up.
 
+There is also a proof-of-concept PPX for JSX-like markup:
+
+```ocaml
+[%reativa.jsx {| <button onClick={fun _ -> Signal.set count 0}>reset</button> |}]
+```
+
+It lowers static attributes, reactive attributes and event handlers to the
+same `Reativa_ui.View` constructors. Because raw `<div />` syntax is not valid
+OCaml before preprocessing, this first pass uses an OCaml extension containing
+JSX markup.
+
 ```ocaml
 open Reativa
 open Reativa_ui
@@ -73,12 +84,14 @@ combinators `dyn`, `show`, `maybe` and `for_`. Render with `mount` /
 The core depends only on the OCaml stdlib, so the test suite runs natively:
 
 ```sh
-dune build            # build the library
-dune test             # run the behavioral suite
-npm run demo          # build and bundle demo/app.ml
-npm run demo:serve    # build and serve the demo at http://127.0.0.1:8080/
-npm run demo:ui       # build and bundle the reativa_ui demo
-npm run demo:ui:serve # build and serve the UI demo at http://127.0.0.1:8080/
+dune build                # build the library
+dune test                 # run the behavioral suite
+npm run demo              # build and bundle demo/app.ml
+npm run demo:serve        # build and serve the demo at http://127.0.0.1:8080/
+npm run demo:ui           # build and bundle the reativa_ui demo
+npm run demo:ui:serve     # build and serve the UI demo at http://127.0.0.1:8080/
+npm run demo:ui:jsx       # build and bundle the JSX PPX proof of concept
+npm run demo:ui:jsx:serve # build and serve the JSX PPX demo
 ```
 
 ## License

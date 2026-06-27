@@ -15,6 +15,7 @@ depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.8"}
   "melange" {>= "3.0.0"}
+  "ppxlib"
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]
