@@ -1,19 +1,26 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { extname, join, normalize, relative, resolve, sep } from "node:path";
 
-const demoRoot = resolve("demo");
 const defaultPort = Number.parseInt(process.env.PORT ?? "8080", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 
 const args = process.argv.slice(2);
 const portFlagIndex = args.indexOf("--port");
+const rootFlagIndex = args.indexOf("--root");
 const port =
   portFlagIndex === -1 ? defaultPort : Number.parseInt(args[portFlagIndex + 1] ?? "", 10);
+const root = rootFlagIndex === -1 ? process.env.DEMO_ROOT ?? "demo" : args[rootFlagIndex + 1];
+const demoRoot = resolve(root ?? "");
 
 if (!Number.isInteger(port) || port < 0 || port > 65535) {
   console.error("Invalid port. Use PORT=8080 or --port 8080.");
+  process.exit(1);
+}
+
+if (!root) {
+  console.error("Invalid demo root. Use DEMO_ROOT=demo/ui or --root demo/ui.");
   process.exit(1);
 }
 
@@ -106,6 +113,7 @@ server.on("error", (error) => {
 server.listen(port, host, () => {
   const address = server.address();
   const resolvedPort = typeof address === "object" && address ? address.port : port;
+  const servedPath = relative(process.cwd(), demoRoot) || ".";
 
-  console.log(`Serving demo at http://${host}:${resolvedPort}/`);
+  console.log(`Serving ${servedPath} at http://${host}:${resolvedPort}/`);
 });

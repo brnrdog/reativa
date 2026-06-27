@@ -73,10 +73,12 @@ combinators `dyn`, `show`, `maybe` and `for_`. Render with `mount` /
 The core depends only on the OCaml stdlib, so the test suite runs natively:
 
 ```sh
-dune build         # build the library
-dune test          # run the behavioral suite
-npm run demo       # build and bundle demo/app.ml
-npm run demo:serve # build and serve the demo at http://127.0.0.1:8080/
+dune build            # build the library
+dune test             # run the behavioral suite
+npm run demo          # build and bundle demo/app.ml
+npm run demo:serve    # build and serve the demo at http://127.0.0.1:8080/
+npm run demo:ui       # build and bundle the reativa_ui demo
+npm run demo:ui:serve # build and serve the UI demo at http://127.0.0.1:8080/
 ```
 
 ## License
