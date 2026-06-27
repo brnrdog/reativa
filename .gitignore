@@ -2,4 +2,6 @@ _build/
 node_modules/
 demo/output/
 demo/bundle.js
+demo/ui/output/
+demo/ui/bundle.js
 *.install
