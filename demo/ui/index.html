@@ -3,30 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>reativa — reactive UI demo</title>
-    <style>
-      body { font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; color: #1a1a1a; }
-      h1 { margin-bottom: 0.25rem; }
-      .sub { color: #666; margin-top: 0; }
-      .card { border: 1px solid #e3e3e3; border-radius: 0.75rem; padding: 1rem 1.25rem; margin: 1rem 0; }
-      .card h2 { margin-top: 0; font-size: 1.1rem; }
-      .row { display: flex; gap: 0.75rem; align-items: baseline; margin: 0.5rem 0; }
-      .label { width: 6rem; color: #666; }
-      .value { font-variant-numeric: tabular-nums; font-weight: 600; }
-      button { font-size: 1rem; padding: 0.3rem 0.8rem; cursor: pointer; }
-      button:disabled { cursor: not-allowed; opacity: 0.5; }
-      input { font-size: 1rem; padding: 0.3rem 0.5rem; flex: 1; }
-      ul { margin: 0.5rem 0; }
-    </style>
+    <title>reativa — JSX view demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: "oklch(20% 0.018 255)",
+              paper: "oklch(98% 0.006 255)",
+              line: "oklch(88% 0.012 255)",
+              wash: "oklch(94% 0.01 255)",
+              muted: "oklch(47% 0.015 255)"
+            },
+            boxShadow: {
+              soft: "0 18px 60px oklch(20% 0.018 255 / 0.12)"
+            }
+          }
+        }
+      };
+    </script>
   </head>
-  <body>
-    <h1>reativa UI</h1>
-    <p class="sub">A counter and a list, built with fine-grained reactive views — no virtual DOM.</p>
-
-    <!-- The whole UI is rendered into here by View.mount_by_id "app". -->
+  <body class="min-h-screen bg-paper text-ink antialiased">
+    <div class="fixed inset-x-0 top-0 h-1 bg-ink"></div>
     <div id="app"></div>
 
-    <!-- Built by the npm "demo:ui" script (dune build @melange + esbuild bundle). -->
+    <!-- Built by npm run demo. -->
     <script type="module" src="./bundle.js"></script>
   </body>
 </html>

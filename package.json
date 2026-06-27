@@ -1,16 +1,12 @@
 {
   "name": "reativa",
   "version": "1.0.0",
-  "description": "Reactive Signals (Signal, Computed, Effect + scheduler) for OCaml + Melange, targeting the browser.",
+  "description": "Fine-grained reactive web interfaces for OCaml and Melange, powered by signals.",
   "scripts": {
     "build": "dune build @melange",
     "test": "dune test",
-    "demo": "dune build @melange && npx --yes esbuild _build/default/demo/output/demo/app.js --bundle --format=esm --outfile=demo/bundle.js",
-    "demo:serve": "npm run demo && node scripts/serve-demo.mjs",
-    "demo:ui": "dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
-    "demo:ui:serve": "npm run demo:ui && node scripts/serve-demo.mjs --root demo/ui",
-    "demo:ui:jsx": "dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/jsx_app.js --bundle --format=esm --outfile=demo/ui/jsx_bundle.js",
-    "demo:ui:jsx:serve": "npm run demo:ui:jsx && node scripts/serve-demo.mjs --root demo/ui",
+    "demo": "dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
+    "demo:serve": "npm run demo && node scripts/serve-demo.mjs --root demo/ui",
     "prepare": "husky",
     "release": "semantic-release"
   },
@@ -18,6 +14,10 @@
     "ocaml",
     "melange",
     "signals",
+    "ui",
+    "view",
+    "jsx",
+    "web",
     "reactivity",
     "state",
     "reactive"

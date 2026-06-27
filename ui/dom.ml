@@ -50,11 +50,15 @@ external remove_attribute : t -> string -> unit = "removeAttribute"
    replaces all children with a single text node. *)
 external set_text_content : t -> string -> unit = "textContent" [@@mel.set]
 
+external set_value : t -> string -> unit = "value" [@@mel.set]
+
 (* ----- events ----- *)
 
 external add_event_listener : t -> string -> (event -> unit) -> unit
   = "addEventListener"
   [@@mel.send]
+
+external prevent_default : event -> unit = "preventDefault" [@@mel.send]
 
 (* Convenience reader for [event.target.value] (e.g. text inputs). *)
 external target : event -> t = "target" [@@mel.get]

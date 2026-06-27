@@ -55,11 +55,12 @@ let place parent before node =
   | None -> Dom.append_child parent node
 
 let apply_attr ~(register : register) el = function
+  | Attr_static ("value", v) -> Dom.set_value el v
   | Attr_static (name, v) -> Dom.set_attribute el name v
   | Attr_reactive (name, f) ->
     let d =
       Effect.run_with_disposer (fun () ->
-        Dom.set_attribute el name (f ());
+        if name = "value" then Dom.set_value el (f ()) else Dom.set_attribute el name (f ());
         None)
     in
     register d.dispose

@@ -4,5 +4,4 @@ demo/output/
 demo/bundle.js
 demo/ui/output/
 demo/ui/bundle.js
-demo/ui/jsx_bundle.js
 *.install
