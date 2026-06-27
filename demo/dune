@@ -4,4 +4,6 @@
 (melange.emit
  (target output)
  (libraries reativa)
+ (preprocess
+  (pps melange.ppx))
  (module_systems es6))
