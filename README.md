@@ -5,10 +5,9 @@ interfaces with **OCaml** and **Melange**.
 
 reativa is a port of
 [rescript-signals](https://github.com/brnrdog/rescript-signals), rewritten and
-extended for idiomatic OCaml. The reactive core provides `Signal`, `Computed`,
-and `Effect`; the `reativa_ui` view layer uses those primitives to mount real
-DOM nodes and update only the parts of the interface that depend on changing
-state.
+extended for idiomatic OCaml. The package provides `Signal`, `Computed`,
+`Effect`, and `View`; the view layer uses the reactive primitives to mount real
+DOM nodes and update only the parts of the interface that depend on changing state.
 
 The goal is to make browser UI feel like OCaml: explicit data flow, ordinary
 functions, and reactive views without a virtual DOM.
@@ -17,7 +16,6 @@ functions, and reactive views without a virtual DOM.
 
 ```ocaml
 open Reativa
-open Reativa_ui
 
 let count   = Signal.make 0
 let doubled = Computed.make (fun () -> Signal.get count * 2)
@@ -47,7 +45,7 @@ node is patched whenever `count` changes; the surrounding DOM is created once.
   dependencies change. Supports `dispose`.
 - **`Effect`** — side effects that re-run when tracked reads change, via `run`
   and `run_with_disposer`, with optional cleanup functions.
-- **`Reativa_ui.View`** — a small DOM view layer. It creates real browser nodes,
+- **`Reativa.View`** — a small DOM view layer. It creates real browser nodes,
   then updates reactive text, attributes and dynamic regions in place.
 - **`[%reativa.jsx]`** — an experimental PPX for JSX-like markup embedded in an
   OCaml extension.
@@ -56,16 +54,15 @@ node is patched whenever `count` changes; the surrounding DOM is created once.
 
 ## View layer
 
-`reativa_ui` is inspired by [xote](https://github.com/brnrdog/xote), which
-builds the same kind of UI on `rescript-signals`. There is **no virtual DOM**: a
-view describes real DOM nodes once, and afterwards only the reactive regions
+`Reativa.View` is inspired by [xote](https://github.com/brnrdog/xote), which
+builds the same kind of UI on `rescript-signals`. There is **no virtual DOM**:
+a view describes real DOM nodes once, and afterwards only the reactive regions
 update, driven straight from signals through `Effect`.
 
 You can write views with the plain function API:
 
 ```ocaml
 open Reativa
-open Reativa_ui
 
 let () =
   let count = Signal.make 0 in
@@ -93,13 +90,12 @@ Or with the JSX-like PPX:
 ```
 
 The PPX lowers static attributes, reactive attributes, children and event
-handlers to the same `Reativa_ui.View` constructors. Because raw `<div />`
+handlers to the same `Reativa.View` constructors. Because raw `<div />`
 syntax is not valid OCaml before preprocessing, markup currently lives inside
 the `[%reativa.jsx {| ... |}]` extension.
 
 ```ocaml
 open Reativa
-open Reativa_ui
 
 let () =
   let count = Signal.make 0 in
@@ -123,7 +119,8 @@ combinators `dyn`, `show`, `maybe` and `for_`. Render with `mount` /
 
 ## Build, test, demo
 
-The core depends only on the OCaml stdlib, so the test suite runs natively:
+The signal graph and scheduler are plain OCaml, so the behavioral suite runs
+natively. The DOM view layer is intended for Melange/browser targets:
 
 ```sh
 dune build         # build the library

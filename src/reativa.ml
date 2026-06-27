@@ -1,7 +1,7 @@
-(* Public entrypoint for Reativa's fine-grained reactive core.
+(* Public entrypoint for Reativa.
 
-   The browser-facing [Reativa_ui.View] layer builds on these primitives to
-   mount real DOM nodes and update reactive regions in place.
+   The browser-facing [View] layer builds on the reactive primitives to mount
+   real DOM nodes and update reactive regions in place.
 
    {[
      let count = Signal.make 0 in
@@ -15,3 +15,5 @@
 module Signal = Signal
 module Computed = Computed
 module Effect = Effect
+module Dom = Dom
+module View = View

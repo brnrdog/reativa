@@ -168,26 +168,26 @@ let unit ~loc = [%expr ()]
 let apply ~loc fn args = B.pexp_apply ~loc fn args
 
 let attr_helper = function
-  | "class" -> Some "Reativa_ui.View.Attr.class_"
-  | "id" -> Some "Reativa_ui.View.Attr.id"
-  | "type" -> Some "Reativa_ui.View.Attr.type_"
-  | "value" -> Some "Reativa_ui.View.Attr.value"
-  | "placeholder" -> Some "Reativa_ui.View.Attr.placeholder"
-  | "href" -> Some "Reativa_ui.View.Attr.href"
+  | "class" -> Some "Reativa.View.Attr.class_"
+  | "id" -> Some "Reativa.View.Attr.id"
+  | "type" -> Some "Reativa.View.Attr.type_"
+  | "value" -> Some "Reativa.View.Attr.value"
+  | "placeholder" -> Some "Reativa.View.Attr.placeholder"
+  | "href" -> Some "Reativa.View.Attr.href"
   | _ -> None
 
 let reactive_attr_helper = function
-  | "class" -> Some "Reativa_ui.View.Attr.class_reactive"
-  | "value" -> Some "Reativa_ui.View.Attr.value_reactive"
-  | "disabled" -> Some "Reativa_ui.View.Attr.disabled"
+  | "class" -> Some "Reativa.View.Attr.class_reactive"
+  | "value" -> Some "Reativa.View.Attr.value_reactive"
+  | "disabled" -> Some "Reativa.View.Attr.disabled"
   | _ -> None
 
 let event_helper = function
-  | "onClick" -> Some "Reativa_ui.View.On.click"
-  | "onInput" -> Some "Reativa_ui.View.On.input"
-  | "onChange" -> Some "Reativa_ui.View.On.change"
-  | "onKeyDown" -> Some "Reativa_ui.View.On.keydown"
-  | "onSubmit" -> Some "Reativa_ui.View.On.submit"
+  | "onClick" -> Some "Reativa.View.On.click"
+  | "onInput" -> Some "Reativa.View.On.input"
+  | "onChange" -> Some "Reativa.View.On.change"
+  | "onKeyDown" -> Some "Reativa.View.On.keydown"
+  | "onSubmit" -> Some "Reativa.View.On.submit"
   | _ -> None
 
 let is_event_name name =
@@ -209,7 +209,7 @@ let lower_attr ~loc { name; value } =
       | None ->
         apply
           ~loc
-          (ident ~loc "Reativa_ui.View.Attr.make")
+          (ident ~loc "Reativa.View.Attr.make")
           [ (Nolabel, str ~loc name); (Nolabel, str ~loc value) ]
     end
   | Attr_expr source ->
@@ -220,13 +220,13 @@ let lower_attr ~loc { name; value } =
       | None ->
         apply
           ~loc
-          (ident ~loc "Reativa_ui.View.Attr.reactive")
+          (ident ~loc "Reativa.View.Attr.reactive")
           [ (Nolabel, str ~loc name); (Nolabel, expr) ]
     end
   | Attr_bool ->
     apply
       ~loc
-      (ident ~loc "Reativa_ui.View.Attr.make")
+      (ident ~loc "Reativa.View.Attr.make")
       [ (Nolabel, str ~loc name); (Nolabel, str ~loc "") ]
 
 let lower_event ~loc { name; value } =
@@ -240,16 +240,16 @@ let lower_event ~loc { name; value } =
   | None ->
     apply
       ~loc
-      (ident ~loc "Reativa_ui.View.On.on")
+      (ident ~loc "Reativa.View.On.on")
       [ (Nolabel, str ~loc (lower_event_name name)); (Nolabel, handler) ]
 
 let tag_helper = function
   | "div" | "span" | "p" | "h1" | "h2" | "h3" | "ul" | "ol" | "li" | "button" | "a"
-  | "label" | "section" as tag -> Some ("Reativa_ui.View." ^ tag)
+  | "label" | "section" as tag -> Some ("Reativa.View." ^ tag)
   | _ -> None
 
 let rec lower_child ~loc = function
-  | Text value -> apply ~loc (ident ~loc "Reativa_ui.View.text") [ (Nolabel, str ~loc value) ]
+  | Text value -> apply ~loc (ident ~loc "Reativa.View.text") [ (Nolabel, str ~loc value) ]
   | Expr source -> parse_ocaml_expr ~loc source
   | Element node -> lower_node ~loc node
 
@@ -268,13 +268,13 @@ and lower_node ~loc { tag; attrs; children } =
   in
   match tag with
   | "input" ->
-    apply ~loc (ident ~loc "Reativa_ui.View.input") (List.rev ((Nolabel, unit ~loc) :: args))
+    apply ~loc (ident ~loc "Reativa.View.input") (List.rev ((Nolabel, unit ~loc) :: args))
   | _ ->
     let children = list ~loc (List.map (lower_child ~loc) children) in
     let fn =
       match tag_helper tag with
       | Some helper -> ident ~loc helper
-      | None -> apply ~loc (ident ~loc "Reativa_ui.View.element") [ (Nolabel, str ~loc tag) ]
+      | None -> apply ~loc (ident ~loc "Reativa.View.element") [ (Nolabel, str ~loc tag) ]
     in
     apply ~loc fn (List.rev ((Nolabel, children) :: args))
 

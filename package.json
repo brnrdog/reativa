@@ -3,10 +3,13 @@
   "version": "1.1.0",
   "description": "Fine-grained reactive web interfaces for OCaml and Melange, powered by signals.",
   "scripts": {
-    "build": "dune build @melange",
-    "test": "dune test",
-    "demo": "dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
+    "build": "opam exec -- dune build @melange",
+    "test": "opam exec -- dune test",
+    "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "demo:serve": "npm run demo && node scripts/serve-demo.mjs --root demo/ui",
+    "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
+    "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs",
+    "docs:preview": "vite preview --config website/vite.config.mjs",
     "prepare": "husky",
     "release": "semantic-release"
   },
@@ -38,6 +41,7 @@
     "@semantic-release/npm": "^12.0.1",
     "@semantic-release/release-notes-generator": "^14.0.1",
     "husky": "^9.1.7",
-    "semantic-release": "^24.2.0"
+    "semantic-release": "^24.2.0",
+    "vite": "^8.1.0"
   }
 }

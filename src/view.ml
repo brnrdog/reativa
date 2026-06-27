@@ -1,4 +1,4 @@
-(* A small, fine-grained reactive UI layer on top of {!Reativa} signals.
+(* A small, fine-grained reactive UI layer on top of Reativa signals.
 
    The model is the one popularised by SolidJS (and used by brnrdog/xote, the
    ReScript library this is inspired by): there is *no* virtual DOM. A view
@@ -19,8 +19,6 @@
    Reactive effects are tracked so that when an enclosing [Dynamic] re-renders,
    the Effects (and DOM nodes) it created last time are disposed first — no
    leaks, even with nested dynamic regions. *)
-
-open Reativa
 
 type attr =
   | Attr_static of string * string

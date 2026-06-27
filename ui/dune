@@ -1,9 +1,0 @@
-; The reactive UI layer. It speaks to the browser DOM through Melange FFI, so
-; unlike the [reativa] core (which also builds natively for the test suite) this
-; library is Melange-only.
-(library
- (name reativa_ui)
- (modes melange)
- (libraries reativa)
- (preprocess
-  (pps melange.ppx)))

@@ -1,0 +1,8 @@
+; Compiles the documentation site to JavaScript ES modules. Vite consumes the
+; emitted entry from _build and publishes the static site from website/.
+(melange.emit
+ (target output)
+ (libraries reativa)
+ (preprocess
+  (pps melange.ppx reativa_jsx_ppx))
+ (module_systems es6))

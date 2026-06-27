@@ -5,9 +5,7 @@
    text nodes and comment anchors alike): the JS APIs we use don't care about
    the distinction, and keeping one type makes the {!View} layer simpler.
 
-   This module compiles only under Melange (it speaks to the browser), which is
-   why the UI layer lives in its own [reativa_ui] library rather than inside the
-   plain-OCaml [reativa] core. *)
+   These bindings are exported as [Reativa.Dom] for code compiled with Melange. *)
 
 type t
 type event
