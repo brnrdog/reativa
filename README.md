@@ -40,7 +40,8 @@ The core depends only on the OCaml stdlib, so the test suite runs natively:
 ```sh
 dune build         # build the library
 dune test          # run the behavioral suite
-npm run demo       # build and bundle demo/app.ml, then open demo/index.html
+npm run demo       # build and bundle demo/app.ml
+npm run demo:serve # build and serve the demo at http://127.0.0.1:8080/
 ```
 
 ## License
