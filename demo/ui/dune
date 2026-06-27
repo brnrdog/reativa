@@ -3,7 +3,7 @@
 ; the npm "demo" script.
 (melange.emit
  (target output)
- (libraries reativa reativa_ui)
+ (libraries reativa)
  (preprocess
   (pps melange.ppx reativa_jsx_ppx))
  (module_systems es6))

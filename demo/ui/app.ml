@@ -1,13 +1,12 @@
-(* Browser demo for the JSX-like PPX surface over the [reativa_ui] View layer.
+(* Browser demo for the JSX-like PPX surface over [Reativa.View].
 
    The markup below is written with [%reativa.jsx {| ... |}] and lowered by the
-   PPX to ordinary [Reativa_ui.View] calls. Expressions inside braces are plain
+   PPX to ordinary [Reativa.View] calls. Expressions inside braces are plain
    OCaml and must return [View.t] for children, event handlers for [on*]
    attributes, or reactive functions for attributes such as [class] and
    [disabled]. *)
 
 open Reativa
-open Reativa_ui
 
 type todo = {
   id : int;
