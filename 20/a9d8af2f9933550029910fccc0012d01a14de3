@@ -1,0 +1,19 @@
+.releaserc.json
+  s_cf96f5b0af60f8::t_718a41299d3020 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "20a9d8af2f9933550029910fccc0012d01a14de3",
+  "prompts": {},
+  "sessions": {
+    "s_cf96f5b0af60f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f083b-8b92-7d93-8242-531f080798ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Bernardo Gurgel <brnrdog@hey.com>"
+    }
+  }
+}
