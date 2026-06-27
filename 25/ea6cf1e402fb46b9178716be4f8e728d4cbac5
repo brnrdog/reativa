@@ -1,0 +1,41 @@
+.gitignore
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 7
+package.json
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 12-13
+demo/ui/jsx.html
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 1-31
+ppx/reativa_jsx_ppx.ml
+  s_cf96f5b0af60f8::t_0f3b75ad4df836 162
+  s_cf96f5b0af60f8::t_ea75396c1f2997 281,283,289
+  s_cf96f5b0af60f8::t_15508c5f7ce62f 159
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 1-158,161,163-280,282,284-288,290-292
+  s_cf96f5b0af60f8::t_8b4c9ec98de938 160
+ppx/dune
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 1-6
+demo/ui/dune
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 8
+reativa.opam
+  s_cf96f5b0af60f8::t_58b3ac13df2394 18
+README.md
+  s_cf96f5b0af60f8::t_58b3ac13df2394 94
+  s_cf96f5b0af60f8::t_e0a9d7ed685f3d 87-93
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 49-59
+demo/ui/jsx_app.ml
+  s_cf96f5b0af60f8::t_effcdaa70e8db7 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "25ea6cf1e402fb46b9178716be4f8e728d4cbac5",
+  "prompts": {},
+  "sessions": {
+    "s_cf96f5b0af60f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f083b-8b92-7d93-8242-531f080798ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Bernardo Gurgel <brnrdog@hey.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+README.md
+  s_cf96f5b0af60f8::t_f5f35c3fa95698 36-70
+package.json
+  s_cf96f5b0af60f8::t_b228f1cef87f06 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "8a7c5d08f8d58948ab796d0cc09914ce1e3f7629",
+  "prompts": {},
+  "sessions": {
+    "s_cf96f5b0af60f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f083b-8b92-7d93-8242-531f080798ec",
+        "model": "unknown"
+      },
+      "human_author": "Bernardo Gurgel <brnrdog@hey.com>"
+    }
+  }
+}
