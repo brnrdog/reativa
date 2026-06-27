@@ -1,6 +1,6 @@
 {
   "name": "reativa",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Fine-grained reactive web interfaces for OCaml and Melange, powered by signals.",
   "scripts": {
     "build": "dune build @melange",

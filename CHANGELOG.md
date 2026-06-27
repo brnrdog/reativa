@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/brnrdog/reativa/compare/v1.0.0...v1.1.0) (2026-06-27)
+
+
+### Features
+
+* **view:** add view layer with JSX support ([1290338](https://github.com/brnrdog/reativa/commit/129033800c003662f95a9ed3b88d7ba8f3ddfdd3))
+
 # 1.0.0 (2026-06-27)
 
 
