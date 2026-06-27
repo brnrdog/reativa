@@ -1,9 +1,10 @@
 opam-version: "2.0"
-synopsis: "Reactive Signals (Signal, Computed, Effect + scheduler) for OCaml + Melange"
+synopsis: "Fine-grained reactive web interfaces for OCaml and Melange"
 description: """
-Reactive Signals for OCaml and Melange, targeting the browser. The core
-(Signal, Computed, Effect and a glitch-free scheduler) is plain OCaml that
-compiles to JavaScript via Melange and to native/bytecode for testing.
+Reativa builds reactive browser interfaces with OCaml and Melange. Its
+fine-grained reactive core provides Signal, Computed, Effect and a glitch-free
+scheduler, while the View layer mounts real DOM nodes and updates reactive
+text, attributes and dynamic regions in place.
 """
 maintainer: "Bernardo Gurgel <brnrdog@hey.com>"
 authors: "Bernardo Gurgel <brnrdog@hey.com>"
@@ -15,6 +16,7 @@ depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.8"}
   "melange" {>= "3.0.0"}
+  "ppxlib"
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]

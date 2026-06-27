@@ -1,4 +1,7 @@
-(* Public entrypoint: reactive Signals for OCaml + Melange.
+(* Public entrypoint for Reativa's fine-grained reactive core.
+
+   The browser-facing [Reativa_ui.View] layer builds on these primitives to
+   mount real DOM nodes and update reactive regions in place.
 
    {[
      let count = Signal.make 0 in
