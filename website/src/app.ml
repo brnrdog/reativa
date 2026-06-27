@@ -65,9 +65,9 @@ let () =
           <a class="brand" href="#top">reativa</a>
           <nav class="topnav" aria-label="Primary">
             <a href="#quickstart">Quickstart</a>
-            <a href="#concepts">Concepts</a>
+            <a href="#api">API</a>
             <a href="#views">Views</a>
-            <a href="#deploy">Deploy</a>
+            <a href="#background">Background</a>
             <a href="https://github.com/brnrdog/reativa">GitHub</a>
           </nav>
         </header>
@@ -76,28 +76,28 @@ let () =
           <aside class="toc" aria-label="Table of contents">
             <p>On this page</p>
             <a href="#quickstart">Quickstart</a>
-            <a href="#concepts">Core concepts</a>
+            <a href="#api">API overview</a>
             <a href="#views">Reactive views</a>
-            <a href="#deploy">Docs site deployment</a>
+            <a href="#background">Background</a>
           </aside>
 
           <main class="content">
             <section class="intro">
-              <p class="kicker">OCaml, Melange, browser UI</p>
+              <p class="kicker">OCaml UI, powered by signals</p>
               <h1>Reativa documentation</h1>
               <p>
-                Reativa is an experimental library for building reactive web
-                interfaces in OCaml. The core is a small signal graph. The view
-                layer mounts real DOM nodes and updates the parts that depend on
-                signal reads.
+                Reativa is an experimental UI library for building browser
+                interfaces with OCaml and Melange. It is based on xote and
+                rescript-signals: views are real DOM nodes, and signals drive
+                the parts that change.
               </p>
             </section>
 
             <section id="quickstart" class="doc-section">
               <h2>Quickstart</h2>
               <p>
-                Install the opam dependencies, build the Melange target, then
-                run the Vite docs server.
+                Install the opam and npm dependencies, then run the docs server
+                or build the demo.
               </p>
               <pre class="command"><code>opam install . --deps-only --with-test
 npm install
@@ -108,7 +108,7 @@ npm run docs:dev</code></pre>
                   <h3>Small reactive example</h3>
                   <p>
                     The number below is a signal. The derived values are
-                    computeds, and only their text nodes update.
+                    computeds. Clicking a button updates only the dependent text.
                   </p>
                 </div>
                 <div class="example-box">
@@ -126,16 +126,19 @@ npm run docs:dev</code></pre>
               </div>
             </section>
 
-            <section id="concepts" class="doc-section">
-              <h2>Core concepts</h2>
+            <section id="api" class="doc-section">
+              <h2>API overview</h2>
               <p>
-                The API is built around three primitives. They can be used on
-                their own, or as the state model behind the view layer.
+                The public package is <code>Reativa</code>. The signal
+                primitives can be used directly, and the view layer uses them
+                as its update model.
               </p>
               <dl class="definitions">
                 {definition "Signal" "Mutable reactive state. Use get to track, peek to read without tracking, and set or update to write."}
                 {definition "Computed" "A lazy derived value. It caches until one of the signals it read changes."}
                 {definition "Effect" "A tracked side effect. It re-runs when dependencies change and can return cleanup work."}
+                {definition "View" "DOM constructors, reactive text and control flow helpers such as dyn, show, maybe and for_."}
+                {definition "Dom" "Small Melange bindings used by View and event handlers."}
               </dl>
               {code_block "signals" signal_code}
             </section>
@@ -144,22 +147,22 @@ npm run docs:dev</code></pre>
               <h2>Reactive views</h2>
               <p>
                 <code>Reativa.View</code> creates DOM nodes directly. Reactive
-                text, attributes and dynamic regions are wired to effects. The
-                JSX-like PPX is a syntax layer over the same constructors.
+                text, attributes and dynamic regions are wired to effects.
+                <code>[%reativa.jsx]</code> is syntax for the same constructors.
               </p>
               {code_block "view" view_code}
               {code_block "website/src/dune" dune_code}
             </section>
 
-            <section id="deploy" class="doc-section">
-              <h2>Docs site deployment</h2>
+            <section id="background" class="doc-section">
+              <h2>Background</h2>
               <p>
-                The documentation site lives in <code>website/</code>. Dune emits
-                JavaScript through Melange, Vite writes the static output to
-                <code>_site/</code>, and GitHub Pages publishes that directory
-                from the Pages workflow.
+                Reativa follows the fine-grained UI model used by
+                <a href="https://github.com/brnrdog/xote">xote</a>, and ports the
+                signal graph ideas from
+                <a href="https://github.com/brnrdog/rescript-signals">rescript-signals</a>
+                to idiomatic OCaml. The project is still experimental.
               </p>
-              <pre class="command"><code>npm run docs:build</code></pre>
             </section>
           </main>
         </div>
