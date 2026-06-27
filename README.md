@@ -33,6 +33,41 @@ let () = Signal.set count 5   (* prints: doubled = 10 *)
 
 `make` for `Signal` and `Computed` accepts optional `~name` and `~equals`.
 
+## UI layer (experimental)
+
+`reativa_ui` is a small, fine-grained reactive UI layer on top of the signals —
+inspired by [xote](https://github.com/brnrdog/xote), which builds the same kind
+of UI on `rescript-signals`. There is **no virtual DOM**: a view describes real
+DOM nodes once, and afterwards only the reactive regions update, driven straight
+from the signals via `Effect`.
+
+JSX would be the nicest surface here, but Melange's JSX transform is currently
+geared towards React; rather than pull in that dependency for a proof of
+concept, this first cut ships the plain **function API** that JSX would desugar
+to anyway. A custom JSX ppx is a natural follow-up.
+
+```ocaml
+open Reativa
+open Reativa_ui
+open View
+
+let () =
+  let count = Signal.make 0 in
+  mount_by_id "app"
+    (div
+       [ span [ dyn_int (fun () -> Signal.get count) ]
+       ; button
+           ~events:[ On.click (fun _ -> Signal.update count (fun n -> n + 1)) ]
+           [ text "+1" ]
+       ])
+```
+
+Building blocks: `text` / `int`, `dyn_text` / `dyn_int` (reactive text),
+`element` and HTML helpers (`div`, `span`, `button`, `ul`, `li`, …), the `Attr`
+and `On` modules for (reactive) attributes and events, and the control-flow
+combinators `dyn`, `show`, `maybe` and `for_`. Render with `mount` /
+`mount_by_id`. See `demo/ui/` for a worked counter-and-list example.
+
 ## Build, test, demo
 
 The core depends only on the OCaml stdlib, so the test suite runs natively:

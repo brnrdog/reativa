@@ -7,6 +7,7 @@
     "test": "dune test",
     "demo": "dune build @melange && npx --yes esbuild _build/default/demo/output/demo/app.js --bundle --format=esm --outfile=demo/bundle.js",
     "demo:serve": "npm run demo && node scripts/serve-demo.mjs",
+    "demo:ui": "dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "prepare": "husky",
     "release": "semantic-release"
   },

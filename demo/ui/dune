@@ -1,0 +1,9 @@
+; Compiles the UI-layer demo to JavaScript ES modules under demo/ui/output/.
+; Bundle the emitted entry for the browser with esbuild — see the npm
+; "demo:ui" script.
+(melange.emit
+ (target output)
+ (libraries reativa reativa_ui)
+ (preprocess
+  (pps melange.ppx))
+ (module_systems es6))
