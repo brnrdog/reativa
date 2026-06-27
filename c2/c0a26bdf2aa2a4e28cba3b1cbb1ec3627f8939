@@ -1,0 +1,46 @@
+ui/dom.ml
+  s_cf96f5b0af60f8::t_87ab1a203690e0 53-54
+  s_cf96f5b0af60f8::t_0d442a51d02f73 61-62
+demo/ui/index.html
+  s_cf96f5b0af60f8::t_68ef76949704fd 16-17,28
+  s_cf96f5b0af60f8::t_0d442a51d02f73 6-15,18-25,27,31
+ui/view.ml
+  s_cf96f5b0af60f8::t_87ab1a203690e0 58,63
+README.md
+  s_cf96f5b0af60f8::t_1954273205445c 76-79
+  s_cf96f5b0af60f8::t_0b28137c465d16 3-4,7-16,20,26-35,38-39,41-53,57,59-62,64,66-75,80-84,87-92,95-98,106-115
+  s_cf96f5b0af60f8::t_0d442a51d02f73 122,129-132
+demo/ui/app.ml
+  s_cf96f5b0af60f8::t_7b82d6509dc9c1 95,202
+  s_cf96f5b0af60f8::t_ad9d50ac28c5bf 196
+  s_cf96f5b0af60f8::t_084180b29a9a48 92,97
+  s_cf96f5b0af60f8::t_52e8885273de3b 1,3-7,12-23,25-36,38,40-62,66-86,90-91,94,96,98-99,143-145,147-149,151-154,156-178,180-182,184-195,197-201,234-267,269-303,308-330,335-361,364-369,371-406,411-413
+  s_cf96f5b0af60f8::t_8408338c3bd0b9 93,100-107,110-142,146,150,155,183,203-233,268,304-307,331-334,362,370,407-410
+  s_cf96f5b0af60f8::t_83f9f4bf8b86dc 179,414
+  s_cf96f5b0af60f8::t_2906d96e63aebe 363
+reativa.opam
+  s_cf96f5b0af60f8::t_8f21f8aa458bcf 2,4-7
+src/reativa.ml
+  s_cf96f5b0af60f8::t_8f21f8aa458bcf 1-4
+package.json
+  s_cf96f5b0af60f8::t_0d442a51d02f73 8-9
+  s_cf96f5b0af60f8::t_0b28137c465d16 4,17-20
+demo/ui/dune
+  s_cf96f5b0af60f8::t_0d442a51d02f73 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c2c0a26bdf2aa2a4e28cba3b1cbb1ec3627f8939",
+  "prompts": {},
+  "sessions": {
+    "s_cf96f5b0af60f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f083b-8b92-7d93-8242-531f080798ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Bernardo Gurgel <brnrdog@hey.com>"
+    }
+  }
+}
