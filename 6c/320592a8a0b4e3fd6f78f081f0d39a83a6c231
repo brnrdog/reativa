@@ -1,0 +1,24 @@
+README.md
+  s_cf96f5b0af60f8::t_41308c9880b596 3-4,6-10,15,22,27,31,33-37,39-40,42,44,47-49,57-58,63-64,69-75
+website/src/app.ml
+  s_cf96f5b0af60f8::t_084b0f4407b877 132-134
+  s_cf96f5b0af60f8::t_8b6a9e1caf8b6f 68,70,79,81,86,89-92,99-100,111,129-130,140-141,150-151,157-158,160-164
+.github/workflows/release.yml
+  s_cf96f5b0af60f8::t_76cc203c252101 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6c320592a8a0b4e3fd6f78f081f0d39a83a6c231",
+  "prompts": {},
+  "sessions": {
+    "s_cf96f5b0af60f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f083b-8b92-7d93-8242-531f080798ec",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Bernardo Gurgel <brnrdog@hey.com>"
+    }
+  }
+}
