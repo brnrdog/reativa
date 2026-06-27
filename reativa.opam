@@ -1,0 +1,21 @@
+opam-version: "2.0"
+synopsis: "Reactive Signals (Signal, Computed, Effect + scheduler) for OCaml + Melange"
+description: """
+Reactive Signals for OCaml and Melange, targeting the browser. The core
+(Signal, Computed, Effect and a glitch-free scheduler) is plain OCaml that
+compiles to JavaScript via Melange and to native/bytecode for testing.
+"""
+maintainer: "Bernardo Gurgel <brnrdog@hey.com>"
+authors: "Bernardo Gurgel <brnrdog@hey.com>"
+license: "MIT"
+homepage: "https://github.com/brnrdog/reativa"
+bug-reports: "https://github.com/brnrdog/reativa/issues"
+dev-repo: "git+https://github.com/brnrdog/reativa.git"
+depends: [
+  "ocaml" {>= "4.14"}
+  "dune" {>= "3.8"}
+  "melange" {>= "3.0.0"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]
+]
