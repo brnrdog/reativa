@@ -11,21 +11,19 @@ depend on changing signals. There is no virtual DOM.
 
 ```ocaml
 open Reativa
+open Reativa.View.Mlx
 
 let count = Signal.make 0
 let doubled = Computed.make (fun () -> Signal.get count * 2)
 
 let () =
   View.mount_by_id "app"
-    [%reativa.jsx
-      {|
-      <section>
-        <p>{View.dyn_int (fun () -> Signal.get doubled)}</p>
-        <button onClick={fun _ -> Signal.update count (fun n -> n + 1)}>
-          +1
-        </button>
-      </section>
-      |}]
+    <section>
+      <p>(View.dyn_int (fun () -> Signal.get doubled))</p>
+      <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
+        (View.text "+1")
+      </button>
+    </section>
 ```
 
 ## What is included
@@ -34,7 +32,8 @@ let () =
 - **`Computed`**: lazy derived values with dependency tracking.
 - **`Effect`**: tracked side effects with optional cleanup.
 - **`View`**: DOM view constructors and control flow helpers.
-- **`[%reativa.jsx]`**: experimental JSX-like syntax for `Reativa.View`.
+- **`.mlx` syntax**: JSX-like syntax for `Reativa.View`, parsed by
+  `ocaml-mlx/mlx`.
 
 The signal graph and scheduler are plain OCaml. `View` and `Dom` target the
 browser through Melange.
@@ -49,15 +48,15 @@ View.button
   [ View.text "+1" ]
 ```
 
-Or with the JSX-like PPX:
+Or with mlx syntax in a `.mlx` file:
 
 ```ocaml
-[%reativa.jsx
-  {|
-  <button onClick={fun _ -> Signal.update count (fun n -> n + 1)}>
-    {View.dyn_int (fun () -> Signal.get count)}
-  </button>
-  |}]
+open Reativa
+open Reativa.View.Mlx
+
+<button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
+  (View.dyn_int (fun () -> Signal.get count))
+</button>
 ```
 
 Useful helpers include `dyn_text`, `dyn_int`, `dyn`, `show`, `maybe`, `for_`,

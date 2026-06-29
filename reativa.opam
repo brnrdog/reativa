@@ -14,9 +14,10 @@ bug-reports: "https://github.com/brnrdog/reativa/issues"
 dev-repo: "git+https://github.com/brnrdog/reativa.git"
 depends: [
   "ocaml" {>= "4.14"}
-  "dune" {>= "3.8"}
+  "dune" {>= "3.16"}
   "melange" {>= "3.0.0"}
-  "ppxlib"
+  "mlx"
+  "ocamlmerlin-mlx" {with-dev-setup}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]

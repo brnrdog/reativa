@@ -205,6 +205,110 @@ module On = struct
   let submit handler : handler = ("submit", handler)
 end
 
+module Mlx = struct
+  let push_static name value attrs =
+    match value with Some value -> Attr.make name value :: attrs | None -> attrs
+
+  let push_reactive name value attrs =
+    match value with Some value -> Attr.reactive name value :: attrs | None -> attrs
+
+  let push_toggle name value attrs =
+    match value with Some value -> Attr.toggle name value :: attrs | None -> attrs
+
+  let push_event name handler events =
+    match handler with Some handler -> On.on name handler :: events | None -> events
+
+  let attr_list
+      ?class_
+      ?class_reactive
+      ?id
+      ?type_
+      ?value
+      ?value_reactive
+      ?placeholder
+      ?href
+      ?aria_label
+      ?style
+      ?style_reactive
+      ?disabled
+      () =
+    []
+    |> push_static "class" class_
+    |> push_reactive "class" class_reactive
+    |> push_static "id" id
+    |> push_static "type" type_
+    |> push_static "value" value
+    |> push_reactive "value" value_reactive
+    |> push_static "placeholder" placeholder
+    |> push_static "href" href
+    |> push_static "aria-label" aria_label
+    |> push_static "style" style
+    |> push_reactive "style" style_reactive
+    |> push_toggle "disabled" disabled
+    |> List.rev
+
+  let event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () =
+    []
+    |> push_event "click" onClick
+    |> push_event "input" onInput
+    |> push_event "change" onChange
+    |> push_event "keydown" onKeyDown
+    |> push_event "submit" onSubmit
+    |> List.rev
+
+  let create tag ?class_ ?class_reactive ?id ?type_ ?value ?value_reactive ?placeholder ?href
+      ?aria_label ?style ?style_reactive ?disabled ?onClick ?onInput ?onChange ?onKeyDown
+      ?onSubmit ?(children = []) () =
+    let attrs =
+      attr_list
+        ?class_
+        ?class_reactive
+        ?id
+        ?type_
+        ?value
+        ?value_reactive
+        ?placeholder
+        ?href
+        ?aria_label
+        ?style
+        ?style_reactive
+        ?disabled
+        ()
+    in
+    let events = event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () in
+    element ~attrs ~events tag children
+
+  let a = create "a"
+  let article = create "article"
+  let aside = create "aside"
+  let button = create "button"
+  let code = create "code"
+  let dd = create "dd"
+  let div = create "div"
+  let dl = create "dl"
+  let dt = create "dt"
+  let figcaption = create "figcaption"
+  let figure = create "figure"
+  let footer = create "footer"
+  let form = create "form"
+  let h1 = create "h1"
+  let h2 = create "h2"
+  let h3 = create "h3"
+  let header = create "header"
+  let input = create "input"
+  let label = create "label"
+  let li = create "li"
+  let main = create "main"
+  let nav = create "nav"
+  let ol = create "ol"
+  let p = create "p"
+  let pre = create "pre"
+  let section = create "section"
+  let span = create "span"
+  let strong = create "strong"
+  let ul = create "ul"
+end
+
 (* ----- mounting ----- *)
 
 (* Render [view] into [container]. Top-level Effects are intentionally not

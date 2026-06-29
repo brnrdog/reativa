@@ -1,6 +1,0 @@
-(library
- (name reativa_jsx_ppx)
- (kind ppx_rewriter)
- (libraries ppxlib)
- (preprocess
-  (pps ppxlib.metaquot)))
