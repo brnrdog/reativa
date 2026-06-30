@@ -46,6 +46,20 @@ type t =
     }
   | Fragment of t list
   | Dynamic of (unit -> t)
+  | Keyed :
+      {
+        items : unit -> 'item list;
+        key : 'item -> string;
+        render : 'item Signal.t -> t;
+      }
+      -> t
+
+type 'item keyed_block = {
+  key : string;
+  item : 'item Signal.t;
+  nodes : Dom.t list;
+  disposers : (unit -> unit) list;
+}
 
 (* A [register] sink collects the disposers of every Effect created while
    building a subtree, so the nearest enclosing [Dynamic] can dispose them all
@@ -93,10 +107,85 @@ let apply_attr ~(register : register) el = function
     in
     register d.dispose
 
+let dispose_keyed_block parent block =
+  List.iter (fun dispose -> dispose ()) block.disposers;
+  List.iter (fun node -> Dom.remove_child parent node) block.nodes
+
+let node_is_followed_by node next =
+  match Dom.next_sibling node with
+  | Some sibling -> Dom.is_same_node sibling next
+  | None -> false
+
+let rec nodes_are_contiguous_before nodes before =
+  match nodes with
+  | [] -> true
+  | [ node ] -> node_is_followed_by node before
+  | node :: (next :: _ as rest) ->
+    node_is_followed_by node next && nodes_are_contiguous_before rest before
+
+let move_block_before parent block before =
+  match block.nodes with
+  | [] -> before
+  | first :: _ ->
+    if not (nodes_are_contiguous_before block.nodes before) then
+      List.iter (fun node -> place parent (Some before) node) block.nodes;
+    first
+
+let rec reconcile_keyed :
+  type item.
+  Dom.t ->
+  Dom.t ->
+  item list ->
+  (item -> string) ->
+  (item Signal.t -> t) ->
+  item keyed_block list ref ->
+  unit =
+ fun parent anchor items key render blocks ->
+  let old_by_key = Hashtbl.create (List.length !blocks) in
+  List.iter (fun block -> Hashtbl.replace old_by_key block.key block) !blocks;
+  let seen_keys = Hashtbl.create (List.length items) in
+  let create_block item item_key =
+    let item_signal = Signal.make item in
+    let local_nodes = ref [] in
+    let local_disposers = ref [] in
+    let block_register dispose = local_disposers := dispose :: !local_disposers in
+    insert ~register:block_register parent (Some anchor) (render item_signal) local_nodes;
+    {
+      key = item_key;
+      item = item_signal;
+      nodes = List.rev !local_nodes;
+      disposers = !local_disposers;
+    }
+  in
+  let keyed_items =
+    List.map
+      (fun item ->
+        let item_key = key item in
+        if Hashtbl.mem seen_keys item_key then
+          failwith ("View.for_with_key: duplicate key " ^ item_key);
+        Hashtbl.add seen_keys item_key ();
+        (item_key, item))
+      items
+  in
+  let next_blocks =
+    List.map
+      (fun (item_key, item) ->
+        match Hashtbl.find_opt old_by_key item_key with
+        | Some block ->
+          Hashtbl.remove old_by_key item_key;
+          Signal.set block.item item;
+          block
+        | None -> create_block item item_key)
+      keyed_items
+  in
+  Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
+  ignore (List.fold_right (move_block_before parent) next_blocks anchor);
+  blocks := next_blocks;
+
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
    or appended when [before] is [None]). Top-level nodes are pushed onto [acc]
    so a [Dynamic] region can later remove exactly what it inserted. *)
-let rec insert ~(register : register) parent before view (acc : Dom.t list ref) =
+and insert ~(register : register) parent before view (acc : Dom.t list ref) =
   match view with
   | Empty -> ()
   | Text s ->
@@ -149,6 +238,23 @@ let rec insert ~(register : register) parent before view (acc : Dom.t list ref) 
         Some cleanup)
     in
     register d.dispose
+  | Keyed { items; key; render } ->
+    let anchor = Dom.create_comment "" in
+    place parent before anchor;
+    acc := anchor :: !acc;
+    let blocks = ref [] in
+    let cleanup () =
+      List.iter (dispose_keyed_block parent) !blocks;
+      blocks := []
+    in
+    let d =
+      Effect.run_with_disposer (fun () ->
+        reconcile_keyed parent anchor (items ()) key render blocks;
+        None)
+    in
+    register (fun () ->
+      d.dispose ();
+      cleanup ())
 
 (* ----- public constructors ----- *)
 
@@ -187,8 +293,14 @@ let maybe ?(fallback = Empty) get f =
   Dynamic (fun () -> match get () with Some x -> f x | None -> fallback)
 
 (* Map a (reactive) list to a view. The whole list re-renders when [items]
-   changes — keyed reconciliation is a future refinement. *)
+   changes. *)
 let for_ items f = Dynamic (fun () -> Fragment (List.map f (items ())))
+
+(* Map a reactive list by stable string key. Existing keyed rows keep their DOM
+   nodes and effects; each row receives a signal that is updated with the latest
+   item value for that key. *)
+let for_with_key items ~key render = Keyed { items; key; render }
+let forWithKey = for_with_key
 
 (* ----- common HTML element helpers ----- *)
 

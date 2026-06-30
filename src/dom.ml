@@ -36,6 +36,11 @@ external insert_before : t -> t -> t -> unit = "insertBefore" [@@mel.send]
 
 external remove_child : t -> t -> unit = "removeChild" [@@mel.send]
 
+external next_sibling : t -> t option = "nextSibling"
+  [@@mel.get] [@@mel.return nullable]
+
+external is_same_node : t -> t -> bool = "isSameNode" [@@mel.send]
+
 (* ----- attributes & content ----- *)
 
 external set_attribute : t -> string -> string -> unit = "setAttribute"
