@@ -50,6 +50,8 @@ external set_text_content : t -> string -> unit = "textContent" [@@mel.set]
 
 external set_value : t -> string -> unit = "value" [@@mel.set]
 
+external set_checked : t -> bool -> unit = "checked" [@@mel.set]
+
 external key : event -> string = "key" [@@mel.get]
 
 (* ----- events ----- *)

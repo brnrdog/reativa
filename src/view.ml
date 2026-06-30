@@ -23,6 +23,8 @@
 type attr =
   | Attr_static of string * string
   | Attr_reactive of string * (unit -> string)
+  | Attr_bool_static of string * bool
+  | Attr_bool_reactive of string * (unit -> bool)
   (* Toggle an attribute's presence (e.g. [disabled]) from a boolean signal. *)
   | Attr_toggle of string * (unit -> bool)
 
@@ -63,6 +65,23 @@ let apply_attr ~(register : register) el = function
     let d =
       Effect.run_with_disposer (fun () ->
         if name = "value" then Dom.set_value el (f ()) else Dom.set_attribute el name (f ());
+        None)
+    in
+    register d.dispose
+  | Attr_bool_static ("checked", v) -> Dom.set_checked el v
+  | Attr_bool_static (name, v) ->
+    if v then Dom.set_attribute el name "" else Dom.remove_attribute el name
+  | Attr_bool_reactive ("checked", f) ->
+    let d =
+      Effect.run_with_disposer (fun () ->
+        Dom.set_checked el (f ());
+        None)
+    in
+    register d.dispose
+  | Attr_bool_reactive (name, f) ->
+    let d =
+      Effect.run_with_disposer (fun () ->
+        if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
         None)
     in
     register d.dispose
@@ -207,6 +226,11 @@ module Attr = struct
   let placeholder v = make "placeholder" v
   let href v = make "href" v
   let disabled f = Attr_toggle ("disabled", f)
+  let bool_property name = function
+    | Static v -> Attr_bool_static (name, v)
+    | Reactive f -> Attr_bool_reactive (name, f)
+
+  let checked v = bool_property "checked" v
 end
 
 (* ----- event helpers ----- *)
@@ -234,6 +258,9 @@ module Mlx = struct
     | Some (Static false) | None -> attrs
     | Some (Reactive f) -> Attr.toggle name f :: attrs
 
+  let push_bool_property name value attrs =
+    match value with Some value -> Attr.bool_property name value :: attrs | None -> attrs
+
   let push_event name handler events =
     match handler with Some handler -> On.on name handler :: events | None -> events
 
@@ -247,6 +274,7 @@ module Mlx = struct
       ?aria_label
       ?style
       ?disabled
+      ?checked
       () =
     []
     |> push_attr "class" class_
@@ -258,6 +286,7 @@ module Mlx = struct
     |> push_attr "aria-label" aria_label
     |> push_attr "style" style
     |> push_toggle "disabled" disabled
+    |> push_bool_property "checked" checked
     |> List.rev
 
   let event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () =
@@ -269,7 +298,7 @@ module Mlx = struct
     |> push_event "submit" onSubmit
     |> List.rev
 
-  let create tag ?class_ ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?onClick
+  let create tag ?class_ ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?checked ?onClick
       ?onInput ?onChange ?onKeyDown ?onSubmit ?(children = []) () =
     let attrs =
       attr_list
@@ -282,6 +311,7 @@ module Mlx = struct
         ?aria_label
         ?style
         ?disabled
+        ?checked
         ()
     in
     let events = event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () in
