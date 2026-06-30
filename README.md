@@ -19,9 +19,9 @@ let doubled = Computed.make (fun () -> Signal.get count * 2)
 let () =
   View.mount_by_id "app"
     <section>
-      <p>(View.dyn_int (fun () -> Signal.get doubled))</p>
+      <p>(View.int (signal doubled))</p>
       <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-        (View.text "+1")
+        (View.text (static "+1"))
       </button>
     </section>
 ```
@@ -45,7 +45,7 @@ Views can be written with constructors:
 ```ocaml
 View.button
   ~events:[ View.On.click (fun _ -> Signal.update count (fun n -> n + 1)) ]
-  [ View.text "+1" ]
+  [ View.text (View.static "+1") ]
 ```
 
 Or with mlx syntax in a `.mlx` file:
@@ -55,12 +55,14 @@ open Reativa
 open Reativa.View.Mlx
 
 <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-  (View.dyn_int (fun () -> Signal.get count))
+  (View.int (signal count))
 </button>
 ```
 
-Useful helpers include `dyn_text`, `dyn_int`, `dyn`, `show`, `maybe`, `for_`,
-`Attr`, `On`, `mount` and `mount_by_id`.
+Use `View.static`, `View.dynamic` or `View.signal` to pass static or reactive
+values to the same `text`, `int`, `float` and attribute helpers. Useful helpers
+also include `dyn`, `show`, `maybe`, `for_`, `Attr`, `On`, `mount` and
+`mount_by_id`.
 
 ## Build, test, demo
 

@@ -2,21 +2,21 @@ open Reativa
 open Reativa.View.Mlx
 
 let code_block title source =
-  <figure class_="code-block">
-    <figcaption>(View.text title)</figcaption>
-    <pre><code>(View.text source)</code></pre>
+  <figure class_=(static "code-block")>
+    <figcaption>(View.text (static title))</figcaption>
+    <pre><code>(View.text (static source))</code></pre>
   </figure>
 
 let definition name text =
-  <div class_="definition">
-    <dt><code>(View.text name)</code></dt>
-    <dd>(View.text text)</dd>
+  <div class_=(static "definition")>
+    <dt><code>(View.text (static name))</code></dt>
+    <dd>(View.text (static text))</dd>
   </div>
 
 let metric label value =
-  <div class_="metric">
-    <span>(View.text label)</span>
-    <strong>(View.dyn_text value)</strong>
+  <div class_=(static "metric")>
+    <span>(View.text (static label))</span>
+    <strong>(View.text (dynamic value))</strong>
   </div>
 
 let () =
@@ -34,7 +34,7 @@ let () =
   let view_code =
     "View.mount_by_id \"app\"\n\
      \  <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>\n\
-     \    (View.dyn_int (fun () -> Signal.get count))\n\
+     \    (View.int (signal count))\n\
      \  </button>"
   in
   let dune_code =
@@ -47,84 +47,87 @@ let () =
   in
 
   View.mount_by_id "app"
-    <div class_="page">
-      <header class_="topbar">
-        <a class_="brand" href="#top">(View.text "reativa")</a>
-        <nav class_="topnav" aria_label="Primary">
-          <a href="#quickstart">(View.text "Quickstart")</a>
-          <a href="#api">(View.text "API")</a>
-          <a href="#views">(View.text "Views")</a>
-          <a href="#background">(View.text "Background")</a>
-          <a href="https://github.com/brnrdog/reativa">(View.text "GitHub")</a>
+    <div class_=(static "page")>
+      <header class_=(static "topbar")>
+        <a class_=(static "brand") href=(static "#top")>(View.text (static "reativa"))</a>
+        <nav class_=(static "topnav") aria_label=(static "Primary")>
+          <a href=(static "#quickstart")>(View.text (static "Quickstart"))</a>
+          <a href=(static "#api")>(View.text (static "API"))</a>
+          <a href=(static "#views")>(View.text (static "Views"))</a>
+          <a href=(static "#background")>(View.text (static "Background"))</a>
+          <a href=(static "https://github.com/brnrdog/reativa")>(View.text (static "GitHub"))</a>
         </nav>
       </header>
 
-      <div id="top" class_="layout">
-        <aside class_="toc" aria_label="Table of contents">
-          <p>(View.text "On this page")</p>
-          <a href="#quickstart">(View.text "Quickstart")</a>
-          <a href="#api">(View.text "API overview")</a>
-          <a href="#views">(View.text "Reactive views")</a>
-          <a href="#background">(View.text "Background")</a>
+      <div id=(static "top") class_=(static "layout")>
+        <aside class_=(static "toc") aria_label=(static "Table of contents")>
+          <p>(View.text (static "On this page"))</p>
+          <a href=(static "#quickstart")>(View.text (static "Quickstart"))</a>
+          <a href=(static "#api")>(View.text (static "API overview"))</a>
+          <a href=(static "#views")>(View.text (static "Reactive views"))</a>
+          <a href=(static "#background")>(View.text (static "Background"))</a>
         </aside>
 
-        <main class_="content">
-          <section class_="intro">
-            <p class_="kicker">(View.text "OCaml UI, powered by signals")</p>
-            <h1>(View.text "Reativa documentation")</h1>
+        <main class_=(static "content")>
+          <section class_=(static "intro")>
+            <p class_=(static "kicker")>(View.text (static "OCaml UI, powered by signals"))</p>
+            <h1>(View.text (static "Reativa documentation"))</h1>
             <p>
               (View.text
-                 "Reativa is an experimental UI library for building browser interfaces with OCaml and Melange. It is based on xote and rescript-signals: views are real DOM nodes, and signals drive the parts that change.")
+                 (static
+                    "Reativa is an experimental UI library for building browser interfaces with OCaml and Melange. It is based on xote and rescript-signals: views are real DOM nodes, and signals drive the parts that change."))
             </p>
           </section>
 
-          <section id="quickstart" class_="doc-section">
-            <h2>(View.text "Quickstart")</h2>
+          <section id=(static "quickstart") class_=(static "doc-section")>
+            <h2>(View.text (static "Quickstart"))</h2>
             <p>
               (View.text
-                 "Install the opam and npm dependencies, then run the docs server or build the demo.")
+                 (static
+                    "Install the opam and npm dependencies, then run the docs server or build the demo."))
             </p>
-            <pre class_="command">
-              <code>(View.text "opam install . --deps-only --with-test\nnpm install\nnpm run docs:dev")</code>
+            <pre class_=(static "command")>
+              <code>(View.text (static "opam install . --deps-only --with-test\nnpm install\nnpm run docs:dev"))</code>
             </pre>
 
-            <div class_="example">
+            <div class_=(static "example")>
               <div>
-                <h3>(View.text "Small reactive example")</h3>
+                <h3>(View.text (static "Small reactive example"))</h3>
                 <p>
                   (View.text
-                     "The number below is a signal. The derived values are computeds. Clicking a button updates only the dependent text.")
+                     (static
+                        "The number below is a signal. The derived values are computeds. Clicking a button updates only the dependent text."))
                 </p>
               </div>
-              <div class_="example-box">
-                <p class_="counter">(View.dyn_int (fun () -> Signal.get count))</p>
-                <div class_="metrics">
+              <div class_=(static "example-box")>
+                <p class_=(static "counter")>(View.int (signal count))</p>
+                <div class_=(static "metrics")>
                   (metric "doubled" (fun () -> string_of_int (Signal.get doubled)))
                   (metric "parity" (fun () -> Signal.get parity))
                 </div>
-                <div class_="example-actions">
+                <div class_=(static "example-actions")>
                   <button onClick=(fun _ -> Signal.update count (fun n -> n - 1))>
-                    (View.text "-")
+                    (View.text (static "-"))
                   </button>
                   <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-                    (View.text "+")
+                    (View.text (static "+"))
                   </button>
-                  <button onClick=(fun _ -> Signal.set count 2)>(View.text "reset")</button>
+                  <button onClick=(fun _ -> Signal.set count 2)>(View.text (static "reset"))</button>
                 </div>
               </div>
             </div>
           </section>
 
-          <section id="api" class_="doc-section">
-            <h2>(View.text "API overview")</h2>
+          <section id=(static "api") class_=(static "doc-section")>
+            <h2>(View.text (static "API overview"))</h2>
             <p>
+              (View.text (static "The public package is "))
+              <code>(View.text (static "Reativa"))</code>
               (View.text
-                 "The public package is ")
-              <code>(View.text "Reativa")</code>
-              (View.text
-                 ". The signal primitives can be used directly, and the view layer uses them as its update model.")
+                 (static
+                    ". The signal primitives can be used directly, and the view layer uses them as its update model."))
             </p>
-            <dl class_="definitions">
+            <dl class_=(static "definitions")>
               (definition "Signal" "Mutable reactive state. Use get to track, peek to read without tracking, and set or update to write.")
               (definition "Computed" "A lazy derived value. It caches until one of the signals it read changes.")
               (definition "Effect" "A tracked side effect. It re-runs when dependencies change and can return cleanup work.")
@@ -134,35 +137,36 @@ let () =
             (code_block "signals" signal_code)
           </section>
 
-          <section id="views" class_="doc-section">
-            <h2>(View.text "Reactive views")</h2>
+          <section id=(static "views") class_=(static "doc-section")>
+            <h2>(View.text (static "Reactive views"))</h2>
             <p>
-              <code>(View.text "Reativa.View")</code>
+              <code>(View.text (static "Reativa.View"))</code>
               (View.text
-                 " creates DOM nodes directly. Reactive text, attributes and dynamic regions are wired to effects. ")
-              <code>(View.text "mlx")</code>
-              (View.text " is syntax for the same constructors.")
+                 (static
+                    " creates DOM nodes directly. Reactive text, attributes and dynamic regions are wired to effects. "))
+              <code>(View.text (static "mlx"))</code>
+              (View.text (static " is syntax for the same constructors."))
             </p>
             (code_block "view" view_code)
             (code_block "website/src/dune" dune_code)
           </section>
 
-          <section id="background" class_="doc-section">
-            <h2>(View.text "Background")</h2>
+          <section id=(static "background") class_=(static "doc-section")>
+            <h2>(View.text (static "Background"))</h2>
             <p>
-              (View.text "Reativa follows the fine-grained UI model used by ")
-              <a href="https://github.com/brnrdog/xote">(View.text "xote")</a>
-              (View.text ", and ports the signal graph ideas from ")
-              <a href="https://github.com/brnrdog/rescript-signals">
-                (View.text "rescript-signals")
+              (View.text (static "Reativa follows the fine-grained UI model used by "))
+              <a href=(static "https://github.com/brnrdog/xote")>(View.text (static "xote"))</a>
+              (View.text (static ", and ports the signal graph ideas from "))
+              <a href=(static "https://github.com/brnrdog/rescript-signals")>
+                (View.text (static "rescript-signals"))
               </a>
-              (View.text " to idiomatic OCaml. The project is still experimental.")
+              (View.text (static " to idiomatic OCaml. The project is still experimental."))
             </p>
           </section>
         </main>
       </div>
 
-      <footer class_="footer">
-        <span>(View.text "MIT (c) Bernardo Gurgel. Experimental API.")</span>
+      <footer class_=(static "footer")>
+        <span>(View.text (static "MIT (c) Bernardo Gurgel. Experimental API."))</span>
       </footer>
     </div>

@@ -28,6 +28,10 @@ type attr =
 
 type handler = string * (Dom.event -> unit)
 
+type 'a value =
+  | Static of 'a
+  | Reactive of (unit -> 'a)
+
 type t =
   | Empty
   | Text of string
@@ -129,13 +133,21 @@ let rec insert ~(register : register) parent before view (acc : Dom.t list ref) 
 
 (* ----- public constructors ----- *)
 
+let static value = Static value
+let dynamic value = Reactive value
+let signal signal = Reactive (fun () -> Signal.get signal)
+
+let map_value f = function
+  | Static value -> Static (f value)
+  | Reactive value -> Reactive (fun () -> f (value ()))
+
 let empty = Empty
-let text s = Text s
-let int n = Text (string_of_int n)
-let float f = Text (string_of_float f)
-let dyn_text f = Reactive_text f
-let dyn_int f = Reactive_text (fun () -> string_of_int (f ()))
-let dyn_float f = Reactive_text (fun () -> string_of_float (f ()))
+let text = function Static s -> Text s | Reactive f -> Reactive_text f
+let int value = text (map_value string_of_int value)
+let float value = text (map_value string_of_float value)
+let dyn_text f = text (dynamic f)
+let dyn_int f = int (dynamic f)
+let dyn_float f = float (dynamic f)
 let fragment views = Fragment views
 
 let element ?(attrs = []) ?(events = []) tag children =
@@ -180,17 +192,20 @@ let section = tag "section"
 (* ----- attribute helpers ----- *)
 
 module Attr = struct
-  let make name v = Attr_static (name, v)
-  let reactive name f = Attr_reactive (name, f)
+  let make name = function
+    | Static v -> Attr_static (name, v)
+    | Reactive f -> Attr_reactive (name, f)
+
+  let reactive name f = make name (dynamic f)
   let toggle name f = Attr_toggle (name, f)
-  let class_ v = Attr_static ("class", v)
-  let class_reactive f = Attr_reactive ("class", f)
-  let id v = Attr_static ("id", v)
-  let type_ v = Attr_static ("type", v)
-  let value v = Attr_static ("value", v)
-  let value_reactive f = Attr_reactive ("value", f)
-  let placeholder v = Attr_static ("placeholder", v)
-  let href v = Attr_static ("href", v)
+  let class_ v = make "class" v
+  let class_reactive f = class_ (dynamic f)
+  let id v = make "id" v
+  let type_ v = make "type" v
+  let value v = make "value" v
+  let value_reactive f = value (dynamic f)
+  let placeholder v = make "placeholder" v
+  let href v = make "href" v
   let disabled f = Attr_toggle ("disabled", f)
 end
 
@@ -206,44 +221,42 @@ module On = struct
 end
 
 module Mlx = struct
-  let push_static name value attrs =
+  let static = static
+  let dynamic = dynamic
+  let signal = signal
+
+  let push_attr name value attrs =
     match value with Some value -> Attr.make name value :: attrs | None -> attrs
 
-  let push_reactive name value attrs =
-    match value with Some value -> Attr.reactive name value :: attrs | None -> attrs
-
   let push_toggle name value attrs =
-    match value with Some value -> Attr.toggle name value :: attrs | None -> attrs
+    match value with
+    | Some (Static true) -> Attr.make name (static "") :: attrs
+    | Some (Static false) | None -> attrs
+    | Some (Reactive f) -> Attr.toggle name f :: attrs
 
   let push_event name handler events =
     match handler with Some handler -> On.on name handler :: events | None -> events
 
   let attr_list
       ?class_
-      ?class_reactive
       ?id
       ?type_
       ?value
-      ?value_reactive
       ?placeholder
       ?href
       ?aria_label
       ?style
-      ?style_reactive
       ?disabled
       () =
     []
-    |> push_static "class" class_
-    |> push_reactive "class" class_reactive
-    |> push_static "id" id
-    |> push_static "type" type_
-    |> push_static "value" value
-    |> push_reactive "value" value_reactive
-    |> push_static "placeholder" placeholder
-    |> push_static "href" href
-    |> push_static "aria-label" aria_label
-    |> push_static "style" style
-    |> push_reactive "style" style_reactive
+    |> push_attr "class" class_
+    |> push_attr "id" id
+    |> push_attr "type" type_
+    |> push_attr "value" value
+    |> push_attr "placeholder" placeholder
+    |> push_attr "href" href
+    |> push_attr "aria-label" aria_label
+    |> push_attr "style" style
     |> push_toggle "disabled" disabled
     |> List.rev
 
@@ -256,22 +269,18 @@ module Mlx = struct
     |> push_event "submit" onSubmit
     |> List.rev
 
-  let create tag ?class_ ?class_reactive ?id ?type_ ?value ?value_reactive ?placeholder ?href
-      ?aria_label ?style ?style_reactive ?disabled ?onClick ?onInput ?onChange ?onKeyDown
-      ?onSubmit ?(children = []) () =
+  let create tag ?class_ ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?onClick
+      ?onInput ?onChange ?onKeyDown ?onSubmit ?(children = []) () =
     let attrs =
       attr_list
         ?class_
-        ?class_reactive
         ?id
         ?type_
         ?value
-        ?value_reactive
         ?placeholder
         ?href
         ?aria_label
         ?style
-        ?style_reactive
         ?disabled
         ()
     in
