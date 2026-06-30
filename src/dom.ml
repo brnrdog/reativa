@@ -50,6 +50,8 @@ external set_text_content : t -> string -> unit = "textContent" [@@mel.set]
 
 external set_value : t -> string -> unit = "value" [@@mel.set]
 
+external key : event -> string = "key" [@@mel.get]
+
 (* ----- events ----- *)
 
 external add_event_listener : t -> string -> (event -> unit) -> unit
