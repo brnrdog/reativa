@@ -4,6 +4,7 @@ open Reativa.View.Mlx
 let checked = Signal.make false
 let draft = Signal.make "hello"
 let numbers = Signal.make [ 1; 2; 3 ]
+let selected = Signal.make (Some "selected")
 
 let _view =
   ((section
@@ -39,6 +40,21 @@ let _keyed_for_each_view =
       ~items:(fun () -> Signal.get numbers)
       ~key:string_of_int
       ~render:(fun item -> ((span ~children:[ View.int item ] ()) [@JSX])))
+   [@JSX])
+
+let _show_view =
+  ((View.Show.createElement ()
+      ~children:[ ((span ~children:[ View.text "Visible" ] ()) [@JSX]) ]
+      ~condition:(fun () -> Signal.get checked)
+      ~fallback:((span ~children:[ View.text "Hidden" ] ()) [@JSX]))
+   [@JSX])
+
+let _maybe_view =
+  ((View.Maybe.createElement ()
+      ~children:[]
+      ~value:(fun () -> Signal.get selected)
+      ~render:(fun value -> ((span ~children:[ View.text value ] ()) [@JSX]))
+      ~fallback:((span ~children:[ View.text "Nothing selected" ] ()) [@JSX]))
    [@JSX])
 
 let () = print_endline "mlx inference ok"

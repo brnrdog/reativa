@@ -146,15 +146,31 @@ let counter =
   </button>
 ```
 
-Use `View.show` for conditional rendering:
+Use `View.Show` for conditional rendering:
 
 ```ocaml
 <section>
-  (View.show
-    ~fallback:(<p>(View.text "Hidden")</p>)
-    (fun () -> Signal.get count > 0)
-    (<p>(View.text "Visible")</p>))
+  <View.Show
+    condition=(fun () -> Signal.get count > 0)
+    fallback=(<p>(View.text "Hidden")</p>)
+  >
+    <p>(View.text "Visible")</p>
+  </View.Show>
 </section>
+```
+
+Use `View.Maybe` to render the `Some` branch of an option:
+
+```ocaml
+let selected : string option Signal.t = Signal.make None
+
+let selected_view =
+  <View.Maybe
+    value=(fun () -> Signal.get selected)
+    fallback=(<p>(View.text "Nothing selected")</p>)
+    render=(fun value ->
+      <p>(View.text value)</p>)
+  />
 ```
 
 Use `View.ForEach` for JSX list rendering. Add `key` to reconcile rows by

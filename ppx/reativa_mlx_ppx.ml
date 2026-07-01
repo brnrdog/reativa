@@ -57,6 +57,7 @@ let inferred_value_labels =
     "className";
     "class_";
     "checked";
+    "condition";
     "disabled";
     "href";
     "id";

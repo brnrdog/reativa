@@ -386,6 +386,22 @@ let for_ items f = Dynamic (fun () -> Fragment (List.map f (items ())))
 let for_with_key items ~key render = Keyed { items; key; render }
 let forWithKey = for_with_key
 
+module Show = struct
+  let component ?(fallback = Empty) ~condition ~children () =
+    show ~fallback (value_getter condition) (Fragment children)
+
+  let createElement ?fallback () ~children ~condition =
+    component ?fallback ~condition ~children ()
+end
+
+module Maybe = struct
+  let component ?(fallback = Empty) ~value ~render () =
+    maybe ~fallback (value_getter value) render
+
+  let createElement ?fallback () ~children:_ ~value ~render =
+    component ?fallback ~value ~render ()
+end
+
 module ForEach = struct
   let component ?key ~items ~render () =
     let items = value_getter items in
