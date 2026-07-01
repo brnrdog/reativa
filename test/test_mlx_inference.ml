@@ -3,6 +3,7 @@ open Reativa.View.Mlx
 
 let checked = Signal.make false
 let draft = Signal.make "hello"
+let numbers = Signal.make [ 1; 2; 3 ]
 
 let _view =
   ((section
@@ -23,6 +24,21 @@ let _view =
            [@JSX]);
         ]
       ())
+   [@JSX])
+
+let _for_each_view =
+  ((View.ForEach.createElement ()
+      ~children:[]
+      ~items:[ 1; 2; 3 ]
+      ~render:(fun item -> ((span ~children:[ View.int item ] ()) [@JSX])))
+   [@JSX])
+
+let _keyed_for_each_view =
+  ((View.ForEach.createElement ()
+      ~children:[]
+      ~items:(fun () -> Signal.get numbers)
+      ~key:string_of_int
+      ~render:(fun item -> ((span ~children:[ View.int item ] ()) [@JSX])))
    [@JSX])
 
 let () = print_endline "mlx inference ok"

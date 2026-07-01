@@ -60,6 +60,7 @@ let inferred_value_labels =
     "disabled";
     "href";
     "id";
+    "items";
     "placeholder";
     "style";
     "type_";

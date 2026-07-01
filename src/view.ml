@@ -53,6 +53,13 @@ type t =
         render : 'item Signal.t -> t;
       }
       -> t
+  | Keyed_raw :
+      {
+        items : unit -> 'item list;
+        key : 'item -> string;
+        render : 'item -> t;
+      }
+      -> t
 
 type 'item keyed_block = {
   key : string;
@@ -182,6 +189,65 @@ let rec reconcile_keyed :
   ignore (List.fold_right (move_block_before parent) next_blocks anchor);
   blocks := next_blocks;
 
+and reconcile_keyed_raw :
+  type item.
+  Dom.t ->
+  Dom.t ->
+  item list ->
+  (item -> string) ->
+  (item -> t) ->
+  item keyed_block list ref ->
+  unit =
+ fun parent anchor items key render blocks ->
+  let old_by_key = Hashtbl.create (List.length !blocks) in
+  List.iter (fun block -> Hashtbl.replace old_by_key block.key block) !blocks;
+  let seen_keys = Hashtbl.create (List.length items) in
+  let create_block ?(before = anchor) item item_key =
+    let local_nodes = ref [] in
+    let local_disposers = ref [] in
+    let block_register dispose = local_disposers := dispose :: !local_disposers in
+    insert ~register:block_register parent (Some before) (render item) local_nodes;
+    {
+      key = item_key;
+      item = Signal.make item;
+      nodes = List.rev !local_nodes;
+      disposers = !local_disposers;
+    }
+  in
+  let keyed_items =
+    List.map
+      (fun item ->
+        let item_key = key item in
+        if Hashtbl.mem seen_keys item_key then
+          failwith ("View.for_with_key: duplicate key " ^ item_key);
+        Hashtbl.add seen_keys item_key ();
+        (item_key, item))
+      items
+  in
+  let next_blocks =
+    List.map
+      (fun (item_key, item) ->
+        match Hashtbl.find_opt old_by_key item_key with
+        | Some block when item == Signal.peek block.item ->
+          Hashtbl.remove old_by_key item_key;
+          block
+        | Some block ->
+          Hashtbl.remove old_by_key item_key;
+          let before =
+            match block.nodes with
+            | first :: _ -> first
+            | [] -> anchor
+          in
+          let next_block = create_block ~before item item_key in
+          dispose_keyed_block parent block;
+          next_block
+        | None -> create_block item item_key)
+      keyed_items
+  in
+  Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
+  ignore (List.fold_right (move_block_before parent) next_blocks anchor);
+  blocks := next_blocks;
+
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
    or appended when [before] is [None]). Top-level nodes are pushed onto [acc]
    so a [Dynamic] region can later remove exactly what it inserted. *)
@@ -255,6 +321,23 @@ and insert ~(register : register) parent before view (acc : Dom.t list ref) =
     register (fun () ->
       d.dispose ();
       cleanup ())
+  | Keyed_raw { items; key; render } ->
+    let anchor = Dom.create_comment "" in
+    place parent before anchor;
+    acc := anchor :: !acc;
+    let blocks = ref [] in
+    let cleanup () =
+      List.iter (dispose_keyed_block parent) !blocks;
+      blocks := []
+    in
+    let d =
+      Effect.run_with_disposer (fun () ->
+        reconcile_keyed_raw parent anchor (items ()) key render blocks;
+        None)
+    in
+    register (fun () ->
+      d.dispose ();
+      cleanup ())
 
 (* ----- public constructors ----- *)
 
@@ -262,6 +345,7 @@ let static value = Static value
 let dynamic value = Reactive value
 let signal signal = Reactive (fun () -> Signal.get signal)
 
+let value_getter = function Static value -> fun () -> value | Reactive f -> f
 let map_value f = function
   | Static value -> Static (f value)
   | Reactive value -> Reactive (fun () -> f (value ()))
@@ -301,6 +385,17 @@ let for_ items f = Dynamic (fun () -> Fragment (List.map f (items ())))
    item value for that key. *)
 let for_with_key items ~key render = Keyed { items; key; render }
 let forWithKey = for_with_key
+
+module ForEach = struct
+  let component ?key ~items ~render () =
+    let items = value_getter items in
+    match key with
+    | None -> for_ items render
+    | Some key -> Keyed_raw { items; key; render }
+
+  let createElement ?key () ~children:_ ~items ~render =
+    component ?key ~items ~render ()
+end
 
 (* ----- common HTML element helpers ----- *)
 
