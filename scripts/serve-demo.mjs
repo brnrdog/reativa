@@ -1,10 +1,18 @@
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { createReadStream, watch } from "node:fs";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 
 const defaultPort = Number.parseInt(process.env.PORT ?? "8080", 10);
 const host = process.env.HOST ?? "127.0.0.1";
+const reloadPath = "/__reativa/reload";
+const reloadClient = `
+<script>
+(() => {
+  const source = new EventSource("${reloadPath}");
+  source.addEventListener("reload", () => window.location.reload());
+})();
+</script>`;
 
 const args = process.argv.slice(2);
 const portFlagIndex = args.indexOf("--port");
@@ -33,12 +41,101 @@ const contentTypes = new Map([
   [".svg", "image/svg+xml"],
 ]);
 
-function resolveRequestPath(url) {
-  let pathname;
+const reloadClients = new Set();
+let reloadTimer = null;
+
+function requestPathname(url) {
+  try {
+    return decodeURIComponent(new URL(url, "http://localhost").pathname);
+  } catch {
+    return null;
+  }
+}
+
+function scheduleReload() {
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    for (const client of reloadClients) {
+      client.write("event: reload\ndata: changed\n\n");
+    }
+  }, 80);
+}
+
+async function watchDemoRoot() {
+  const watchedDirectories = new Set();
+
+  async function watchDirectory(directory) {
+    if (watchedDirectories.has(directory)) {
+      return;
+    }
+
+    watchedDirectories.add(directory);
+
+    try {
+      const watcher = watch(directory, (_event, filename) => {
+        if (!filename) {
+          scheduleReload();
+          return;
+        }
+
+        const changedPath = normalize(filename.toString());
+
+        if (changedPath.includes(`${sep}.`) || changedPath.endsWith("~")) {
+          return;
+        }
+
+        scheduleReload();
+      });
+
+      watcher.on("error", (error) => {
+        console.error(`Unable to watch ${relative(process.cwd(), directory)}: ${error.message}`);
+      });
+    } catch (error) {
+      console.error(`Unable to watch ${relative(process.cwd(), directory)}: ${error.message}`);
+      return;
+    }
+
+    const entries = await readdir(directory, { withFileTypes: true });
+
+    await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+        .map((entry) => watchDirectory(join(directory, entry.name))),
+    );
+  }
 
   try {
-    pathname = decodeURIComponent(new URL(url, "http://localhost").pathname);
-  } catch {
+    await watchDirectory(demoRoot);
+  } catch (error) {
+    console.error(`Unable to watch demo files: ${error.message}`);
+  }
+}
+
+function serveReloadEvents(req, res) {
+  if (req.method !== "GET") {
+    res.writeHead(405, { Allow: "GET" });
+    res.end("Method not allowed\n");
+    return;
+  }
+
+  res.writeHead(200, {
+    "Cache-Control": "no-store",
+    "Connection": "keep-alive",
+    "Content-Type": "text/event-stream; charset=utf-8",
+  });
+  res.write("event: ready\ndata: connected\n\n");
+
+  reloadClients.add(res);
+
+  req.on("close", () => {
+    reloadClients.delete(res);
+  });
+}
+
+function resolveRequestPath(url) {
+  const pathname = requestPathname(url);
+
+  if (!pathname) {
     return null;
   }
 
@@ -51,6 +148,21 @@ function resolveRequestPath(url) {
   }
 
   return filePath;
+}
+
+async function serveHtml(filePath, fileStat, res) {
+  const html = await readFile(filePath, "utf8");
+  const body = html.includes("</body>")
+    ? html.replace("</body>", `${reloadClient}\n  </body>`)
+    : `${html}\n${reloadClient}\n`;
+
+  res.writeHead(200, {
+    "Cache-Control": "no-store",
+    "Content-Length": Buffer.byteLength(body),
+    "Content-Type": "text/html; charset=utf-8",
+    "Last-Modified": fileStat.mtime.toUTCString(),
+  });
+  res.end(body);
 }
 
 async function serveFile(req, res) {
@@ -77,9 +189,26 @@ async function serveFile(req, res) {
       return;
     }
 
+    if (extname(filePath) === ".html") {
+      if (req.method === "HEAD") {
+        res.writeHead(200, {
+          "Cache-Control": "no-store",
+          "Content-Type": "text/html; charset=utf-8",
+          "Last-Modified": fileStat.mtime.toUTCString(),
+        });
+        res.end();
+        return;
+      }
+
+      await serveHtml(filePath, fileStat, res);
+      return;
+    }
+
     res.writeHead(200, {
+      "Cache-Control": "no-store",
       "Content-Length": fileStat.size,
       "Content-Type": contentTypes.get(extname(filePath)) ?? "application/octet-stream",
+      "Last-Modified": fileStat.mtime.toUTCString(),
     });
 
     if (req.method === "HEAD") {
@@ -102,6 +231,11 @@ async function serveFile(req, res) {
 }
 
 const server = createServer((req, res) => {
+  if (requestPathname(req.url ?? "/") === reloadPath) {
+    serveReloadEvents(req, res);
+    return;
+  }
+
   serveFile(req, res);
 });
 
@@ -116,4 +250,5 @@ server.listen(port, host, () => {
   const servedPath = relative(process.cwd(), demoRoot) || ".";
 
   console.log(`Serving ${servedPath} at http://${host}:${resolvedPort}/`);
+  watchDemoRoot();
 });
