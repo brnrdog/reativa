@@ -21,7 +21,7 @@ let () =
     <section>
       <p>(View.int (signal doubled))</p>
       <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-        (View.text (static "+1"))
+        (View.text "+1")
       </button>
     </section>
 ```
@@ -59,10 +59,51 @@ open Reativa.View.Mlx
 </button>
 ```
 
-Use `View.static`, `View.dynamic` or `View.signal` to pass static or reactive
-values to the same `text`, `int`, `float` and attribute helpers. Useful helpers
-also include `dyn`, `show`, `maybe`, `for_`, `Attr`, `On`, `mount` and
-`mount_by_id`.
+In `.mlx` files, JSX props and `View.text`, `View.int` and `View.float` infer
+their value wrapper. Plain values become static values, and thunks become
+dynamic values:
+
+```ocaml
+<input
+  className="todo-input"
+  value=(fun () -> Signal.get draft)
+/>
+```
+
+For constructor-style code outside `.mlx`, use `View.static`, `View.dynamic` or
+`View.signal` explicitly. Useful helpers also include `dyn`, `show`, `maybe`,
+`for_`, `Attr`, `On`, `mount` and `mount_by_id`.
+
+Inference is syntax-based, so use an inline thunk for reactive JSX values. If a
+thunk is stored in a variable first, keep the explicit `dynamic` wrapper.
+
+Capitalized mlx tags can reference module components. Define `component` inside
+a module, then use the module name as a tag:
+
+```ocaml
+module Greeting = struct
+  let component = fun ~name ->
+    <h2>
+      (View.text "Greetings ")
+      (View.text name)
+    </h2>
+end
+
+let main = fun () ->
+  <Greeting name="OCaml" />
+```
+
+Use `View.forWithKey` when rendering a list with stable, unique string keys.
+Rows are reconciled by key and the row renderer receives a signal containing
+the latest item for that key:
+
+```ocaml
+View.forWithKey
+  (fun () -> Signal.get todos)
+  ~key:(fun todo -> string_of_int todo.id)
+  (fun todo ->
+    <li>(View.text (fun () -> (Signal.get todo).title))</li>)
+```
 
 ## Build, test, demo
 
@@ -75,6 +116,10 @@ npm run demo
 npm run demo:serve
 npm run docs:dev
 ```
+
+For the demo development loop, run `npm run demo:watch` in one terminal and
+`npm run demo:serve` in another. The server injects a small reload client and
+refreshes the browser when rebuilt demo files change.
 
 ## License
 
