@@ -1,0 +1,5 @@
+(library
+ (name reativa_mlx_ppx)
+ (public_name reativa.mlx_ppx)
+ (kind ppx_rewriter)
+ (libraries ppxlib))

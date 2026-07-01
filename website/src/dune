@@ -5,5 +5,5 @@
  (modules app)
  (libraries reativa)
  (preprocess
-  (pps melange.ppx))
+  (pps reativa.mlx_ppx melange.ppx))
  (module_systems es6))
