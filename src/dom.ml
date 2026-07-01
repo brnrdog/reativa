@@ -72,3 +72,5 @@ external target : event -> t = "target" [@@mel.get]
 external value : t -> string = "value" [@@mel.get]
 
 let target_value ev = value (target ev)
+
+external log : 'a -> unit = "log" [@@mel.scope "console"]
