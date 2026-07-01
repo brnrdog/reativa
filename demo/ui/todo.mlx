@@ -10,89 +10,105 @@ let todos = Signal.make[
 let next_id = Signal.make 4
 
 module TodoItem = struct
-  module Classes = struct
-    let todo = "todo"
-    let completedStyle = fun ~completed ->
-      if completed
-      then "completed"
-      else ""
-
-    let item = fun ~completed ->
-      todo ^
-      " " ^
-      (completedStyle ~completed)
-  end
-
   let component = fun ~todo ->
     let onCompletedToggled = fun (_e) ->
-      let id = (Signal.peek todo).id in
+      let id = todo.id in
       Signal.update todos (fun todos ->
         List.map (fun t -> if t.id = id then { t with completed = not t.completed } else t) todos)
     in
 
-    <li className=(fun () -> Classes.item ~completed:(Signal.get todo).completed)>
-      <input
-        type_="checkbox"
-        className="todo-checkbox"
-        onChange=(onCompletedToggled)
-        checked=(fun () -> (Signal.get todo).completed)
-      />
-      <span className="todo-title-text">
-        (View.text (fun () -> (Signal.get todo).title))
-      </span>
+    <li className="todo">
+      <label className="todo-label">
+        <input
+          type_="checkbox"
+          className="todo-checkbox"
+          onChange=(onCompletedToggled)
+          checked=todo.completed
+        />
+        <span className="todo-title-text">
+          (View.text todo.title)
+        </span>
+      </label>
     </li>
 end
 
 module TodoList = struct
   let component = fun ~todos ->
     <ul className="todo-list">
-      (View.forWithKey
-        (fun () -> Signal.get todos)
-        ~key:(fun item -> string_of_int item.id)
-        (fun todo -> <TodoItem todo />))
+      <View.ForEach
+        items=(fun () -> Signal.get todos)
+        key=(fun item -> string_of_int item.id)
+        render=(fun todo -> <TodoItem todo />)
+      />
     </ul>
 end
 
 module TodoApp = struct
-    let component = fun () ->
-      let todo_title = Signal.make "" in
-      let add_todo = fun () ->
-        let id = Signal.peek next_id in
-        Signal.set next_id (id + 1);
-        let title = Signal.peek todo_title in
-        let completed = false in
-        Signal.update todos (fun todos -> todos @ [ { id; title; completed } ]);
-        Signal.set todo_title "";
-        ()
-      in
-      let onKeyDown = fun e ->
-        match(Dom.key e) with
-        | "Enter" ->add_todo ();
-        | _ -> Signal.set todo_title (Dom.target_value e); ();
-        in
-      Effect.run(fun () ->
-        Dom.log (Signal.get todo_title);
-        None);
-      <div className="todo-shell">
-        <h1 className="todo-title">(View.text "My tasks")</h1>
-        <p className="todo-copy">(View.text "Enter a task and press Enter to add it to your list.")</p>
-        <div className="todo-composer">
-          <input
-            value=(fun () -> Signal.get todo_title)
-            placeholder="Enter a todo"
-            className="todo-input"
-            type_="text"
-            onKeyDown
-          />
-          <button
-            onClick=(fun (_e) -> add_todo ())
-            className="todo-action"
-            >
-            (View.text "+ Add")
+  type filter = All | Completed | Incomplete
+  let filters = Signal.make All
+
+  let filtered_todos = Computed.make (fun () ->
+    match (Signal.get filters) with
+    | All -> Signal.get todos
+    | Completed -> List.filter (fun todo -> todo.completed) (Signal.get todos)
+    | Incomplete -> List.filter (fun todo -> not todo.completed) (Signal.get todos))
+
+  let component = fun () ->
+    let todo_title = Signal.make "" in
+    let add_todo = fun () ->
+      let id = Signal.peek next_id in
+      Signal.set next_id (id + 1);
+      let title = Signal.peek todo_title in
+      let completed = false in
+      Signal.update todos (fun todos -> todos @ [ { id; title; completed } ]);
+      Signal.set todo_title "";
+      ()
+    in
+
+    <div className="todo-shell">
+      <h1 className="todo-title">(View.text "My tasks")</h1>
+      <p className="todo-copy">(View.text "Enter a task and press Enter to add it to your list.")</p>
+      <div className="todo-composer">
+        <input
+          value=(fun () -> Signal.get todo_title)
+          placeholder="Enter a todo"
+          className="todo-input"
+          type_="text"
+          onKeyDown=(fun e -> match(Dom.key e) with
+            | "Enter" ->add_todo ()
+            | _ -> Signal.set todo_title (Dom.target_value e))
+        />
+        <button
+          onClick=(fun (_e) -> add_todo ())
+          className="todo-action"
+          >
+          (View.text "+ Add")
+        </button>
+      </div>
+      <TodoList todos=filtered_todos />
+      <div className="flex flex-col gap-3">
+        <div className="todo-filters">
+          <button onClick=(fun (_e) -> Signal.set filters All)>
+            (View.text "All")
+            (View.text " (")
+            (View.int (fun () -> List.length (Signal.get todos)))
+            (View.text ")")
+          </button>
+          <button onClick=(fun (_e) -> Signal.set filters Completed)>
+            (View.text "Completed")
+            (View.text " (")
+            (View.int (fun () -> List.length (List.filter (fun t -> t.completed) (Signal.get todos))))
+            (View.text ")")
+          </button>
+          <button onClick=(fun (_e) -> Signal.set filters Incomplete)>
+            (View.text "Incomplete")
+            (View.text " (")
+            (View.int (fun () -> List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos))))
+            (View.text ")")
           </button>
         </div>
-        <TodoList todos />
       </div>
+    </div>
 end
 
 let () =

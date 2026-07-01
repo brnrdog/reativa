@@ -53,11 +53,19 @@
                     @apply mt-6 space-y-2;
                 }
 
+                .todo-filters {
+                    @apply flex gap-2 mx-auto mt-6;
+                }
+
+                .todo-filters button {
+                    @apply rounded-lg bg-paper text-ink px-4 py-1 text-sm font-semibold outline-none transition hover:bg-slate-50;
+                }
+
                 .todo {
                     @apply flex min-h-12 items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:border-slate-300;
                 }
 
-                .todo.completed {
+                .todo:has(.todo-checkbox:checked) {
                     @apply bg-wash text-muted;
                 }
 
@@ -69,7 +77,11 @@
                     @apply min-w-0 flex-1 truncate;
                 }
 
-                .todo.completed .todo-title-text {
+                .todo-label {
+                    @apply flex items-center gap-3;
+                }
+
+                .todo:has(.todo-checkbox:checked) .todo-title-text {
                     @apply text-muted line-through;
                 }
             }
