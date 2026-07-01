@@ -1,6 +1,6 @@
 # reativa
 
-Experimental UI library for building reactive browser interfaces with
+Experimental UI library for building reactive user interfaces for the web with
 **OCaml** and **Melange**.
 
 reativa is powered by fine-grained signals and inspired by
@@ -26,58 +26,159 @@ let () =
     </section>
 ```
 
-## What is included
+## Core APIs
 
-- **`Signal`**: mutable reactive state.
-- **`Computed`**: lazy derived values with dependency tracking.
-- **`Effect`**: tracked side effects with optional cleanup.
-- **`View`**: DOM view constructors and control flow helpers.
-- **`.mlx` syntax**: JSX-like syntax for `Reativa.View`, parsed by
-  `ocaml-mlx/mlx`.
+The signal graph is plain OCaml. The view layer targets the browser through
+Melange and can be written with constructors or `.mlx` JSX-like syntax.
 
-The signal graph and scheduler are plain OCaml. `View` and `Dom` target the
-browser through Melange.
+### Signal
 
-## View basics
-
-Views can be written with constructors:
+`Signal.t` is mutable reactive state. Use `get` inside computeds, effects and
+dynamic views to track reads. Use `peek` when you need the current value without
+creating a dependency.
 
 ```ocaml
-View.button
-  ~events:[ View.On.click (fun _ -> Signal.update count (fun n -> n + 1)) ]
-  [ View.text (View.static "+1") ]
+open Reativa
+
+let count = Signal.make 0
+
+let current = Signal.peek count
+
+let () =
+  Signal.set count 1;
+  Signal.update count (fun n -> n + 1)
 ```
 
-Or with mlx syntax in a `.mlx` file:
+Batch multiple writes into one flush:
+
+```ocaml
+let first_name = Signal.make ""
+let last_name = Signal.make ""
+
+Signal.batch (fun () ->
+  Signal.set first_name "Ada";
+  Signal.set last_name "Lovelace")
+```
+
+### Computed
+
+`Computed.make` creates a lazy derived signal. It tracks every `Signal.get`
+called while computing and refreshes when one of those dependencies changes.
+
+```ocaml
+let count = Signal.make 2
+
+let doubled =
+  Computed.make (fun () -> Signal.get count * 2)
+
+let label =
+  Computed.make (fun () ->
+    "Count: " ^ string_of_int (Signal.get count))
+
+let () =
+  Signal.set count 10;
+  assert (Signal.peek doubled = 20)
+```
+
+Use `~equals` to prevent downstream work when the derived value is unchanged:
+
+```ocaml
+let parity =
+  Computed.make ~equals:( = ) (fun () -> Signal.get count mod 2)
+```
+
+### Effect
+
+`Effect.run` runs immediately and then re-runs whenever a tracked read changes.
+Return `Some cleanup` when work needs to be cleaned up before the next run.
+
+```ocaml
+let count = Signal.make 0
+
+let () =
+  Effect.run (fun () ->
+    Printf.printf "count changed: %d\n" (Signal.get count);
+    None)
+```
+
+Use `run_with_disposer` when you need to stop an effect manually:
+
+```ocaml
+let disposer =
+  Effect.run_with_disposer (fun () ->
+    ignore (Signal.get count);
+    Some (fun () -> print_endline "cleanup"))
+
+let () = disposer.dispose ()
+```
+
+### View
+
+The view layer mounts real DOM nodes once. Static values are created once;
+dynamic text, attributes and regions update through effects.
+
+Constructor-style views use explicit value wrappers:
+
+```ocaml
+let counter count =
+  View.button
+    ~attrs:[ View.Attr.className (View.static "counter-button") ]
+    ~events:[ View.On.click (fun _ -> Signal.update count (fun n -> n + 1)) ]
+    [ View.text (View.dynamic (fun () -> "Count " ^ string_of_int (Signal.get count))) ]
+```
+
+In `.mlx` files, JSX props and `View.text`, `View.int` and `View.float` infer
+their wrapper. Plain values become static values, and inline thunks become
+dynamic values:
 
 ```ocaml
 open Reativa
 open Reativa.View.Mlx
 
-<button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-  (View.int (signal count))
-</button>
+let count = Signal.make 0
+
+let counter =
+  <button
+    className="counter-button"
+    onClick=(fun _ -> Signal.update count (fun n -> n + 1))
+  >
+    (View.text (fun () -> "Count " ^ string_of_int (Signal.get count)))
+  </button>
 ```
 
-In `.mlx` files, JSX props and `View.text`, `View.int` and `View.float` infer
-their value wrapper. Plain values become static values, and thunks become
-dynamic values:
+Use `View.show` for conditional rendering:
 
 ```ocaml
-<input
-  className="todo-input"
-  value=(fun () -> Signal.get draft)
-/>
+<section>
+  (View.show
+    ~fallback:(<p>(View.text "Hidden")</p>)
+    (fun () -> Signal.get count > 0)
+    (<p>(View.text "Visible")</p>))
+</section>
 ```
 
-For constructor-style code outside `.mlx`, use `View.static`, `View.dynamic` or
-`View.signal` explicitly. Useful helpers also include `dyn`, `show`, `maybe`,
-`for_`, `Attr`, `On`, `mount` and `mount_by_id`.
+Use `View.ForEach` for JSX list rendering. Add `key` to reconcile rows by
+identity while keeping DOM order tied to the source list order:
 
-Inference is syntax-based, so use an inline thunk for reactive JSX values. If a
-thunk is stored in a variable first, keep the explicit `dynamic` wrapper.
+```ocaml
+type todo = { id : int; title : string; completed : bool }
 
-Capitalized mlx tags can reference module components. Define `component` inside
+let todos : todo list Signal.t = Signal.make []
+
+let list =
+  <ul>
+    <View.ForEach
+      items=(fun () -> Signal.get todos)
+      key=(fun todo -> string_of_int todo.id)
+      render=(fun todo ->
+        <li className="todo-row">
+          (View.text todo.title)
+        </li>)
+    />
+  </ul>
+```
+
+Capitalized MLX tags can reference module components. Define `component` inside
 a module, then use the module name as a tag:
 
 ```ocaml
@@ -93,17 +194,8 @@ let main = fun () ->
   <Greeting name="OCaml" />
 ```
 
-Use `View.forWithKey` when rendering a list with stable, unique string keys.
-Rows are reconciled by key and the row renderer receives a signal containing
-the latest item for that key:
-
-```ocaml
-View.forWithKey
-  (fun () -> Signal.get todos)
-  ~key:(fun todo -> string_of_int todo.id)
-  (fun todo ->
-    <li>(View.text (fun () -> (Signal.get todo).title))</li>)
-```
+For reactive values stored in variables before passing them to JSX, keep using
+`static`, `dynamic` or `signal` explicitly; inference is syntax-based.
 
 ## Build, test, demo
 
