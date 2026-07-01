@@ -330,7 +330,9 @@ module Attr = struct
   let reactive name f = make name (dynamic f)
   let toggle name f = Attr_toggle (name, f)
   let class_ v = make "class" v
+  let className v = class_ v
   let class_reactive f = class_ (dynamic f)
+  let className_reactive f = class_reactive f
   let id v = make "id" v
   let type_ v = make "type" v
   let value v = make "value" v
@@ -378,6 +380,7 @@ module Mlx = struct
 
   let attr_list
       ?class_
+      ?className
       ?id
       ?type_
       ?value
@@ -388,6 +391,7 @@ module Mlx = struct
       ?disabled
       ?checked
       () =
+    let class_ = match className with Some _ -> className | None -> class_ in
     []
     |> push_attr "class" class_
     |> push_attr "id" id
@@ -410,11 +414,12 @@ module Mlx = struct
     |> push_event "submit" onSubmit
     |> List.rev
 
-  let create tag ?class_ ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?checked ?onClick
+  let create tag ?class_ ?className ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?checked ?onClick
       ?onInput ?onChange ?onKeyDown ?onSubmit ?(children = []) () =
     let attrs =
       attr_list
         ?class_
+        ?className
         ?id
         ?type_
         ?value
