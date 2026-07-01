@@ -1,0 +1,99 @@
+open Reativa
+open Reativa.View.Mlx
+
+type todo = { id: int; title : string; completed : bool }
+
+let todos = Signal.make[
+  { id = 2; title = "Learn OCaml"; completed = true };
+  { id = 3; title = "Build a Reativa app"; completed = false };
+]
+let next_id = Signal.make 4
+
+module TodoItem = struct
+  module Classes = struct
+    let todo = "todo"
+    let completedStyle = fun ~completed ->
+      if completed
+      then "completed"
+      else ""
+
+    let item = fun ~completed ->
+      todo ^
+      " " ^
+      (completedStyle ~completed)
+  end
+
+  let component = fun ~todo ->
+    let onCompletedToggled = fun (_e) ->
+      let id = (Signal.peek todo).id in
+      Signal.update todos (fun todos ->
+        List.map (fun t -> if t.id = id then { t with completed = not t.completed } else t) todos)
+    in
+
+    <li className=(fun () -> Classes.item ~completed:(Signal.get todo).completed)>
+      <input
+        type_="checkbox"
+        className="todo-checkbox"
+        onChange=(onCompletedToggled)
+        checked=(fun () -> (Signal.get todo).completed)
+      />
+      <span className="todo-title-text">
+        (View.text (fun () -> (Signal.get todo).title))
+      </span>
+    </li>
+end
+
+module TodoList = struct
+  let component = fun ~todos ->
+    <ul className="todo-list">
+      (View.forWithKey
+        (fun () -> Signal.get todos)
+        ~key:(fun item -> string_of_int item.id)
+        (fun todo -> <TodoItem todo />))
+    </ul>
+end
+
+module TodoApp = struct
+    let component = fun () ->
+      let todo_title = Signal.make "" in
+      let add_todo = fun () ->
+        let id = Signal.peek next_id in
+        Signal.set next_id (id + 1);
+        let title = Signal.peek todo_title in
+        let completed = false in
+        Signal.update todos (fun todos -> todos @ [ { id; title; completed } ]);
+        Signal.set todo_title "";
+        ()
+      in
+      let onKeyDown = fun e ->
+        match(Dom.key e) with
+        | "Enter" ->add_todo ();
+        | _ -> Signal.set todo_title (Dom.target_value e); ();
+        in
+      Effect.run(fun () ->
+        Dom.log (Signal.get todo_title);
+        None);
+      <div className="todo-shell">
+        <h1 className="todo-title">(View.text "My tasks")</h1>
+        <p className="todo-copy">(View.text "Enter a task and press Enter to add it to your list.")</p>
+        <div className="todo-composer">
+          <input
+            value=(fun () -> Signal.get todo_title)
+            placeholder="Enter a todo"
+            className="todo-input"
+            type_="text"
+            onKeyDown
+          />
+          <button
+            onClick=(fun (_e) -> add_todo ())
+            className="todo-action"
+            >
+            (View.text "+ Add")
+          </button>
+        </div>
+        <TodoList todos />
+      </div>
+end
+
+let () =
+  View.mount_by_id "app" (TodoApp.component())

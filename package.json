@@ -5,8 +5,8 @@
   "scripts": {
     "build": "opam exec -- dune build @melange",
     "test": "opam exec -- dune test",
-    "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js",
-    "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/app.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
+    "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js",
+    "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
     "demo:serve": "npm run demo && node scripts/serve-demo.mjs --root demo/ui",
     "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
     "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs",
