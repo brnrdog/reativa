@@ -213,6 +213,60 @@ let main = fun () ->
 For reactive values stored in variables before passing them to JSX, keep using
 `static`, `dynamic` or `signal` explicitly; inference is syntax-based.
 
+### Router
+
+`Router` provides the small pieces needed for browser SPA navigation:
+a reactive location signal, `history.pushState` / `replaceState` wrappers,
+back/forward helpers, link interception, redirects and route matching. In MLX,
+open `Reativa` and use the `Router`, `Route`, `Link` and `Redirect` primitives:
+
+```ocaml
+open Reativa
+open Reativa.View.Mlx
+
+let app =
+  <main>
+    <nav>
+      <Link href="/">(View.text "Home")</Link>
+      <Link href="/users/42">(View.text "Ada")</Link>
+    </nav>
+
+    <Router>
+      <Route path="/">
+        <h1>(View.text "Home")</h1>
+      </Route>
+
+      <Route
+        path="/users/:id"
+        render=(fun matched ->
+          <h1>
+            (View.text ("User " ^ Option.value ~default:"" (Router.param matched "id")))
+          </h1>)
+      />
+
+      <Route path="/old">
+        <Redirect to_="/" />
+      </Route>
+    </Router>
+  </main>
+```
+
+Constructor-style code can use the same underlying functions:
+`Router.route`, `Router.outlet`, `Router.link` and `Router.redirect`.
+
+Use `Router.location ()` when you need the current browser location as a
+signal. Programmatic navigation accepts optional history state:
+
+```ocaml
+let details_state = Router.state {| opened from dashboard |}
+
+Router.navigate ~state:details_state "/details" ();
+
+match (Signal.peek (Router.location ())).state with
+| Some state -> Router.state_value state
+| None -> "no state"
+```
+
 ## Build, test, demo
 
 ```sh

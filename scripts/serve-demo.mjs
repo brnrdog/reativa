@@ -52,6 +52,19 @@ function requestPathname(url) {
   }
 }
 
+function requestAcceptsHtml(req) {
+  const accept = req.headers.accept ?? "";
+  return accept.includes("text/html") || accept.includes("*/*");
+}
+
+function shouldServeSpaFallback(req, filePath) {
+  return (
+    (req.method === "GET" || req.method === "HEAD") &&
+    requestAcceptsHtml(req) &&
+    extname(filePath) === ""
+  );
+}
+
 function scheduleReload() {
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(() => {
@@ -165,6 +178,23 @@ async function serveHtml(filePath, fileStat, res) {
   res.end(body);
 }
 
+async function serveIndexHtml(req, res) {
+  const indexPath = resolve(join(demoRoot, "index.html"));
+  const fileStat = await stat(indexPath);
+
+  if (req.method === "HEAD") {
+    res.writeHead(200, {
+      "Cache-Control": "no-store",
+      "Content-Type": "text/html; charset=utf-8",
+      "Last-Modified": fileStat.mtime.toUTCString(),
+    });
+    res.end();
+    return;
+  }
+
+  await serveHtml(indexPath, fileStat, res);
+}
+
 async function serveFile(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { Allow: "GET, HEAD" });
@@ -184,6 +214,11 @@ async function serveFile(req, res) {
     const fileStat = await stat(filePath);
 
     if (!fileStat.isFile()) {
+      if (shouldServeSpaFallback(req, filePath)) {
+        await serveIndexHtml(req, res);
+        return;
+      }
+
       res.writeHead(404);
       res.end("Not found\n");
       return;
@@ -219,6 +254,11 @@ async function serveFile(req, res) {
     createReadStream(filePath).pipe(res);
   } catch (error) {
     if (error?.code === "ENOENT") {
+      if (shouldServeSpaFallback(req, filePath)) {
+        await serveIndexHtml(req, res);
+        return;
+      }
+
       res.writeHead(404);
       res.end("Not found\n");
       return;

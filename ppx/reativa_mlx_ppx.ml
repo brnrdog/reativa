@@ -64,6 +64,7 @@ let inferred_value_labels =
     "items";
     "placeholder";
     "style";
+    "to_";
     "type_";
     "value";
   ]

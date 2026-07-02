@@ -57,4 +57,32 @@ let _maybe_view =
       ~fallback:((span ~children:[ View.text "Nothing selected" ] ()) [@JSX]))
    [@JSX])
 
+let _home_route =
+  Route.createElement ()
+    ~path:"/"
+    ~children:[ ((span ~children:[ View.text "Home" ] ()) [@JSX]) ]
+
+let _user_route =
+  Route.createElement ()
+    ~path:"/users/:id"
+    ~children:[]
+    ~render:(fun matched ->
+      ((span
+          ~children:
+            [ View.text ("User " ^ Option.value ~default:"missing" (Router.param matched "id")) ]
+          ())
+       [@JSX]))
+
+let _router_view =
+  ((Router.createElement () ~children:[ _home_route; _user_route ]) [@JSX])
+
+let _link_view =
+  ((Link.createElement ()
+      ~href:"/users/42"
+      ~children:[ View.text "User 42" ])
+   [@JSX])
+
+let _redirect_view =
+  ((Redirect.createElement () ~to_:"/" ~children:[]) [@JSX])
+
 let () = print_endline "mlx inference ok"

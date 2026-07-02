@@ -2,6 +2,10 @@
  (name test_signals)
  (libraries reativa))
 
+(test
+ (name test_router)
+ (libraries reativa))
+
 (melange.emit
  (target output)
  (modules test_mlx_inference)
