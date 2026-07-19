@@ -66,11 +66,11 @@ module TodoApp = struct
     in
 
     <div className="todo-shell">
-      <h1 className="todo-title">(View.text "My tasks")</h1>
-      <p className="todo-copy">(View.text "Enter a task and press Enter to add it to your list.")</p>
+      <h1 className="todo-title">("My tasks")</h1>
+      <p className="todo-copy">("Enter a task and press Enter to add it to your list.")</p>
       <div className="todo-composer">
         <input
-          value=(fun () -> Signal.get todo_title)
+          value=(Signal.get todo_title)
           placeholder="Enter a todo"
           className="todo-input"
           type_="text"
@@ -82,29 +82,29 @@ module TodoApp = struct
           onClick=(fun (_e) -> add_todo ())
           className="todo-action"
           >
-          (View.text "+ Add")
+          ("+ Add")
         </button>
       </div>
       <TodoList todos=filtered_todos />
       <div className="flex flex-col gap-3">
         <div className="todo-filters">
           <button onClick=(fun (_e) -> Signal.set filters All)>
-            (View.text "All")
-            (View.text " (")
-            (View.int (fun () -> List.length (Signal.get todos)))
-            (View.text ")")
+            ("All")
+            (" (")
+            (View.int (List.length (Signal.get todos)))
+            (")")
           </button>
           <button onClick=(fun (_e) -> Signal.set filters Completed)>
-            (View.text "Completed")
-            (View.text " (")
-            (View.int (fun () -> List.length (List.filter (fun t -> t.completed) (Signal.get todos))))
-            (View.text ")")
+            ("Completed")
+            (" (")
+            (View.int (List.length (List.filter (fun t -> t.completed) (Signal.get todos))))
+            (")")
           </button>
           <button onClick=(fun (_e) -> Signal.set filters Incomplete)>
-            (View.text "Incomplete")
-            (View.text " (")
-            (View.int (fun () -> List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos))))
-            (View.text ")")
+            ("Incomplete")
+            (" (")
+            (View.int (List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos))))
+            (")")
           </button>
         </div>
       </div>

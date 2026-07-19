@@ -366,6 +366,12 @@ let element ?(attrs = []) ?(events = []) tag children =
    it reads changes. The building block behind {!show}, {!maybe} and {!for_}. *)
 let dyn f = Dynamic f
 
+(* xote-style name for {!dyn}: a block that auto-subscribes to every signal
+   read while building its children and swaps them wholesale on change. Use it
+   when a whole region depends on structural state; prefer reactive text and
+   attributes for fine-grained updates. *)
+let tracked f = Dynamic f
+
 (* ----- control flow (xote-style components, as plain functions) ----- *)
 
 (* Render [child] while [cond ()] holds, otherwise [fallback]. *)

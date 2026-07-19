@@ -127,7 +127,7 @@ let () =
   let todo_code =
     "<form onSubmit=add_todo>\n\
      \  <input\n\
-     \    value=(dynamic (fun () -> Signal.get draft))\n\
+     \    value=(Signal.get draft)\n\
      \    onInput=(fun ev -> Signal.set draft (Dom.target_value ev))\n\
      \  />\n\
      </form>\n\
@@ -138,22 +138,22 @@ let () =
   let todo_row item =
     <li className=(static "group flex items-center gap-3 rounded-lg border border-line bg-white/80 px-3 py-2.5 shadow-sm transition hover:border-slate-300")>
       <button
-        className=(dynamic (fun () ->
+        className=(
           if item.done_ then
             "grid h-7 w-7 place-items-center rounded-full bg-ink text-xs font-bold text-white"
           else
-            "grid h-7 w-7 place-items-center rounded-full border border-slate-300 bg-white text-sm text-slate-400")
+            "grid h-7 w-7 place-items-center rounded-full border border-slate-300 bg-white text-sm text-slate-400"
         )
         onClick=(fun _ -> toggle_todo item.id)
       >
         (View.text (static (if item.done_ then "done" else "")))
       </button>
       <span
-        className=(dynamic (fun () ->
+        className=(
           if item.done_ then
             "min-w-0 flex-1 text-sm text-slate-400 line-through"
           else
-            "min-w-0 flex-1 text-sm font-medium text-slate-800")
+            "min-w-0 flex-1 text-sm font-medium text-slate-800"
         )
       >
         (View.text (static item.text))
@@ -270,7 +270,7 @@ let () =
               </button>
               <button
                 className=(static "rounded-lg border border-line px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white")
-                disabled=(dynamic (fun () -> Signal.get count = 0))
+                disabled=(Signal.get count = 0)
                 onClick=(fun _ -> Signal.set count 0)
               >
                 (View.text (static "zero"))
@@ -279,22 +279,22 @@ let () =
             <div className=(static "mt-4 flex items-center gap-3")>
               <span className=(static "text-sm font-medium text-slate-500")>(View.text (static "step"))</span>
               <button
-                className=(dynamic (fun () ->
+                className=(
                   if Signal.get step = 1 then
                     "rounded-full bg-ink px-3 py-1.5 text-sm font-semibold text-white"
                   else
-                    "rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-white")
+                    "rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-white"
                 )
                 onClick=(fun _ -> Signal.set step 1)
               >
                 (View.text (static "1"))
               </button>
               <button
-                className=(dynamic (fun () ->
+                className=(
                   if Signal.get step = 5 then
                     "rounded-full bg-ink px-3 py-1.5 text-sm font-semibold text-white"
                   else
-                    "rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-white")
+                    "rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-white"
                 )
                 onClick=(fun _ -> Signal.set step 5)
               >
@@ -351,13 +351,13 @@ let () =
 
           <div className=(static "mt-5")>
             <div className=(static "mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-slate-500")>
-              <span>(View.text (dynamic (fun () -> string_of_int (Signal.get progress) ^ "% complete")))</span>
-              <span>(View.text (dynamic (fun () -> string_of_int (Signal.get completed_count) ^ " done")))</span>
+              <span>(View.text (string_of_int (Signal.get progress) ^ "% complete"))</span>
+              <span>(View.text (string_of_int (Signal.get completed_count) ^ " done"))</span>
             </div>
             <div className=(static "h-2 overflow-hidden rounded-full bg-slate-100")>
               <div
                 className=(static "h-full rounded-full bg-ink transition-all duration-300")
-                style=(dynamic (fun () -> "width: " ^ string_of_int (Signal.get progress) ^ "%"))
+                style=("width: " ^ string_of_int (Signal.get progress) ^ "%")
               ></div>
             </div>
           </div>
@@ -366,17 +366,17 @@ let () =
             <input
               className=(static "min-w-0 flex-1 rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-slate-400 focus:border-ink focus:ring-4 focus:ring-slate-900/10")
               placeholder=(static "add a todo")
-              value=(dynamic (fun () -> Signal.get draft))
+              value=(Signal.get draft)
               onInput=(fun ev -> Signal.set draft (Dom.target_value ev))
             />
             <button
-              className=(dynamic (fun () ->
+              className=(
                 if Signal.get can_submit then
                   "rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
                 else
-                  "rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-400")
+                  "rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-400"
               )
-              disabled=(dynamic (fun () -> not (Signal.get can_submit)))
+              disabled=(not (Signal.get can_submit))
             >
               (View.text (static "add todo"))
             </button>
@@ -395,9 +395,9 @@ let () =
           </div>
 
           <footer className=(static "mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600")>
-            (View.text (dynamic (fun () ->
+            (View.text (
                let remaining = Signal.get remaining_count in
-               string_of_int remaining ^ " " ^ plural remaining "item" "items" ^ " remaining")))
+               string_of_int remaining ^ " " ^ plural remaining "item" "items" ^ " remaining"))
           </footer>
 
           <div className=(static "mt-5")>(code_block "todo view" todo_code)</div>

@@ -27,6 +27,32 @@ let _view =
       ())
    [@JSX])
 
+(* Eager signal reads are auto-thunked into [dynamic] values, and literal
+   children become view leaves without explicit [View.text]/[View.int]. *)
+let _auto_tracked_view =
+  ((section
+      ~className:(if Signal.get checked then "fixture on" else "fixture off")
+      ~children:
+        [
+          ((h1 ~children:[ "Bare string child" ] ()) [@JSX]);
+          ((p ~children:[ "Draft: "; View.text (Signal.get draft) ] ()) [@JSX]);
+          ((p ~children:[ 42; 1.5 ] ()) [@JSX]);
+          ((p ~children:[ View.int (List.length (Signal.get numbers)) ] ())
+           [@JSX]);
+          ((p ~children:[ View.text (Signal.peek draft) ] ()) [@JSX]);
+          ((input
+              ~checked:(Signal.get checked)
+              ~value:(Signal.get draft)
+              ())
+           [@JSX]);
+        ]
+      ())
+   [@JSX])
+
+let _tracked_view =
+  View.tracked (fun () ->
+    if Signal.get checked then View.text (static "on") else View.empty)
+
 let _for_each_view =
   ((View.ForEach.createElement ()
       ~children:[]
