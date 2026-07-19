@@ -304,7 +304,7 @@ let () =
           <div className=(static "mt-5 rounded-lg border border-line bg-white px-4 py-3")>
             <p className=(static "text-sm text-slate-600")>
               (View.maybe
-                 ~fallback:("No note selected.")
+                 ~fallback:(View.text "No note selected.")
                  (fun () -> Signal.get selected)
                  (fun text -> View.text (static text)))
             </p>

@@ -141,12 +141,16 @@ let is_view_application expr =
      [View.float] leaves at compile time;
    - nested JSX elements and explicit [View.*] calls pass through untouched
      (they are already views, and stay fully typed);
-   - a thunk, or an expression that eagerly reads a signal, becomes a tracked
-     [View.child] region that re-renders when its reads change;
-   - anything else goes through [View.child]'s runtime coercion, so a plain
-     [string]/[int]/[float] value — or a view held in a variable — renders
-     directly. *)
-let infer_child expr =
+   - inside HTML element tags only: a thunk, or an expression that eagerly
+     reads a signal, becomes a tracked [View.child] region that re-renders
+     when its reads change, and anything else goes through [View.child]'s
+     runtime coercion so a plain [string]/[int]/[float] value — or a view held
+     in a variable — renders directly.
+
+   Component tags ([<Router>], [<View.Show>], ...) get the literal wrapping
+   only: their children are not necessarily views (e.g. [Router]'s children
+   are routes), so non-literal children keep their own types. *)
+let infer_child ~element expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   match expr.pexp_desc with
   | Pexp_constant (Pconst_string _) ->
@@ -155,6 +159,7 @@ let infer_child expr =
       view_value_call ~loc "int" (wrap_value expr)
   | Pexp_constant (Pconst_float (_, None)) ->
       view_value_call ~loc "float" (wrap_value expr)
+  | _ when not element -> expr
   | Pexp_apply _ when has_jsx_attribute expr.pexp_attributes -> expr
   | _ when is_view_application expr -> expr
   | _ when is_thunk expr -> view_value_call ~loc "child" expr
@@ -172,10 +177,19 @@ let rec map_list_literal f expr =
       { expr with pexp_desc = Pexp_construct (cons, Some cell) }
   | _ -> expr
 
-let infer_jsx_arg (label, expr) =
+(* A lowercase-ident callee is an HTML element tag ([<div>], [<span>], ...);
+   components lower to [Module.createElement] applications instead. *)
+let is_element_callee callee =
+  match callee.pexp_desc with
+  | Pexp_ident { txt = Longident.Lident name; _ } ->
+      String.length name > 0
+      && (match name.[0] with 'a' .. 'z' | '_' -> true | _ -> false)
+  | _ -> false
+
+let infer_jsx_arg ~element (label, expr) =
   match label with
   | Labelled "children" | Optional "children" ->
-      (label, map_list_literal infer_child expr)
+      (label, map_list_literal (infer_child ~element) expr)
   | _ when should_infer_label label -> (label, wrap_value expr)
   | _ -> (label, expr)
 
@@ -284,7 +298,9 @@ let mapper =
       let expr = infer_view_value_call expr in
       match expr.pexp_desc with
       | Pexp_apply (callee, args) when has_jsx_attribute expr.pexp_attributes ->
-          { expr with pexp_desc = Pexp_apply (callee, List.map infer_jsx_arg args) }
+          let element = is_element_callee callee in
+          { expr with
+            pexp_desc = Pexp_apply (callee, List.map (infer_jsx_arg ~element) args) }
       | _ -> expr
 
     method! module_expr expr =
