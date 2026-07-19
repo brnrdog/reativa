@@ -2,9 +2,12 @@
 
 ; Reativa compiles both to JavaScript via Melange and to native/bytecode. The
 ; browser-facing DOM/View modules are present in the same package namespace but
-; only exercised by Melange targets.
+; only exercised by Melange targets. reativa_runtime.js ships alongside the
+; emitted modules; externals bound to it (instead of "#..." melange primitive
+; spellings) keep those modules compilable by the native toolchain too.
 (library
  (name reativa)
  (modes melange native)
+ (melange.runtime_deps reativa_runtime.js)
  (preprocess
   (pps melange.ppx)))
