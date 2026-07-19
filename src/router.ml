@@ -8,9 +8,13 @@ type state
 
 type 'a nullable
 
-external nullable_undefined : unit -> 'a nullable = "#undefined"
+(* Bound through the shipped runtime helper (see reativa_runtime.js): melange
+   primitive spellings like "#undefined" are not valid symbols for the native
+   toolchain, which also compiles (but never links) this module. *)
+external nullable_undefined : unit -> 'a nullable = "getUndefined"
+  [@@mel.module "./reativa_runtime.js"]
+
 external nullable_return : 'a -> 'a nullable = "%identity"
-external nullable_to_option : 'a nullable -> 'a option = "#nullable_to_opt"
 external encode_state : 'a -> state = "%identity"
 external decode_state : state -> 'a = "%identity"
 
@@ -32,7 +36,10 @@ type history
 type location_target
 type pop_state_event
 
-let window () = [%raw {|window|}]
+external get_window : unit -> window = "getWindow"
+  [@@mel.module "./reativa_runtime.js"]
+
+let window () = get_window ()
 
 external history : window -> history = "history" [@@mel.get]
 external browser_location : window -> location_target = "location" [@@mel.get]
@@ -41,7 +48,8 @@ external origin : location_target -> string = "origin" [@@mel.get]
 external pathname : location_target -> string = "pathname" [@@mel.get]
 external search : location_target -> string = "search" [@@mel.get]
 external hash : location_target -> string = "hash" [@@mel.get]
-external history_state : history -> state nullable = "state" [@@mel.get]
+external history_state : history -> state option = "state"
+  [@@mel.get] [@@mel.return nullable]
 
 external push_state : history -> state nullable -> string -> string -> unit
   = "pushState"
@@ -79,7 +87,7 @@ let current () =
     pathname = pathname loc;
     search = search loc;
     hash = hash loc;
-    state = nullable_to_option (history_state hist);
+    state = history_state hist;
   }
 
 let location_signal : location Signal.t Lazy.t = lazy (Signal.make (current ()))
