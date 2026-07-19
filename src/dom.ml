@@ -74,3 +74,15 @@ external value : t -> string = "value" [@@mel.get]
 let target_value ev = value (target ev)
 
 external log : 'a -> unit = "log" [@@mel.scope "console"]
+
+(* ----- runtime value inspection (used by [View.child]) ----- *)
+
+(* JS [typeof x]: "string", "number", "boolean", "function", "object", ...
+   Bound via the shipped helper because the melange primitive spelling
+   ("#typeof") is not a valid symbol for the native toolchain, which also
+   compiles (but never links) this module. *)
+external typeof : 'a -> string = "classify"
+  [@@mel.module "./reativa_runtime.js"]
+
+(* JS [String(x)]: canonical display form for numbers and booleans. *)
+external display_string : 'a -> string = "String"

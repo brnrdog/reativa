@@ -74,6 +74,26 @@ let () =
              ())
           [@JSX]) |};
 
+  check "bare value children go through View.child"
+    {| let v = ((p ~children:[title; todo.text] ()) [@JSX]) |}
+    {| let v = ((p ~children:[View.child title; View.child todo.text] ()) [@JSX]) |};
+
+  check "eager signal reads as children become tracked View.child regions"
+    {| let v = ((p ~children:[Signal.get draft] ()) [@JSX]) |}
+    {| let v = ((p ~children:[View.child (fun () -> Signal.get draft)] ()) [@JSX]) |};
+
+  check "thunk children become tracked View.child regions"
+    {| let v = ((p ~children:[(fun () -> Signal.get draft)] ()) [@JSX]) |}
+    {| let v = ((p ~children:[View.child (fun () -> Signal.get draft)] ()) [@JSX]) |};
+
+  check "nested elements and View calls stay untouched children"
+    {| let v =
+         ((p ~children:[((span ~children:[] ()) [@JSX]); View.show cond body] ())
+          [@JSX]) |}
+    {| let v =
+         ((p ~children:[((span ~children:[] ()) [@JSX]); View.show cond body] ())
+          [@JSX]) |};
+
   check "non-literal children lists are left alone"
     {| let v = ((p ~children:rows ()) [@JSX]) |}
     {| let v = ((p ~children:rows ()) [@JSX]) |};

@@ -19,7 +19,7 @@ let doubled = Computed.make (fun () -> Signal.get count * 2)
 let () =
   View.mount_by_id "app"
     <section>
-      <p>(View.int (Signal.get doubled))</p>
+      <p>(Signal.get doubled)</p>
       <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
         ("+1")
       </button>
@@ -159,12 +159,27 @@ The inference rules are:
   helper) are not eager and are left alone.
 - Anything else becomes a `static` value, created once.
 
-Literal children render without value components — strings, ints and floats
-become text leaves directly:
+Children need no value components at all — `View.text`, `View.int` and
+`View.float` are optional. Literals, plain values, inline signal reads and
+thunks all render directly:
 
 ```ocaml
-let hello = <p>("Hello, ") (View.text (Signal.get name)) ("!")</p>
+let hello user =
+  <p>
+    ("Hello, ")           (* literal: a static text leaf *)
+    (user.name)           (* plain value: rendered via View.child *)
+    (" — count ")
+    (Signal.get count)    (* signal read: a tracked leaf, updates in place *)
+  </p>
 ```
+
+Literals are wrapped at compile time. Everything else goes through
+`View.child`, xote-style runtime coercion on the Melange representation:
+strings render as text, numbers and booleans render via JS `String`, a
+function is treated as a tracked thunk whose result is re-coerced when its
+signal reads change, `None` renders nothing, and already-built views pass
+through untouched. Nested elements and explicit `View.*` calls skip the
+coercion and stay fully typed.
 
 For a whole region whose *structure* depends on signals, `View.tracked`
 rebuilds its children whenever any signal read while building them changes

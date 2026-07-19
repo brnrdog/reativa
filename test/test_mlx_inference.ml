@@ -53,6 +53,21 @@ let _tracked_view =
   View.tracked (fun () ->
     if Signal.get checked then View.text (static "on") else View.empty)
 
+(* Bare value children: plain variables, eager signal reads and thunks render
+   through [View.child] with no [View.text]/[View.int]/[View.float] at all. *)
+let _bare_value_children_view =
+  let title = "reativa" in
+  ((p
+      ~children:
+        [
+          title;
+          Signal.get draft;
+          (fun () -> String.uppercase_ascii (Signal.get draft));
+          List.length (Signal.get numbers);
+        ]
+      ())
+   [@JSX])
+
 let _for_each_view =
   ((View.ForEach.createElement ()
       ~children:[]
