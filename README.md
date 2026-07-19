@@ -181,6 +181,11 @@ signal reads change, `None` renders nothing, and already-built views pass
 through untouched. Nested elements and explicit `View.*` calls skip the
 coercion and stay fully typed.
 
+The runtime coercion applies inside HTML element tags. Component tags
+(`<Router>`, `<View.Show>`, ...) only auto-wrap literals — their children are
+not necessarily views (a `<Router>`'s children are routes), so non-literal
+children keep their own types there.
+
 For a whole region whose *structure* depends on signals, `View.tracked`
 rebuilds its children whenever any signal read while building them changes
 (the runtime equivalent of xote's `View.tracked`):

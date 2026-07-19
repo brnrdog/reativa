@@ -98,6 +98,14 @@ let () =
     {| let v = ((p ~children:rows ()) [@JSX]) |}
     {| let v = ((p ~children:rows ()) [@JSX]) |};
 
+  check "component children only wrap literals"
+    {| let v =
+         ((Router.createElement () ~children:[home_route; "About"]) [@JSX]) |}
+    {| let v =
+         ((Router.createElement ()
+             ~children:[home_route; View.text (static "About")])
+          [@JSX]) |};
+
   if !failures > 0 then begin
     Printf.printf "%d failure(s)\n" !failures;
     exit 1
