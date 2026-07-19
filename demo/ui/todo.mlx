@@ -26,7 +26,7 @@ module TodoItem = struct
           checked=todo.completed
         />
         <span className="todo-title-text">
-          (View.text todo.title)
+          (todo.title)
         </span>
       </label>
     </li>
@@ -91,19 +91,19 @@ module TodoApp = struct
           <button onClick=(fun (_e) -> Signal.set filters All)>
             ("All")
             (" (")
-            (View.int (List.length (Signal.get todos)))
+            (List.length (Signal.get todos))
             (")")
           </button>
           <button onClick=(fun (_e) -> Signal.set filters Completed)>
             ("Completed")
             (" (")
-            (View.int (List.length (List.filter (fun t -> t.completed) (Signal.get todos))))
+            (List.length (List.filter (fun t -> t.completed) (Signal.get todos)))
             (")")
           </button>
           <button onClick=(fun (_e) -> Signal.set filters Incomplete)>
             ("Incomplete")
             (" (")
-            (View.int (List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos))))
+            (List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos)))
             (")")
           </button>
         </div>

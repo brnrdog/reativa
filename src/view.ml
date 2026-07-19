@@ -350,7 +350,11 @@ let map_value f = function
   | Static value -> Static (f value)
   | Reactive value -> Reactive (fun () -> f (value ()))
 
-let empty = Empty
+(* Renders nothing. Exposed as an empty fragment rather than the [Empty]
+   constructor: constant constructors are plain integers in the Melange
+   representation, and {!child} must be able to tell an empty view apart from a
+   literal [0]. *)
+let empty = Fragment []
 let text = function Static s -> Text s | Reactive f -> Reactive_text f
 let int value = text (map_value string_of_int value)
 let float value = text (map_value string_of_float value)
@@ -371,6 +375,25 @@ let dyn f = Dynamic f
    when a whole region depends on structural state; prefer reactive text and
    attributes for fine-grained updates. *)
 let tracked f = Dynamic f
+
+(* Runtime child coercion (xote's [View.child]): accept whatever a JSX child
+   evaluates to and build the right node for it. Strings render as text;
+   numbers and booleans render via JS [String]; a function is treated as a
+   tracked thunk whose result is re-coerced whenever a signal it read changes;
+   [None]/[undefined] renders nothing; anything else is assumed to be an
+   already-built view and passes through untouched.
+
+   The checks are on the Melange (JS) representation, so like the rest of the
+   DOM-facing layer this must only be reached from browser-compiled code. The
+   mlx PPX routes bare JSX children here. *)
+let rec child : 'a. 'a -> t =
+ fun x ->
+  match Dom.typeof x with
+  | "string" -> Text (Obj.magic x : string)
+  | "number" | "boolean" | "bigint" -> Text (Dom.display_string x)
+  | "function" -> Dynamic (fun () -> child ((Obj.magic x : unit -> Obj.t) ()))
+  | "undefined" -> Empty
+  | _ -> (Obj.magic x : t)
 
 (* ----- control flow (xote-style components, as plain functions) ----- *)
 

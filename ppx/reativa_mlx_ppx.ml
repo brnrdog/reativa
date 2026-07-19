@@ -124,10 +124,29 @@ let view_value_call ~loc name arg =
        (located ~loc (Longident.Ldot (Longident.Lident "View", name))))
     [ (Nolabel, arg) ]
 
-(* Bare scalar JSX children: [<p>"Hello"</p>] instead of
-   [<p>(View.text "Hello")</p>]. Literal strings, ints and floats become the
-   corresponding [View.text]/[View.int]/[View.float] static leaves. *)
-let infer_bare_child expr =
+(* A call whose callee lives directly in [View] (View.text, View.show, ...)
+   already produces a view; leave it alone so it stays fully typed. *)
+let is_view_application expr =
+  match expr.pexp_desc with
+  | Pexp_apply (callee, _) ->
+      (match callee.pexp_desc with
+       | Pexp_ident { txt = Longident.Ldot (Longident.Lident "View", _); _ } ->
+           true
+       | _ -> false)
+  | _ -> false
+
+(* Bare JSX children need no value component at all:
+
+   - literal strings/ints/floats become static [View.text]/[View.int]/
+     [View.float] leaves at compile time;
+   - nested JSX elements and explicit [View.*] calls pass through untouched
+     (they are already views, and stay fully typed);
+   - a thunk, or an expression that eagerly reads a signal, becomes a tracked
+     [View.child] region that re-renders when its reads change;
+   - anything else goes through [View.child]'s runtime coercion, so a plain
+     [string]/[int]/[float] value — or a view held in a variable — renders
+     directly. *)
+let infer_child expr =
   let loc = { expr.pexp_loc with loc_ghost = true } in
   match expr.pexp_desc with
   | Pexp_constant (Pconst_string _) ->
@@ -136,7 +155,11 @@ let infer_bare_child expr =
       view_value_call ~loc "int" (wrap_value expr)
   | Pexp_constant (Pconst_float (_, None)) ->
       view_value_call ~loc "float" (wrap_value expr)
-  | _ -> expr
+  | Pexp_apply _ when has_jsx_attribute expr.pexp_attributes -> expr
+  | _ when is_view_application expr -> expr
+  | _ when is_thunk expr -> view_value_call ~loc "child" expr
+  | _ when reads_signal expr -> view_value_call ~loc "child" (thunk expr)
+  | _ -> view_value_call ~loc "child" expr
 
 let rec map_list_literal f expr =
   match expr.pexp_desc with
@@ -152,7 +175,7 @@ let rec map_list_literal f expr =
 let infer_jsx_arg (label, expr) =
   match label with
   | Labelled "children" | Optional "children" ->
-      (label, map_list_literal infer_bare_child expr)
+      (label, map_list_literal infer_child expr)
   | _ when should_infer_label label -> (label, wrap_value expr)
   | _ -> (label, expr)
 
