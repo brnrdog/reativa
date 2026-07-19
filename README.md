@@ -19,9 +19,9 @@ let doubled = Computed.make (fun () -> Signal.get count * 2)
 let () =
   View.mount_by_id "app"
     <section>
-      <p>(View.int (signal doubled))</p>
+      <p>(View.int (Signal.get doubled))</p>
       <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-        (View.text "+1")
+        ("+1")
       </button>
     </section>
 ```
@@ -128,8 +128,9 @@ let counter count =
 ```
 
 In `.mlx` files, JSX props and `View.text`, `View.int` and `View.float` infer
-their wrapper. Plain values become static values, and inline thunks become
-dynamic values:
+their wrapper — including automatic tracking of signal reads. Write
+`Signal.get` inline and the text or attribute updates in place; no manual
+thunking needed:
 
 ```ocaml
 open Reativa
@@ -139,12 +140,45 @@ let count = Signal.make 0
 
 let counter =
   <button
-    className="counter-button"
+    className=(if Signal.get count > 0 then "counter-button on" else "counter-button")
     onClick=(fun _ -> Signal.update count (fun n -> n + 1))
   >
-    (View.text (fun () -> "Count " ^ string_of_int (Signal.get count)))
+    (View.text ("Count " ^ string_of_int (Signal.get count)))
   </button>
 ```
+
+The inference rules are:
+
+- An expression that reads a signal eagerly (`Signal.get` outside a `fun`) is
+  auto-thunked into a `dynamic` value, so it tracks its reads and updates in
+  place.
+- An explicit thunk `(fun () -> ...)` stays a `dynamic` value, as before.
+- `Signal.peek` does not count as a read — peek-only expressions stay static,
+  matching peek's untracked semantics.
+- Reads inside a nested `fun` (an event handler, a callback passed to a
+  helper) are not eager and are left alone.
+- Anything else becomes a `static` value, created once.
+
+Literal children render without value components — strings, ints and floats
+become text leaves directly:
+
+```ocaml
+let hello = <p>("Hello, ") (View.text (Signal.get name)) ("!")</p>
+```
+
+For a whole region whose *structure* depends on signals, `View.tracked`
+rebuilds its children whenever any signal read while building them changes
+(the runtime equivalent of xote's `View.tracked`):
+
+```ocaml
+let panel =
+  View.tracked (fun () ->
+    if Signal.get logged_in then <p>("Welcome back")</p> else <p>("Sign in")</p>)
+```
+
+Prefer inline reads for text and attributes — they update the exact DOM node —
+and reach for `View.tracked` (or `View.Show`/`View.Maybe`) only when the
+subtree shape itself changes.
 
 Use `View.Show` for conditional rendering:
 
@@ -211,7 +245,8 @@ let main = fun () ->
 ```
 
 For reactive values stored in variables before passing them to JSX, keep using
-`static`, `dynamic` or `signal` explicitly; inference is syntax-based.
+`static`, `dynamic` or `signal` explicitly; inference is syntax-based, so a
+read hidden behind a variable or a cross-module helper is not detected.
 
 ### Router
 

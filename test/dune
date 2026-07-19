@@ -1,10 +1,20 @@
 (test
  (name test_signals)
+ (modules test_signals)
  (libraries reativa))
 
 (test
  (name test_router)
+ (modules test_router)
  (libraries reativa))
+
+; Native behavioral test for the mlx PPX: feeds source through the rewriter and
+; asserts the rewritten structure (auto-thunked signal reads, inferred
+; static/dynamic wrappers, bare scalar children).
+(test
+ (name test_ppx_rewrite)
+ (modules test_ppx_rewrite)
+ (libraries reativa.mlx_ppx ppxlib))
 
 (melange.emit
  (target output)

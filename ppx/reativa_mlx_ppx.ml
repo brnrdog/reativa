@@ -40,14 +40,58 @@ let is_value_wrapper expr =
       expression_ident_is_any [ "static"; "dynamic"; "signal" ] callee
   | _ -> false
 
+(* [Signal.get] (or [Reativa.Signal.get]) — the tracked read primitive.
+   [Signal.peek] is deliberately excluded: peeking is an explicit request to
+   *not* track, so peek-only expressions stay static. *)
+let longident_is_signal_get = function
+  | Longident.Ldot (prefix, "get") ->
+      (match longident_last prefix with
+       | Some "Signal" -> true
+       | _ -> false)
+  | _ -> false
+
+exception Signal_read_found
+
+(* Detect eager signal reads: any mention of [Signal.get] outside a nested
+   [fun]. Reads inside a lambda only happen when that lambda is called, so they
+   are not eager reads of the surrounding expression — thunking the outer
+   expression would not track them (and event handlers must not be thunked). *)
+let signal_read_iter =
+  object
+    inherit Ast_traverse.iter as super
+
+    method! expression expr =
+      match expr.pexp_desc with
+      | Pexp_ident { txt; _ } when longident_is_signal_get txt ->
+          raise Signal_read_found
+      | Pexp_function _ -> ()
+      | _ -> super#expression expr
+  end
+
+let reads_signal expr =
+  match signal_read_iter#expression expr with
+  | () -> false
+  | exception Signal_read_found -> true
+
 let wrap_call ~loc name arg =
   Builder.pexp_apply ~loc (Builder.evar ~loc name) [ (Nolabel, arg) ]
+
+let thunk expr =
+  let loc = { expr.pexp_loc with loc_ghost = true } in
+  let unit_pattern =
+    Builder.ppat_construct ~loc (located ~loc (Longident.Lident "()")) None
+  in
+  Builder.pexp_fun ~loc Nolabel None unit_pattern expr
 
 let wrap_value expr =
   if is_value_wrapper expr then
     expr
   else if is_thunk expr then
     wrap_call ~loc:expr.pexp_loc "dynamic" expr
+  else if reads_signal expr then
+    (* Eager signal read: auto-thunk so the read is tracked and the value
+       updates in place — [Signal.get s] becomes [dynamic (fun () -> Signal.get s)]. *)
+    wrap_call ~loc:expr.pexp_loc "dynamic" (thunk expr)
   else
     wrap_call ~loc:expr.pexp_loc "static" expr
 
@@ -74,11 +118,43 @@ let should_infer_label = function
       List.exists (String.equal label) inferred_value_labels
   | Nolabel -> false
 
+let view_value_call ~loc name arg =
+  Builder.pexp_apply ~loc
+    (Builder.pexp_ident ~loc
+       (located ~loc (Longident.Ldot (Longident.Lident "View", name))))
+    [ (Nolabel, arg) ]
+
+(* Bare scalar JSX children: [<p>"Hello"</p>] instead of
+   [<p>(View.text "Hello")</p>]. Literal strings, ints and floats become the
+   corresponding [View.text]/[View.int]/[View.float] static leaves. *)
+let infer_bare_child expr =
+  let loc = { expr.pexp_loc with loc_ghost = true } in
+  match expr.pexp_desc with
+  | Pexp_constant (Pconst_string _) ->
+      view_value_call ~loc "text" (wrap_value expr)
+  | Pexp_constant (Pconst_integer (_, None)) ->
+      view_value_call ~loc "int" (wrap_value expr)
+  | Pexp_constant (Pconst_float (_, None)) ->
+      view_value_call ~loc "float" (wrap_value expr)
+  | _ -> expr
+
+let rec map_list_literal f expr =
+  match expr.pexp_desc with
+  | Pexp_construct
+      ( ({ txt = Longident.Lident "::"; _ } as cons),
+        Some ({ pexp_desc = Pexp_tuple [ head; tail ]; _ } as cell) ) ->
+      let cell =
+        { cell with pexp_desc = Pexp_tuple [ f head; map_list_literal f tail ] }
+      in
+      { expr with pexp_desc = Pexp_construct (cons, Some cell) }
+  | _ -> expr
+
 let infer_jsx_arg (label, expr) =
-  if should_infer_label label then
-    (label, wrap_value expr)
-  else
-    (label, expr)
+  match label with
+  | Labelled "children" | Optional "children" ->
+      (label, map_list_literal infer_bare_child expr)
+  | _ when should_infer_label label -> (label, wrap_value expr)
+  | _ -> (label, expr)
 
 let is_view_value_constructor expr =
   match expr.pexp_desc with
