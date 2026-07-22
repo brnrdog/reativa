@@ -143,7 +143,7 @@ let counter =
     className=(if Signal.get count > 0 then "counter-button on" else "counter-button")
     onClick=(fun _ -> Signal.update count (fun n -> n + 1))
   >
-    (View.text ("Count " ^ string_of_int (Signal.get count)))
+    ("Count " ^ string_of_int (Signal.get count))
   </button>
 ```
 
@@ -205,10 +205,10 @@ Use `View.Show` for conditional rendering:
 ```ocaml
 <section>
   <View.Show
-    condition=(fun () -> Signal.get count > 0)
-    fallback=(<p>(View.text "Hidden")</p>)
+    condition=(Signal.get count > 0)
+    fallback=(<p>("Hidden")</p>)
   >
-    <p>(View.text "Visible")</p>
+    <p>("Visible")</p>
   </View.Show>
 </section>
 ```
@@ -220,10 +220,10 @@ let selected : string option Signal.t = Signal.make None
 
 let selected_view =
   <View.Maybe
-    value=(fun () -> Signal.get selected)
-    fallback=(<p>(View.text "Nothing selected")</p>)
+    value=(Signal.get selected)
+    fallback=(<p>("Nothing selected")</p>)
     render=(fun value ->
-      <p>(View.text value)</p>)
+      <p>(value)</p>)
   />
 ```
 
@@ -238,11 +238,11 @@ let todos : todo list Signal.t = Signal.make []
 let list =
   <ul>
     <View.ForEach
-      items=(fun () -> Signal.get todos)
+      items=(Signal.get todos)
       key=(fun todo -> string_of_int todo.id)
       render=(fun todo ->
         <li className="todo-row">
-          (View.text todo.title)
+          (todo.title)
         </li>)
     />
   </ul>
@@ -255,8 +255,8 @@ a module, then use the module name as a tag:
 module Greeting = struct
   let component = fun ~name ->
     <h2>
-      (View.text "Greetings ")
-      (View.text name)
+      ("Greetings ")
+      (name)
     </h2>
 end
 
@@ -282,20 +282,20 @@ open Reativa.View.Mlx
 let app =
   <main>
     <nav>
-      <Link href="/">(View.text "Home")</Link>
-      <Link href="/users/42">(View.text "Ada")</Link>
+      <Link href="/">("Home")</Link>
+      <Link href="/users/42">("Ada")</Link>
     </nav>
 
     <Router>
       <Route path="/">
-        <h1>(View.text "Home")</h1>
+        <h1>("Home")</h1>
       </Route>
 
       <Route
         path="/users/:id"
         render=(fun matched ->
           <h1>
-            (View.text ("User " ^ Option.value ~default:"" (Router.param matched "id")))
+            ("User " ^ Option.value ~default:"" (Router.param matched "id"))
           </h1>)
       />
 

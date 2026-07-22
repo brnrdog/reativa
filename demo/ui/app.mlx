@@ -1,8 +1,9 @@
 (* Browser demo for the mlx surface over [Reativa.View].
 
    The markup below is written in .mlx files and transformed by [mlx-pp] to
-   ordinary [Reativa.View.Mlx] calls. Dynamic children stay as explicit
-   [View.*] values so the fine-grained runtime behavior is unchanged. *)
+   ordinary [Reativa.View.Mlx] calls. Signal reads written inline in props and
+   children are tracked automatically; bare literals and values render without
+   explicit [View.*] wrappers. *)
 
 open Reativa
 open Reativa.View.Mlx
@@ -186,7 +187,7 @@ let () =
             ("mlx sample")
           </p>
           <code className=(static "mt-3 block overflow-x-auto rounded-lg bg-slate-950 px-3 py-3 text-xs leading-6 text-slate-100")>
-            ("<button onClick=(fun _ -> ...)>(View.text \"plus\")</button>")
+            ("<button onClick=(fun _ -> ...)>(\"plus\")</button>")
           </code>
         </aside>
       </header>
