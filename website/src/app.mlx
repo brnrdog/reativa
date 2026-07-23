@@ -17,6 +17,18 @@ external set_timeout : (unit -> unit) -> int -> unit = "setTimeout"
 external set_interval : (unit -> unit) -> int -> float = "setInterval"
 external clear_interval : float -> unit = "clearInterval"
 
+(* ----- syntax toggle: OCaml (mlx) vs ReasonML ----- *)
+
+type syntax = OCaml | Reason
+
+let syntax = Signal.make OCaml
+
+(* Turn an mlx filename into its ReasonML counterpart: foo.mlx -> foo.re. *)
+let reason_file file =
+  match String.rindex_opt file '.' with
+  | Some i -> String.sub file 0 i ^ ".re"
+  | None -> file ^ ".re"
+
 (* ----- copy-to-clipboard feedback ----- *)
 
 let copied = Signal.make ""
@@ -45,6 +57,31 @@ let code_panel ~id ~file ~lang source =
     <pre className=("code-body " ^ lang)><code>(source)</code></pre>
   </figure>
 
+(* A code panel that carries both an OCaml (mlx) and a ReasonML rendering of the
+   same program. Both are mounted once so the highlighter in main.js colors each
+   in a single pass; the active syntax signal only flips which one is shown (via
+   CSS) and which one the Copy button reads. *)
+let code_panel_ml ~id ~file ~ocaml ~reason =
+  <figure
+    className=(if Signal.get syntax = Reason then "code-panel is-reason" else "code-panel")
+  >
+    <figcaption className="code-panel-bar">
+      <span className="code-file">
+        (if Signal.get syntax = Reason then reason_file file else file)
+      </span>
+      <button
+        className=(if Signal.get copied = id then "copy-btn is-copied" else "copy-btn")
+        aria_label="Copy code to clipboard"
+        onClick=(fun _ ->
+          copy_code id (if Signal.peek syntax = Reason then reason else ocaml))
+      >
+        (if Signal.get copied = id then "Copied!" else "Copy")
+      </button>
+    </figcaption>
+    <pre className="code-body ocaml"><code>(ocaml)</code></pre>
+    <pre className="code-body reason"><code>(reason)</code></pre>
+  </figure>
+
 let section_head kicker title lede =
   <header className="section-head">
     <p className="kicker">(kicker)</p>
@@ -58,14 +95,14 @@ let feature title body =
     <p>(body)</p>
   </article>
 
-let example ~id ~title ~intro ~file ~code demo =
+let example ~id ~title ~intro ~file ~code ~code_re demo =
   <article id=(id) className="example">
     <div className="example-info">
       <h3>(title)</h3>
       <p>(intro)</p>
     </div>
     <div className="example-panes">
-      (code_panel ~id ~file ~lang:"ocaml" code)
+      (code_panel_ml ~id ~file ~ocaml:code ~reason:code_re)
       <aside className="example-demo">
         <span className="demo-tag">("Live demo")</span>
         <div className="demo-stage">(demo)</div>
@@ -127,6 +164,31 @@ let () =
         <button onClick=(fun _ -> Signal.set count 0)>("Reset")</button>
       </div>
     </div>|}
+
+let counter_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let count = Signal.make(0);
+let doubled = Computed.make(() => Signal.get(count) * 2);
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="counter">
+      <p className="value"> {Signal.get(count)} </p>
+      <p> {"doubled is "} {Signal.get(doubled)} </p>
+      <div className="row">
+        <button onClick={_ => Signal.update(count, n => n - 1)}>
+          {"-1"}
+        </button>
+        <button onClick={_ => Signal.update(count, n => n + 1)}>
+          {"+1"}
+        </button>
+        <button onClick={_ => Signal.set(count, 0)}> {"Reset"} </button>
+      </div>
+    </div>,
+  );|}
 
 let counter_demo =
   <div className="counter-demo">
@@ -259,6 +321,84 @@ let () =
       <p>(Signal.get remaining) (" left to do")</p>
     </div>|}
 
+let todos_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+type todo = {
+  id: int,
+  title: string,
+  done_: bool,
+};
+
+let todos =
+  Signal.make([
+    {id: 1, title: "Read the signals guide", done_: true},
+    {id: 2, title: "Build something reactive", done_: false},
+  ]);
+
+let next_id = Signal.make(3);
+let draft = Signal.make("");
+
+let remaining =
+  Computed.make(() =>
+    Signal.get(todos) |> List.filter(t => !t.done_) |> List.length
+  );
+
+let add_todo = ev => {
+  Dom.prevent_default(ev);
+  let title = String.trim(Signal.peek(draft));
+  if (title != "") {
+    let id = Signal.peek(next_id);
+    Signal.update(todos, items => items @ [{id, title, done_: false}]);
+    Signal.set(next_id, id + 1);
+    Signal.set(draft, "");
+  };
+};
+
+let toggle = id =>
+  Signal.update(todos, items =>
+    List.map(t => t.id == id ? {...t, done_: !t.done_} : t, items)
+  );
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="todos">
+      <form onSubmit=add_todo>
+        <input
+          placeholder="What needs doing?"
+          value={Signal.get(draft)}
+          onInput={ev => Signal.set(draft, Dom.target_value(ev))}
+        />
+        <button disabled={String.trim(Signal.get(draft)) == ""}>
+          {"Add"}
+        </button>
+      </form>
+
+      <ul>
+        <View.ForEach
+          items={() => Signal.get(todos)}
+          key={t => string_of_int(t.id)}
+          render={t =>
+            <li>
+              <label>
+                <input
+                  type_="checkbox"
+                  checked={t.done_}
+                  onChange={_ => toggle(t.id)}
+                />
+                <span> {t.title} </span>
+              </label>
+            </li>
+          }
+        />
+      </ul>
+
+      <p> {Signal.get(remaining)} {" left to do"} </p>
+    </div>,
+  );|}
+
 let todos_demo =
   <div className="todo-demo">
     <form className="todo-form" onSubmit=add_todo>
@@ -336,6 +476,43 @@ let () =
           <p>("Reading about ") <strong>(topic)</strong> (".")</p>)
       />
     </div>|}
+
+let show_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let logged_in = Signal.make(false);
+let topic: Signal.t(option(string)) = Signal.make(None);
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="panel">
+      <div className="row">
+        <button onClick={_ => Signal.update(logged_in, b => !b)}>
+          {Signal.get(logged_in) ? "Sign out" : "Sign in"}
+        </button>
+        <button onClick={_ => Signal.set(topic, Some("signals"))}>
+          {"Pick a topic"}
+        </button>
+        <button onClick={_ => Signal.set(topic, None)}> {"Clear"} </button>
+      </div>
+
+      <View.Show
+        condition={() => Signal.get(logged_in)}
+        fallback={<p> {"Signed out. Sign in to see your greeting."} </p>}>
+        <p> {"Welcome back!"} </p>
+      </View.Show>
+
+      <View.Maybe
+        value={() => Signal.get(topic)}
+        fallback={<p> {"No topic selected."} </p>}
+        render={topic =>
+          <p> {"Reading about "} <strong> {topic} </strong> {"."} </p>
+        }
+      />
+    </div>,
+  );|}
 
 let show_demo =
   <div className="show-demo">
@@ -420,6 +597,45 @@ let () =
         <button onClick=(fun _ -> Signal.set tenths 0)>("Reset")</button>
       </div>
     </div>|}
+
+let stopwatch_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+external set_interval: (unit => unit, int) => float = "setInterval";
+external clear_interval: float => unit = "clearInterval";
+
+let tenths = Signal.make(0);
+let running = Signal.make(false);
+
+/* The effect re-runs when [running] flips. Its cleanup stops the
+   previous interval first - that is the whole lifecycle. */
+let () =
+  Effect.run(() =>
+    if (Signal.get(running)) {
+      let id = set_interval(() => Signal.update(tenths, n => n + 1), 100);
+      Some(() => clear_interval(id));
+    } else {
+      None;
+    }
+  );
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="stopwatch">
+      <p className="time">
+        {let n = Signal.get(tenths);
+         Printf.sprintf("%d.%ds", n / 10, n mod 10)}
+      </p>
+      <div className="row">
+        <button onClick={_ => Signal.update(running, b => !b)}>
+          {Signal.get(running) ? "Pause" : "Start"}
+        </button>
+        <button onClick={_ => Signal.set(tenths, 0)}> {"Reset"} </button>
+      </div>
+    </div>,
+  );|}
 
 let stopwatch_demo =
   <div className="stopwatch-demo">
@@ -569,6 +785,97 @@ let () =
            </div>))
     </div>|}
 
+let weather_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+/* Bindings for fetch and the shape of the Open-Meteo response. */
+type response;
+type payload;
+type current;
+
+external fetch: string => Js.Promise.t(response) = "fetch";
+[@mel.send] external json: response => Js.Promise.t(payload) = "json";
+[@mel.get] external current_weather: payload => current = "current_weather";
+[@mel.get] external temperature: current => float = "temperature";
+[@mel.get] external windspeed: current => float = "windspeed";
+[@mel.scope "Math"] external random: unit => float = "random";
+
+type city = {
+  name: string,
+  lat: string,
+  lon: string,
+};
+
+let cities = [|
+  {name: "Lisbon", lat: "38.72", lon: "-9.14"},
+  {name: "Tokyo", lat: "35.68", lon: "139.69"},
+  {name: "Nairobi", lat: "-1.29", lon: "36.82"},
+  {name: "Reykjavik", lat: "64.15", lon: "-21.94"},
+  {name: "Sydney", lat: "-33.87", lon: "151.21"},
+  {name: "Cusco", lat: "-13.53", lon: "-71.97"},
+|];
+
+type state =
+  | Idle
+  | Loading(city)
+  | Loaded(city, float, float)
+  | Failed(city);
+
+let weather = Signal.make(Idle);
+
+let fetch_weather = _ => {
+  let city =
+    cities[int_of_float(random() *. float_of_int(Array.length(cities)))];
+  Signal.set(weather, Loading(city));
+  let url =
+    Printf.sprintf(
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true",
+      city.lat,
+      city.lon,
+    );
+  ignore(
+    fetch(url)
+    |> Js.Promise.then_(json)
+    |> Js.Promise.then_(payload => {
+         let current = current_weather(payload);
+         Signal.set(
+           weather,
+           Loaded(city, temperature(current), windspeed(current)),
+         );
+         Js.Promise.resolve();
+       })
+    |> Js.Promise.catch(_ => {
+         Signal.set(weather, Failed(city));
+         Js.Promise.resolve();
+       }),
+  );
+};
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="weather">
+      <button onClick=fetch_weather> {"Check a random city"} </button>
+      {View.tracked(() =>
+         switch (Signal.get(weather)) {
+         | Idle => <p> {"Real weather, one click away."} </p>
+         | Loading(city) =>
+           <p> {Printf.sprintf("Checking %s...", city.name)} </p>
+         | Failed(city) =>
+           <p>
+             {Printf.sprintf("Could not reach the service for %s.", city.name)}
+           </p>
+         | Loaded(city, temp, wind) =>
+           <div>
+             <h3> {city.name} </h3>
+             <p> {temp} {" C now, wind "} {wind} {" km/h"} </p>
+           </div>
+         }
+       )}
+    </div>,
+  );|}
+
 let weather_demo =
   <div className="weather-demo">
     <button className="btn small" onClick=fetch_weather>
@@ -622,6 +929,25 @@ let () =
       <h1>("Hello, ") (Signal.get shout) ("!")</h1>
     </section>|}
 
+let hero_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let name = Signal.make("world");
+let shout = Computed.make(() => String.uppercase_ascii(Signal.get(name)));
+
+let () =
+  View.mount_by_id(
+    "app",
+    <section>
+      <input
+        value={Signal.get(name)}
+        onInput={ev => Signal.set(name, Dom.target_value(ev))}
+      />
+      <h1> {"Hello, "} {Signal.get(shout)} {"!"} </h1>
+    </section>,
+  );|}
+
 let install_code = {|opam pin add reativa https://github.com/brnrdog/reativa.git|}
 
 let dune_project_code =
@@ -656,6 +982,19 @@ let () =
       <p>("This view mounted once - now wire in some signals.")</p>
     </main>|}
 
+let hello_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let () =
+  View.mount_by_id(
+    "app",
+    <main>
+      <h1> {"Hello from reativa!"} </h1>
+      <p> {"This view mounted once - now wire in some signals."} </p>
+    </main>,
+  );|}
+
 let component_code =
   {|module Greeting = struct
   let component = fun ~name ->
@@ -663,6 +1002,13 @@ let component_code =
 end
 
 let view = <Greeting name="OCaml" />|}
+
+let component_code_re =
+  {|module Greeting = {
+  let component = (~name) => <h2> {"Hello, "} {name} {"!"} </h2>;
+};
+
+let view = <Greeting name="OCaml" />;|}
 
 let router_code =
   {|open Reativa
@@ -696,6 +1042,41 @@ let () =
       </Router>
     </main>|}
 
+let router_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let () =
+  View.mount_by_id(
+    "app",
+    <main>
+      <nav>
+        <Link href="/"> {"Home"} </Link>
+        <Link href="/users/42"> {"Ada"} </Link>
+      </nav>
+
+      <Router>
+        <Route path="/">
+          <h1> {"Home"} </h1>
+        </Route>
+
+        <Route
+          path="/users/:id"
+          render={matched =>
+            <h1>
+              {"User "}
+              {Option.value(~default="?", Router.param(matched, "id"))}
+            </h1>
+          }
+        />
+
+        <Route path="/old">
+          <Redirect to_="/" />
+        </Route>
+      </Router>
+    </main>,
+  );|}
+
 (* ================================================================== *)
 (* The page                                                            *)
 (* ================================================================== *)
@@ -715,6 +1096,22 @@ let () =
             <a href="#start">("Get started")</a>
             <a href="#api">("API")</a>
           </nav>
+          <div className="syntax-toggle" aria_label="Code syntax">
+            <button
+              className=(if Signal.get syntax = OCaml then "syntax-opt is-active" else "syntax-opt")
+              aria_label="Show OCaml syntax"
+              onClick=(fun _ -> Signal.set syntax OCaml)
+            >
+              ("OCaml")
+            </button>
+            <button
+              className=(if Signal.get syntax = Reason then "syntax-opt is-active" else "syntax-opt")
+              aria_label="Show ReasonML syntax"
+              onClick=(fun _ -> Signal.set syntax Reason)
+            >
+              ("ReasonML")
+            </button>
+          </div>
           <a className="nav-github" href="https://github.com/brnrdog/reativa">
             ("GitHub")
           </a>
@@ -724,13 +1121,13 @@ let () =
       <main className="page">
         <section id="top" className="hero">
           <div className="hero-copy">
-            <p className="kicker">({js|OCaml · Melange · fine-grained signals|js})</p>
+            <p className="kicker">({js|OCaml · ReasonML · Melange · fine-grained signals|js})</p>
             <h1>
               ("Reactive web interfaces, ")
               <span className="accent">("written in OCaml.")</span>
             </h1>
             <p className="lede">
-              ("reativa is a small UI library where state lives in signals and views are real DOM nodes. Everything mounts once - after that, only the text, attributes and regions that read a changed signal update. No virtual DOM, no diffing.")
+              ("reativa is a small UI library where state lives in signals and views are real DOM nodes. Write it in OCaml or ReasonML - both compile through Melange to the same reactive app. Everything mounts once; after that, only the text, attributes and regions that read a changed signal update. No virtual DOM, no diffing.")
             </p>
             <div className="hero-actions">
               <a className="btn primary" href="#start">("Get started")</a>
@@ -743,7 +1140,8 @@ let () =
             </ul>
           </div>
           <div className="hero-code">
-            (code_panel ~id:"hero" ~file:"hello.mlx" ~lang:"ocaml" hero_code)
+            (code_panel_ml ~id:"hero" ~file:"hello.mlx" ~ocaml:hero_code
+               ~reason:hero_code_re)
             <div className="hero-live">
               <span className="demo-tag">("Live demo")</span>
               <div className="hero-live-row">
@@ -779,23 +1177,28 @@ let () =
 
         <section id="examples" className="section">
           (section_head "Examples" "Full code, running live"
-             "Each block below is a complete program - copy it into an .mlx file and it compiles as-is. The demo beside it is that same code running on this page, because this site is itself built with reativa.")
+             "Each block below is a complete program - copy it into an .mlx file and it compiles as-is. Toggle the header switch to read every snippet in OCaml or ReasonML syntax. The demo beside it is that same code running on this page, because this site is itself built with reativa.")
           <div className="examples">
             (example ~id:"example-counter" ~title:"Counter"
                ~intro:"State is a Signal, derived state is a Computed. Reading them inline in markup makes that exact node reactive - the PPX auto-tracks eager Signal.get reads."
-               ~file:"counter.mlx" ~code:counter_code counter_demo)
+               ~file:"counter.mlx" ~code:counter_code ~code_re:counter_code_re
+               counter_demo)
             (example ~id:"example-todos" ~title:"Todo list"
                ~intro:"View.ForEach reconciles a keyed list: rows keep their DOM nodes when items move or change elsewhere. The input is bound to a signal, so resetting it clears the field instantly."
-               ~file:"todos.mlx" ~code:todos_code todos_demo)
+               ~file:"todos.mlx" ~code:todos_code ~code_re:todos_code_re
+               todos_demo)
             (example ~id:"example-show" ~title:"Conditional rendering"
                ~intro:"View.Show swaps a region on a boolean condition; View.Maybe renders the Some branch of an option. Both only rebuild when the branch actually changes."
-               ~file:"conditional.mlx" ~code:show_code show_demo)
+               ~file:"conditional.mlx" ~code:show_code ~code_re:show_code_re
+               show_demo)
             (example ~id:"example-stopwatch" ~title:"Stopwatch"
                ~intro:"Effect.run re-runs when a tracked read changes and can return a cleanup. Flipping the signal starts or stops the interval - the cleanup always runs before the next effect."
-               ~file:"stopwatch.mlx" ~code:stopwatch_code stopwatch_demo)
+               ~file:"stopwatch.mlx" ~code:stopwatch_code
+               ~code_re:stopwatch_code_re stopwatch_demo)
             (example ~id:"example-weather" ~title:"Fetch the weather"
                ~intro:"Async data is just another signal write. A variant signal models idle, loading, loaded and failed; clicking fetches a random city from the free Open-Meteo API, and View.tracked re-renders the region on each state change."
-               ~file:"weather.mlx" ~code:weather_code weather_demo)
+               ~file:"weather.mlx" ~code:weather_code ~code_re:weather_code_re
+               weather_demo)
           </div>
         </section>
 
@@ -815,7 +1218,8 @@ let () =
                (code_panel ~id:"dune-stanza" ~file:"src/dune" ~lang:"dune" dune_code))
             (step "4" "Write your first view"
                "Mount into any element - here, <div id=\"app\"></div> in your index.html. Static views are created once; from there, inline signal reads make exact nodes reactive - like the hero demo at the top of this page."
-               (code_panel ~id:"hello" ~file:"app.mlx" ~lang:"ocaml" hello_code))
+               (code_panel_ml ~id:"hello" ~file:"app.mlx" ~ocaml:hello_code
+                  ~reason:hello_code_re))
           </div>
         </section>
 
@@ -923,8 +1327,8 @@ let () =
             <p className="api-blurb">
               ("Capitalized tags are components: define component in a module and use the module name as a tag. Inference is syntax-based, so a read hidden behind a variable or helper is not detected - wrap those explicitly with static, dynamic or signal.")
             </p>
-            (code_panel ~id:"component" ~file:"greeting.mlx" ~lang:"ocaml"
-               component_code)
+            (code_panel_ml ~id:"component" ~file:"greeting.mlx"
+               ~ocaml:component_code ~reason:component_code_re)
           </article>
 
           (api_group ~id:"api-router" ~name:"Router"
@@ -948,7 +1352,8 @@ let () =
              ])
 
           <div className="router-example">
-            (code_panel ~id:"router" ~file:"router.mlx" ~lang:"ocaml" router_code)
+            (code_panel_ml ~id:"router" ~file:"router.mlx" ~ocaml:router_code
+               ~reason:router_code_re)
             <p className="api-note">
               ("Routing needs a host that serves index.html for every path - run it locally with any SPA dev server. Constructor-style equivalents exist too: Router.route, Router.outlet, Router.link and Router.redirect.")
             </p>
