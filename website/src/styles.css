@@ -190,6 +190,42 @@ dl {
   color: var(--accent-ink);
 }
 
+.syntax-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.syntax-opt {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.syntax-opt:hover {
+  color: var(--ink);
+}
+
+.syntax-opt.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.syntax-opt:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ----- shared layout ----- */
 
 .page {
@@ -480,6 +516,16 @@ dl {
   font-size: 13px;
   line-height: 1.7;
   tab-size: 2;
+}
+
+/* Both syntaxes are mounted; the active one is shown, the other hidden. */
+.code-panel .code-body.reason,
+.code-panel.is-reason .code-body.ocaml {
+  display: none;
+}
+
+.code-panel.is-reason .code-body.reason {
+  display: block;
 }
 
 .tok-kw { color: var(--tok-kw); }
@@ -969,6 +1015,15 @@ dl {
 
   .nav-github {
     padding: 7px 13px;
+  }
+
+  .syntax-toggle {
+    flex: none;
+  }
+
+  .syntax-opt {
+    padding: 4px 9px;
+    font-size: 12px;
   }
 
   /* Sticky header is a single ~52px row; keep anchored targets clear of it. */
