@@ -1,5 +1,5 @@
 /* reativa docs — design system.
-   Warm-paper surfaces with an ember accent; Space Grotesk for UI, JetBrains
+   Warm-paper surfaces with a lavender accent; Space Grotesk for UI, JetBrains
    Mono for code. Theme is driven by a [data-theme] attribute on <html> (seeded
    before paint in index.html, then toggled by a signal in app.mlx). Code panels
    stay dark in both themes — a lit terminal against the paper. */
@@ -17,9 +17,9 @@
   --line: #e7e2d8;
   --line-strong: #d8d2c6;
 
-  --accent: #e8552b;
-  --accent-ink: #b24a2c;
-  --accent-soft: #fbede7;
+  --accent: #8578b8;
+  --accent-ink: #5f5494;
+  --accent-soft: #edeaf6;
   --demo-bg: #f4f1ea;
 
   /* Code panels — always dark, a warm near-black terminal. */
@@ -29,18 +29,18 @@
   --code-fg: #e9e4d8;
   --code-muted: #8b8474;
 
-  --tok-kw: #e0a46a;
-  --tok-str: #8fb37a;
-  --tok-com: #6e6353;
-  --tok-mod: #7fb0d6;
-  --tok-num: #c9a36b;
-  --tok-tag: #7fb0d6;
-  --tok-punct: #9a917c;
+  --tok-kw: #c0b3f0;
+  --tok-str: #a8d08c;
+  --tok-com: #7e7896;
+  --tok-mod: #8cc7f0;
+  --tok-num: #f0c580;
+  --tok-tag: #7edac5;
+  --tok-punct: #9c96b2;
 
   /* The lattice mark, rendered as a background image (the DOM layer can't
      create SVG-namespaced nodes, so the logo lives in CSS). */
-  --mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%231a1a17' opacity='0.3'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='5' cy='19' r='1.7'/%3E%3Ccircle cx='12' cy='19' r='1.7'/%3E%3Ccircle cx='19' cy='5' r='1.7'/%3E%3Ccircle cx='12' cy='5' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/g%3E%3Cg fill='%23e8552b'%3E%3Ccircle cx='5' cy='5' r='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Ccircle cx='19' cy='19' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
-  --mark-on-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%23f5f3ee' opacity='0.32'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='5' cy='19' r='1.7'/%3E%3Ccircle cx='12' cy='19' r='1.7'/%3E%3Ccircle cx='19' cy='5' r='1.7'/%3E%3Ccircle cx='12' cy='5' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/g%3E%3Cg fill='%23ff6a3d'%3E%3Ccircle cx='5' cy='5' r='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Ccircle cx='19' cy='19' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
+  --mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%231a1a17' opacity='0.3'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='5' cy='19' r='1.7'/%3E%3Ccircle cx='12' cy='19' r='1.7'/%3E%3Ccircle cx='19' cy='5' r='1.7'/%3E%3Ccircle cx='12' cy='5' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/g%3E%3Cg fill='%238578b8'%3E%3Ccircle cx='5' cy='5' r='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Ccircle cx='19' cy='19' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
+  --mark-on-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%23f5f3ee' opacity='0.32'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='5' cy='19' r='1.7'/%3E%3Ccircle cx='12' cy='19' r='1.7'/%3E%3Ccircle cx='19' cy='5' r='1.7'/%3E%3Ccircle cx='12' cy='5' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/g%3E%3Cg fill='%23a79bd6'%3E%3Ccircle cx='5' cy='5' r='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Ccircle cx='19' cy='19' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
 
   --radius: 12px;
   --radius-lg: 16px;
@@ -67,9 +67,9 @@
   --line: #2a2924;
   --line-strong: #3a382f;
 
-  --accent: #ff6a3d;
-  --accent-ink: #ff8a63;
-  --accent-soft: #2a1c15;
+  --accent: #a79bd6;
+  --accent-ink: #c3b9e8;
+  --accent-soft: #272138;
   --demo-bg: #17160f;
 
   --code-bg: #0c0c09;
