@@ -1,17 +1,22 @@
 ; ---------------------------------------------------------------------------
-; Prototype: build the Reativa demo with js_of_ocaml instead of Melange.
+; Prototype: build the Reativa demos with js_of_ocaml instead of Melange.
 ;
-; The reactive core (Signal/Computed/Effect/scheduler) and the View layer are
-; engine-agnostic OCaml, so we reuse their *exact source files* here via
-; copy_files rather than duplicating them. The only backend-specific module is
-; Dom: this directory ships a js_of_ocaml `dom.ml`, which the copied `view.ml`
-; compiles against. Even the demo app (`todo.mlx`) is the unmodified file from
-; demo/ui/, transformed by the same `reativa.mlx_ppx` JSX ppx.
+; The reactive core (Signal/Computed/Effect/scheduler), the View layer and the
+; Router *logic* are all engine-agnostic OCaml, so we reuse their *exact source
+; files* here via copy_files rather than duplicating them. The only
+; backend-specific modules are Dom (browser DOM) and History (browser
+; history/location): this directory ships js_of_ocaml versions of both, and the
+; copied view.ml / router.ml compile against them. Even the demo apps are
+; reused/typed against the same public API as the Melange build.
+;
+; Two demos:
+;   - todo        the demo/ui todo app, reused verbatim (same JSX, same ppx)
+;   - router_demo a small SPA exercising the ported Router end to end
 ;
 ; NOTE: In a production setup the copy_files trick would be replaced by dune
-; `virtual_modules` — the library declares `dom` virtual, and each engine ships
-; an implementation. copy_files keeps this prototype purely additive: it does
-; not touch src/ at all, so the Melange build is provably unchanged.
+; `virtual_modules` — the library declares `dom` and `history` virtual, and each
+; engine ships an implementation. copy_files keeps this prototype purely
+; additive: it does not touch src/ semantics, so the Melange build is unchanged.
 ;
 ; Gated behind REATIVA_JSOO=enabled so the default `dune build` / `dune test`
 ; (and existing CI) never require js_of_ocaml to be installed.
@@ -22,11 +27,15 @@
 
 (copy_files# ../../src/view.ml)
 
-; --- the demo app itself, reused verbatim (same JSX, same ppx) ---
+(copy_files# ../../src/router_match.ml)
+
+(copy_files# ../../src/router.ml)
+
+; --- the todo demo app, reused verbatim (same JSX, same ppx) ---
 (copy_files# ../../demo/ui/todo.mlx)
 
-(executable
- (name todo)
+(executables
+ (names todo router_demo)
  (modes js)
  (enabled_if
   (= %{env:REATIVA_JSOO=} enabled))

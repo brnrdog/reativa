@@ -125,3 +125,18 @@ let typeof (x : 'a) : string =
 (* JS [String(x)]: canonical display form for numbers and booleans. *)
 let display_string (x : 'a) : string =
   Js.to_string (Js.Unsafe.fun_call (Js.Unsafe.js_expr "String") [| Js.Unsafe.inject x |])
+
+(* ----- event modifier/state accessors (used by Router) -----
+
+   The js_of_ocaml counterparts of the Melange [@@mel.get] externals in
+   src/dom.ml. event.button is a small integer, which js_of_ocaml represents as
+   a plain OCaml int, so no conversion is needed. *)
+
+let default_prevented (ev : event) : bool =
+  Js.to_bool (Js.Unsafe.get ev "defaultPrevented" : bool Js.t)
+
+let mouse_button (ev : event) : int = Js.Unsafe.get ev "button"
+let meta_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "metaKey" : bool Js.t)
+let ctrl_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "ctrlKey" : bool Js.t)
+let shift_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "shiftKey" : bool Js.t)
+let alt_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "altKey" : bool Js.t)

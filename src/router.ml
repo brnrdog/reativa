@@ -4,23 +4,10 @@
    history changes immediately, and refreshes from [popstate] for back/forward
    navigation. Route matching is pure so it can be tested natively. *)
 
-type state
+(* All browser FFI now lives in {!History} (window/history/location) and {!Dom}
+   (event modifier accessors), so this module is engine-agnostic OCaml. *)
 
-type 'a nullable
-
-(* Bound through the shipped runtime helper (see reativa_runtime.js): melange
-   primitive spellings like "#undefined" are not valid symbols for the native
-   toolchain, which also compiles (but never links) this module. *)
-external nullable_undefined : unit -> 'a nullable = "getUndefined"
-  [@@mel.module "./reativa_runtime.js"]
-
-external nullable_return : 'a -> 'a nullable = "%identity"
-external encode_state : 'a -> state = "%identity"
-external decode_state : state -> 'a = "%identity"
-
-let nullable_of_option = function
-  | None -> nullable_undefined ()
-  | Some value -> nullable_return value
+type state = History.state
 
 type location = {
   href : string;
@@ -31,63 +18,22 @@ type location = {
   state : state option;
 }
 
-type window
-type history
-type location_target
-type pop_state_event
+let window () = History.window ()
 
-external get_window : unit -> window = "getWindow"
-  [@@mel.module "./reativa_runtime.js"]
-
-let window () = get_window ()
-
-external history : window -> history = "history" [@@mel.get]
-external browser_location : window -> location_target = "location" [@@mel.get]
-external href : location_target -> string = "href" [@@mel.get]
-external origin : location_target -> string = "origin" [@@mel.get]
-external pathname : location_target -> string = "pathname" [@@mel.get]
-external search : location_target -> string = "search" [@@mel.get]
-external hash : location_target -> string = "hash" [@@mel.get]
-external history_state : history -> state option = "state"
-  [@@mel.get] [@@mel.return nullable]
-
-external push_state : history -> state nullable -> string -> string -> unit
-  = "pushState"
-  [@@mel.send]
-
-external replace_state : history -> state nullable -> string -> string -> unit
-  = "replaceState"
-  [@@mel.send]
-
-external go_history : history -> int -> unit = "go" [@@mel.send]
-external back_history : history -> unit = "back" [@@mel.send]
-external forward_history : history -> unit = "forward" [@@mel.send]
-
-external add_popstate_listener : window -> string -> (pop_state_event -> unit) -> unit
-  = "addEventListener"
-  [@@mel.send]
-
-external default_prevented : Dom.event -> bool = "defaultPrevented" [@@mel.get]
-external mouse_button : Dom.event -> int = "button" [@@mel.get]
-external meta_key : Dom.event -> bool = "metaKey" [@@mel.get]
-external ctrl_key : Dom.event -> bool = "ctrlKey" [@@mel.get]
-external shift_key : Dom.event -> bool = "shiftKey" [@@mel.get]
-external alt_key : Dom.event -> bool = "altKey" [@@mel.get]
-
-let state value = encode_state value
-let state_value encoded = decode_state encoded
+let state value = History.encode_state value
+let state_value encoded = History.decode_state encoded
 
 let current () =
-  let w = window () in
-  let loc = browser_location w in
-  let hist = history w in
+  let w = History.window () in
+  let loc = History.browser_location w in
+  let hist = History.history w in
   {
-    href = href loc;
-    origin = origin loc;
-    pathname = pathname loc;
-    search = search loc;
-    hash = hash loc;
-    state = history_state hist;
+    href = History.href loc;
+    origin = History.origin loc;
+    pathname = History.pathname loc;
+    search = History.search loc;
+    hash = History.hash loc;
+    state = History.history_state hist;
   }
 
 let location_signal : location Signal.t Lazy.t = lazy (Signal.make (current ()))
@@ -98,8 +44,8 @@ let sync signal = Signal.set signal (current ())
 let start_with_signal signal =
   if not !started then begin
     started := true;
-    let w = window () in
-    add_popstate_listener w "popstate" (fun _ -> sync signal);
+    let w = History.window () in
+    History.add_popstate_listener w "popstate" (fun _ -> sync signal);
     sync signal
   end
 
@@ -114,18 +60,18 @@ let current_signal = location
 let path loc = loc.pathname ^ loc.search ^ loc.hash
 
 let navigate ?(replace = false) ?state to_ () =
-  let w = window () in
-  let hist = history w in
-  let next_state = nullable_of_option state in
-  if replace then replace_state hist next_state "" to_
-  else push_state hist next_state "" to_;
+  let w = History.window () in
+  let hist = History.history w in
+  let next_state = History.nullable_of_option state in
+  if replace then History.replace_state hist next_state "" to_
+  else History.push_state hist next_state "" to_;
   sync (location ())
 
 let replace ?state to_ () = navigate ~replace:true ?state to_ ()
 let push ?state to_ () = navigate ?state to_ ()
-let go delta = go_history (history (window ())) delta
-let back () = back_history (history (window ()))
-let forward () = forward_history (history (window ()))
+let go delta = History.go_history (History.history (History.window ())) delta
+let back () = History.back_history (History.history (History.window ()))
+let forward () = History.forward_history (History.history (History.window ()))
 
 let starts_with ~prefix value =
   let prefix_len = String.length prefix in
@@ -146,9 +92,9 @@ let should_handle_click ?target ev href =
   let target_allows_spa =
     match target with None | Some "_self" -> true | Some _ -> false
   in
-  target_allows_spa && (not (default_prevented ev)) && mouse_button ev = 0
-  && (not (meta_key ev)) && (not (ctrl_key ev)) && (not (shift_key ev))
-  && (not (alt_key ev)) && (not (is_special_href href)) && same_origin_href href
+  target_allows_spa && (not (Dom.default_prevented ev)) && Dom.mouse_button ev = 0
+  && (not (Dom.meta_key ev)) && (not (Dom.ctrl_key ev)) && (not (Dom.shift_key ev))
+  && (not (Dom.alt_key ev)) && (not (is_special_href href)) && same_origin_href href
 
 let link_value ?(replace = false) ?state ?target ?(attrs = []) ?(events = []) ~href children =
   let href_value = View.value_getter href in

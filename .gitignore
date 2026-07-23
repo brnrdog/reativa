@@ -6,5 +6,5 @@ demo/bundle.js
 demo/ui/output/
 demo/ui/bundle.js
 website/dist/
-examples/jsoo/bundle.js
+examples/jsoo/**/*.bundle.js
 *.install

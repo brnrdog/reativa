@@ -86,3 +86,17 @@ external typeof : 'a -> string = "classify"
 
 (* JS [String(x)]: canonical display form for numbers and booleans. *)
 external display_string : 'a -> string = "String"
+
+(* ----- event modifier/state accessors -----
+
+   Read by {!Router} to decide whether a link click should be handled as an SPA
+   navigation. They live here (rather than inline in the router) so the router
+   itself carries no FFI and stays engine-agnostic — the js_of_ocaml backend
+   swaps this [Dom] module and the [History] module, nothing else. *)
+
+external default_prevented : event -> bool = "defaultPrevented" [@@mel.get]
+external mouse_button : event -> int = "button" [@@mel.get]
+external meta_key : event -> bool = "metaKey" [@@mel.get]
+external ctrl_key : event -> bool = "ctrlKey" [@@mel.get]
+external shift_key : event -> bool = "shiftKey" [@@mel.get]
+external alt_key : event -> bool = "altKey" [@@mel.get]

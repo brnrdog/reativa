@@ -1,96 +1,114 @@
 # Prototype: Reativa on js_of_ocaml instead of Melange
 
-This directory builds the exact same todo demo as `demo/ui/` — the same
-`todo.mlx` source, the same JSX ppx, the same reactive core and `View` layer —
-but compiles it to JavaScript with **js_of_ocaml** rather than **Melange**.
-
-It exists to answer one question: *how much of Reativa is actually tied to
-Melange, and how hard is it to target a different OCaml-to-JS engine?*
+This directory rebuilds Reativa's demos with **js_of_ocaml** instead of
+**Melange**, reusing the reactive core, the `View` layer, the `Router` logic and
+the demo apps *unmodified*. It exists to show how much of Reativa is actually
+tied to Melange (almost nothing) and what a second OCaml-to-JS engine costs.
 
 ## The short answer
 
-Almost none of it is tied to Melange. The engine coupling lives entirely in the
-FFI modules (`src/dom.ml` and `src/router.ml`). Everything else — the whole
-`signals/` core, `view.ml`, `router_match.ml`, and the `reativa.mlx_ppx` JSX
-transform — is engine-agnostic OCaml that already compiles to native today.
+The engine coupling lives entirely in the FFI modules. After the small
+refactor on the `src/` side, those are exactly two files:
+
+- `src/dom.ml` — the browser DOM (+ a few event-modifier accessors)
+- `src/history.ml` — the browser history/location API used by the router
+
+Everything else — the whole `signals/` core, `view.ml`, `router.ml`,
+`router_match.ml` and the `reativa.mlx_ppx` JSX transform — is engine-agnostic
+OCaml that already compiles to native today. `router.ml` used to carry its own
+`external`s inline; those were extracted into `src/history.ml` so the routing
+*logic* is now FFI-free and portable.
 
 This prototype reuses those engine-agnostic sources **verbatim** (via dune
-`copy_files`, see `dune`) and swaps in a single new file:
+`copy_files`) and swaps in two new files:
 
 | File | Role |
 |------|------|
-| `dom.ml` | js_of_ocaml implementation of the `Dom` FFI — the **only** new logic |
-| `reativa.ml` | trimmed API aggregator so `open Reativa` resolves (mirrors `src/reativa.ml`) |
-| `todo.mlx` | *copied unmodified* from `demo/ui/todo.mlx` |
-| `view.ml`, `signals/*.ml` | *copied unmodified* from `src/` |
+| `dom.ml` | js_of_ocaml implementation of the `Dom` FFI (mirrors `src/dom.ml`) |
+| `history.ml` | js_of_ocaml implementation of the `History` FFI (mirrors `src/history.ml`) |
+| `reativa.ml` | API aggregator so `open Reativa` resolves (mirrors `src/reativa.ml`) |
+| `router_demo.ml` | small SPA exercising the ported router |
+| `todo.mlx`, `view.ml`, `router.ml`, `router_match.ml`, `signals/*.ml` | *copied unmodified* from `src/` and `demo/ui/` |
 
-`dom.ml` exposes the same value signature as the Melange `src/dom.ml`, so
-`view.ml` compiles against it with zero changes. Where Melange writes:
+Both `dom.ml` and `history.ml` expose the same value signatures as their Melange
+counterparts, so `view.ml` and `router.ml` compile against them with zero
+changes. Where Melange writes:
 
 ```ocaml
-external create_element : string -> t = "createElement" [@@mel.scope "document"]
-external append_child : t -> t -> unit = "appendChild" [@@mel.send]
+external push_state : history -> state nullable -> string -> string -> unit
+  = "pushState" [@@mel.send]
 ```
 
 the js_of_ocaml version writes:
 
 ```ocaml
-let create_element tag =
-  Js.Unsafe.meth_call document "createElement" [| Js.Unsafe.inject (Js.string tag) |]
-let append_child parent child =
-  ignore (Js.Unsafe.meth_call parent "appendChild" [| Js.Unsafe.inject child |])
+let push_state h st title url =
+  ignore (Js.Unsafe.meth_call h "pushState"
+    [| Js.Unsafe.inject st; Js.Unsafe.inject (Js.string title); Js.Unsafe.inject (Js.string url) |])
 ```
 
-Same signature, different engine. That is the entire migration surface for the
-DOM layer.
+Same signature, different engine. That is the entire migration surface.
 
-## Running it
+## The two demos
+
+- **todo** — `demo/ui/todo.mlx`, reused verbatim (same JSX, same ppx), driving
+  the DOM through the js_of_ocaml `Dom`.
+- **router_demo** — a small SPA (`router_demo.ml`) that drives the *unmodified*
+  `src/router.ml` through the js_of_ocaml `History` + `Dom`. Links, `pushState`
+  navigation, `popstate` and `<Redirect>` all run on js_of_ocaml.
+
+## Running them
 
 Requires `js_of_ocaml` and `js_of_ocaml-compiler` (plus the usual `mlx`):
 
 ```sh
 opam install js_of_ocaml js_of_ocaml-compiler
-npm run demo:jsoo         # builds examples/jsoo/bundle.js
-npm run demo:jsoo:serve   # serves this directory at http://localhost:8080
+npm run demo:jsoo               # builds both self-contained bundles
+
+npm run demo:jsoo:serve         # todo demo   -> http://localhost:8080/
+npm run demo:jsoo:router:serve  # router demo -> http://localhost:8080/
 ```
 
 Note there is **no bundler step**: js_of_ocaml links the OCaml runtime and every
-module into one self-contained `todo.bc.js`. The Melange demo, by contrast,
-emits per-module ES modules that esbuild then bundles — a real trade-off (see
-below).
+module — including the router — into one self-contained `*.bc.js`. The Melange
+demo, by contrast, emits per-module ES modules that esbuild then bundles.
 
 The example is gated behind `REATIVA_JSOO=enabled` so the default `dune build`,
 `dune test` and the existing Melange build never require js_of_ocaml to be
-installed. CI verifies it in a dedicated `jsoo-build` job.
+installed. CI verifies both demos in a dedicated `jsoo-build` job.
 
-## What this prototype does and does not cover
+## The one genuinely representation-sensitive spot: `View.child`
 
-**Covered:** the full reactive stack — Signal / Computed / Effect / scheduler —
-and the `View` layer (reactive text, attributes, `Dynamic` regions, keyed lists,
-event handlers) running end to end on js_of_ocaml, driving the real DOM.
+`view.ml`'s runtime child coercion (`View.child`, behind bare JSX children)
+inspects the *JavaScript representation* of an OCaml value via `Dom.typeof` /
+`Dom.display_string`. That is inherently engine-dependent, because Melange and
+js_of_ocaml map OCaml values to JS differently:
 
-**Not covered (deliberately, to keep the prototype small):**
+| OCaml bare child | Melange `typeof` | js_of_ocaml `typeof` |
+|------------------|------------------|----------------------|
+| `string` | `"string"` | `"string"` ✓ (js-string runtime, the default) |
+| `int` | `"number"` | `"number"` ✓ |
+| already-built `View.t` | `"object"` | `"object"` ✓ |
+| a thunk (`unit -> _`) | `"function"` | `"function"` ✓ |
+| `None` | `"undefined"` → renders nothing | `"number"` (0) → renders `"0"` |
+| `bool` | `"boolean"` | `"number"` (0/1) |
 
-- **Router.** `src/router.ml` is the other Melange-FFI module. The todo demo
-  doesn't use it, so it isn't ported here. It would be virtualised exactly the
-  same way as `Dom` — extract the signature, provide a js_of_ocaml
-  implementation of the `window`/`history`/`location` bindings.
-- **`View.child` value representation.** `view.ml`'s runtime child coercion
-  inspects the *JavaScript representation* of an OCaml value (`typeof`). Strings,
-  numbers and already-built views — everything the demo passes as a bare JSX
-  child — map the same way under js_of_ocaml's default (JS-string) runtime as
-  under Melange, so the demo behaves identically. But this is the one spot that
-  is genuinely representation-sensitive: e.g. an OCaml `bool` used as a bare
-  child is a JS `boolean` under Melange but a number under js_of_ocaml. A
-  production port would make this explicit rather than relying on `typeof`.
+So the demos — which only ever pass strings, ints and views as bare children —
+behave identically on both engines. But `None`/`bool` bare children differ, and
+js_of_ocaml *cannot* recover them at runtime (an OCaml `false`, `0` and `None`
+are the same JS value under js_of_ocaml). The portable fix is to not depend on
+JS representation there: use the explicit `View.text` / `View.int` / `View.show`
+/ `View.maybe` constructors, which carry the OCaml type through and render the
+same under any engine. This is the one place a production multi-engine build
+would tighten; it is called out here rather than papered over.
 
 ## Prototype shortcut vs. production shape
 
-`copy_files` is used here purely so the prototype is **additive** — it does not
-modify `src/` at all, so the Melange build is provably unchanged. In production
-you would instead make `Dom` a dune **virtual module**: the `reativa` library
-declares `(virtual_modules dom)`, and two implementation libraries
-(`reativa.melange`, `reativa.jsoo`) provide `dom.ml`, with
+`copy_files` is used here purely so the prototype stays **additive** — it does
+not change how `src/` is compiled, so the Melange build is unchanged. In
+production you would instead make `Dom` and `History` dune **virtual modules**:
+the `reativa` library declares `(virtual_modules dom history)`, and two
+implementation libraries (`reativa.melange`, `reativa.jsoo`) provide them, with
 `(default_implementation reativa.melange)` keeping every existing consumer
 working unchanged. That removes the source copying and lets both engines share
 one compiled library definition.
@@ -101,7 +119,7 @@ one compiled library definition.
 |---|---|---|
 | Output | per-module idiomatic ES, tree-shakeable | one linked script incl. OCaml runtime |
 | Baseline size | tiny (no runtime shipped) | ships the OCaml runtime |
-| DOM interop | zero-cost `[@mel.*]` externals | via `Js.Unsafe` / `Dom_html` |
+| DOM/history interop | zero-cost `[@mel.*]` externals | via `Js.Unsafe` |
 | Bundler | needs esbuild/vite | none required |
 | OCaml ecosystem | melange-compatible libs only | full opam ecosystem, effects, exceptions |
 
