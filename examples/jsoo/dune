@@ -1,0 +1,35 @@
+; ---------------------------------------------------------------------------
+; Prototype: build the Reativa demo with js_of_ocaml instead of Melange.
+;
+; The reactive core (Signal/Computed/Effect/scheduler) and the View layer are
+; engine-agnostic OCaml, so we reuse their *exact source files* here via
+; copy_files rather than duplicating them. The only backend-specific module is
+; Dom: this directory ships a js_of_ocaml `dom.ml`, which the copied `view.ml`
+; compiles against. Even the demo app (`todo.mlx`) is the unmodified file from
+; demo/ui/, transformed by the same `reativa.mlx_ppx` JSX ppx.
+;
+; NOTE: In a production setup the copy_files trick would be replaced by dune
+; `virtual_modules` — the library declares `dom` virtual, and each engine ships
+; an implementation. copy_files keeps this prototype purely additive: it does
+; not touch src/ at all, so the Melange build is provably unchanged.
+;
+; Gated behind REATIVA_JSOO=enabled so the default `dune build` / `dune test`
+; (and existing CI) never require js_of_ocaml to be installed.
+; ---------------------------------------------------------------------------
+
+; --- engine-agnostic sources, reused verbatim from the Melange library ---
+(copy_files# ../../src/signals/*.ml)
+
+(copy_files# ../../src/view.ml)
+
+; --- the demo app itself, reused verbatim (same JSX, same ppx) ---
+(copy_files# ../../demo/ui/todo.mlx)
+
+(executable
+ (name todo)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries js_of_ocaml)
+ (preprocess
+  (pps reativa.mlx_ppx)))

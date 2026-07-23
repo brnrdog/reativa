@@ -50,3 +50,23 @@ jobs:
 
       - name: Build Melange (JS) target
         run: opam exec -- dune build @melange
+
+  jsoo-build:
+    name: js_of_ocaml (alternative engine) build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.2.x"
+
+      - name: Install dependencies (incl. js_of_ocaml)
+        run: |
+          opam install . --deps-only --with-test
+          opam install js_of_ocaml js_of_ocaml-compiler
+
+      - name: Build js_of_ocaml demo (examples/jsoo)
+        run: REATIVA_JSOO=enabled opam exec -- dune build examples/jsoo/todo.bc.js

@@ -8,6 +8,8 @@
     "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
     "demo:serve": "node scripts/serve-demo.mjs --root demo/ui",
+    "demo:jsoo": "REATIVA_JSOO=enabled opam exec -- dune build examples/jsoo/todo.bc.js && cp _build/default/examples/jsoo/todo.bc.js examples/jsoo/bundle.js",
+    "demo:jsoo:serve": "node scripts/serve-demo.mjs --root examples/jsoo",
     "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
     "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs",
     "docs:preview": "vite preview --config website/vite.config.mjs",

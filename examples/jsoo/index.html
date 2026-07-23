@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>reativa - js_of_ocaml engine demo</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            ink: "oklch(20% 0.018 255)",
+                            paper: "oklch(98% 0.006 255)",
+                            line: "oklch(88% 0.012 255)",
+                            wash: "oklch(94% 0.01 255)",
+                            muted: "oklch(47% 0.015 255)",
+                        },
+                        boxShadow: {
+                            soft: "0 18px 60px oklch(20% 0.018 255 / 0.12)",
+                        },
+                    },
+                },
+            };
+        </script>
+        <style type="text/tailwindcss">
+            @layer components {
+                .todo-shell {
+                    @apply mx-auto mt-10 flex w-full max-w-xl flex-col rounded-2xl border border-line bg-white/90 p-5 shadow-soft sm:mt-14 sm:p-6;
+                }
+
+                .todo-title {
+                    @apply text-2xl font-semibold leading-tight tracking-normal text-ink;
+                }
+
+                .todo-copy {
+                    @apply mt-2 max-w-prose text-sm leading-6 text-muted;
+                }
+
+                .todo-composer {
+                    @apply mt-6 flex w-full flex-col gap-2 sm:flex-row;
+                }
+
+                .todo-input {
+                    @apply min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 text-sm text-ink outline-none transition placeholder:text-slate-400 focus:border-ink focus:ring-4 focus:ring-slate-900/10;
+                }
+
+                .todo-action {
+                    @apply min-h-11 rounded-lg bg-ink px-4 text-sm font-semibold text-paper outline-none transition hover:bg-slate-700 focus:ring-4 focus:ring-slate-900/15 disabled:cursor-not-allowed disabled:bg-slate-300;
+                }
+
+                .todo-list {
+                    @apply mt-6 space-y-2;
+                }
+
+                .todo-filters {
+                    @apply flex gap-2 mx-auto mt-6;
+                }
+
+                .todo-filters button {
+                    @apply rounded-lg bg-paper text-ink px-4 py-1 text-sm font-semibold outline-none transition hover:bg-slate-50;
+                }
+
+                .todo {
+                    @apply flex min-h-12 items-center gap-3 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:border-slate-300;
+                }
+
+                .todo:has(.todo-checkbox:checked) {
+                    @apply bg-wash text-muted;
+                }
+
+                .todo-checkbox {
+                    @apply h-5 w-5 shrink-0 rounded border-slate-300 accent-slate-900;
+                }
+
+                .todo-title-text {
+                    @apply min-w-0 flex-1 truncate;
+                }
+
+                .todo-label {
+                    @apply flex items-center gap-3;
+                }
+
+                .todo:has(.todo-checkbox:checked) .todo-title-text {
+                    @apply text-muted line-through;
+                }
+            }
+        </style>
+    </head>
+    <body class="min-h-screen bg-paper text-ink antialiased">
+        <div class="fixed inset-x-0 top-0 h-1 bg-ink"></div>
+        <div id="app"></div>
+
+        <!--
+          Built by `npm run demo:jsoo`. Note this is a plain <script>, not a
+          module: js_of_ocaml links the OCaml runtime and every module into one
+          self-contained script, so there is no separate bundler step (contrast
+          the Melange demo, which emits ES modules that esbuild bundles).
+        -->
+        <script src="./bundle.js"></script>
+    </body>
+</html>
