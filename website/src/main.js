@@ -90,13 +90,17 @@ function highlightOCaml(source) {
       continue;
     }
 
-    // {|quoted strings|}
-    if (ch === "{" && source[i + 1] === "|") {
-      const end = source.indexOf("|}", i + 2);
-      const j = end === -1 ? n : end + 2;
-      out.token("tok-str", source.slice(i, j));
-      i = j;
-      continue;
+    // {|quoted strings|} and {js|unicode strings|js}
+    if (ch === "{") {
+      const open = source.slice(i).match(/^\{([a-z]*)\|/);
+      if (open) {
+        const closer = "|" + open[1] + "}";
+        const end = source.indexOf(closer, i + open[0].length);
+        const j = end === -1 ? n : end + closer.length;
+        out.token("tok-str", source.slice(i, j));
+        i = j;
+        continue;
+      }
     }
 
     // numbers
