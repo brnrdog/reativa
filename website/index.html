@@ -8,6 +8,8 @@
       content="reativa is an OCaml + Melange library for building reactive web interfaces with fine-grained signals. Views are real DOM nodes — no virtual DOM, no diffing."
     />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#FBFAF7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)" />
     <meta property="og:title" content="reativa — reactive web interfaces for OCaml" />
     <meta
       property="og:description"
@@ -15,10 +17,40 @@
     />
     <meta property="og:type" content="website" />
     <title>reativa — reactive web interfaces for OCaml</title>
+
+    <!-- Favicon: the lattice mark on a dark rounded tile (app-icon lockup). -->
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%238578b8'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='bold' text-anchor='middle' fill='white'%3Er%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314140F'/%3E%3Cg transform='translate(4 4)'%3E%3Cg fill='white' opacity='0.32'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='5' cy='19' r='1.7'/%3E%3Ccircle cx='12' cy='19' r='1.7'/%3E%3Ccircle cx='19' cy='5' r='1.7'/%3E%3Ccircle cx='12' cy='5' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/g%3E%3Cg fill='%23A79BD6'%3E%3Ccircle cx='5' cy='5' r='2.2'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Ccircle cx='19' cy='19' r='2.2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"
     />
+
+    <!-- Type: Space Grotesk for UI, JetBrains Mono for code. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Set the color theme before first paint to avoid a flash. The reativa
+         app reads this attribute back to seed its theme signal. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var theme =
+            stored ||
+            (window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light");
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>

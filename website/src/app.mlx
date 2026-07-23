@@ -17,6 +17,38 @@ external set_timeout : (unit -> unit) -> int -> unit = "setTimeout"
 external set_interval : (unit -> unit) -> int -> float = "setInterval"
 external clear_interval : float -> unit = "clearInterval"
 
+(* ----- color theme: light / dark ----- *)
+
+(* index.html seeds [data-theme] on <html> before first paint (from
+   localStorage or the OS preference). We read it back to align the signal,
+   then keep the attribute - and the stored choice - in sync as it changes. *)
+
+external query_selector : string -> Dom.t = "querySelector" [@@mel.scope "document"]
+
+external get_attribute : Dom.t -> string -> string option = "getAttribute"
+  [@@mel.send] [@@mel.return nullable]
+
+external store_theme : string -> string -> unit = "setItem"
+  [@@mel.scope "localStorage"]
+
+type theme = Light | Dark
+
+let root_el = query_selector "html"
+
+let initial_theme =
+  match get_attribute root_el "data-theme" with Some "dark" -> Dark | _ -> Light
+
+let theme = Signal.make initial_theme
+
+let () =
+  Effect.run (fun () ->
+    let name = match Signal.get theme with Dark -> "dark" | Light -> "light" in
+    Dom.set_attribute root_el "data-theme" name;
+    (try store_theme "theme" name with _ -> ());
+    None)
+
+let toggle_theme _ = Signal.update theme (function Light -> Dark | Dark -> Light)
+
 (* ----- syntax toggle: OCaml (mlx) vs ReasonML ----- *)
 
 type syntax = OCaml | Reason
@@ -1087,7 +1119,7 @@ let () =
       <header className="topbar">
         <div className="topbar-inner">
           <a className="brand" href="#top">
-            <span className="brand-mark">("r")</span>
+            <span className="brand-mark" />
             <span className="brand-name">("reativa")</span>
           </a>
           <nav className="topnav" aria_label="Primary">
@@ -1112,6 +1144,13 @@ let () =
               ("ReasonML")
             </button>
           </div>
+          <button
+            className="theme-btn"
+            aria_label="Toggle color theme"
+            onClick=toggle_theme
+          >
+            (if Signal.get theme = Dark then {js|☀|js} else {js|☾|js})
+          </button>
           <a className="nav-github" href="https://github.com/brnrdog/reativa">
             ("GitHub")
           </a>
@@ -1121,7 +1160,7 @@ let () =
       <main className="page">
         <section id="top" className="hero">
           <div className="hero-copy">
-            <p className="kicker">({js|OCaml · ReasonML · Melange · fine-grained signals|js})</p>
+            <p className="hero-badge">({js|OCaml + ReasonML · Melange|js})</p>
             <h1>
               ("Reactive web interfaces, ")
               <span className="accent">("written in OCaml.")</span>
@@ -1160,6 +1199,18 @@ let () =
               </p>
             </div>
           </div>
+        </section>
+
+        <section className="tools-strip" aria_label="Built on">
+          <span className="tools-strip-label">("Built on the tools you know")</span>
+          <span className="tools-sep" />
+          <ul className="tools-list">
+            <li>("OCaml")</li>
+            <li>("ReasonML")</li>
+            <li>("Melange")</li>
+            <li>("mlx")</li>
+            <li>("dune")</li>
+          </ul>
         </section>
 
         <section id="why" className="section">
@@ -1357,6 +1408,25 @@ let () =
             <p className="api-note">
               ("Routing needs a host that serves index.html for every path - run it locally with any SPA dev server. Constructor-style equivalents exist too: Router.route, Router.outlet, Router.link and Router.redirect.")
             </p>
+          </div>
+        </section>
+
+        <section className="cta">
+          <div className="cta-card">
+            <span className="cta-mark" />
+            <h2>("Give your OCaml a reactive front end.")</h2>
+            <p>
+              ("A small core, no runtime magic, and the type safety you expect from OCaml.")
+            </p>
+            <div className="cta-actions">
+              <a className="btn primary" href="#start">("Get started")</a>
+              <a
+                className="btn ghost-on-dark"
+                href="https://github.com/brnrdog/reativa"
+              >
+                ("View on GitHub")
+              </a>
+            </div>
           </div>
         </section>
       </main>
