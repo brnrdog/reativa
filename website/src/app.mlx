@@ -411,7 +411,7 @@ let () =
     <div className="stopwatch">
       <p className="time">
         (let n = Signal.get tenths in
-         string_of_int (n / 10) ^ "." ^ string_of_int (n mod 10) ^ "s")
+         Printf.sprintf "%d.%ds" (n / 10) (n mod 10))
       </p>
       <div className="row">
         <button onClick=(fun _ -> Signal.update running not)>
@@ -425,7 +425,7 @@ let stopwatch_demo =
   <div className="stopwatch-demo">
     <p className="big-value">
       (let n = Signal.get tenths in
-       string_of_int (n / 10) ^ "." ^ string_of_int (n mod 10) ^ "s")
+       Printf.sprintf "%d.%ds" (n / 10) (n mod 10))
     </p>
     <div className="btn-row">
       <button className="btn small" onClick=(fun _ -> Signal.update running not)>
@@ -478,8 +478,9 @@ let fetch_weather _ =
   in
   Signal.set weather (Loading city);
   let url =
-    "https://api.open-meteo.com/v1/forecast?latitude=" ^ city.lat
-    ^ "&longitude=" ^ city.lon ^ "&current_weather=true"
+    Printf.sprintf
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true"
+      city.lat city.lon
   in
   ignore
     (fetch url
@@ -535,8 +536,9 @@ let fetch_weather _ =
   in
   Signal.set weather (Loading city);
   let url =
-    "https://api.open-meteo.com/v1/forecast?latitude=" ^ city.lat
-    ^ "&longitude=" ^ city.lon ^ "&current_weather=true"
+    Printf.sprintf
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true"
+      city.lat city.lon
   in
   ignore
     (fetch url
@@ -557,9 +559,9 @@ let () =
       (View.tracked (fun () ->
          match Signal.get weather with
          | Idle -> <p>("Real weather, one click away.")</p>
-         | Loading city -> <p>("Checking " ^ city.name ^ "...")</p>
+         | Loading city -> <p>(Printf.sprintf "Checking %s..." city.name)</p>
          | Failed city ->
-           <p>("Could not reach the service for " ^ city.name ^ ".")</p>
+           <p>(Printf.sprintf "Could not reach the service for %s." city.name)</p>
          | Loaded (city, temp, wind) ->
            <div>
              <h3>(city.name)</h3>
@@ -577,10 +579,10 @@ let weather_demo =
        | Idle ->
          <p className="status muted">("Real weather, one click away.")</p>
        | Loading city ->
-         <p className="status muted">("Checking " ^ city.name ^ "...")</p>
+         <p className="status muted">(Printf.sprintf "Checking %s..." city.name)</p>
        | Failed city ->
          <p className="status muted">
-           ("Could not reach the service for " ^ city.name ^ ".")
+           (Printf.sprintf "Could not reach the service for %s." city.name)
          </p>
        | Loaded (city, temp, wind) ->
          <div className="weather-card">
