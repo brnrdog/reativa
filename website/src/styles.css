@@ -112,14 +112,14 @@ dl {
 .topbar-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  gap: 12px 24px;
   width: min(var(--maxw), calc(100% - 40px));
   margin: 0 auto;
   min-height: 60px;
 }
 
 .brand {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -144,6 +144,7 @@ dl {
 }
 
 .topnav {
+  flex: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -161,6 +162,7 @@ dl {
 }
 
 .nav-github {
+  flex: none;
   padding: 6px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
@@ -894,19 +896,120 @@ dl {
 }
 
 @media (max-width: 560px) {
+  :root {
+    --maxw: 100%;
+  }
+
   .topbar-inner,
   .page,
   .footer-inner {
     width: calc(100% - 28px);
   }
 
+  /* Two-row header: brand + GitHub on top, section links scroll below. */
   .topbar-inner {
     flex-wrap: wrap;
-    padding: 10px 0;
+    gap: 0;
+    padding: 6px 0;
+    min-height: 0;
+  }
+
+  .brand {
+    order: 1;
+  }
+
+  .nav-github {
+    order: 2;
+    margin-left: auto;
+    padding: 8px 15px;
   }
 
   .topnav {
+    order: 3;
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
     justify-content: flex-start;
+    gap: 0;
+    margin-top: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .topnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topnav a {
+    flex: none;
+    padding: 7px 14px 7px 0;
+    white-space: nowrap;
+  }
+
+  /* Sticky header is ~two rows (~96px) tall now; keep anchored targets clear. */
+  .section {
+    padding-top: 52px;
+    scroll-margin-top: 104px;
+  }
+
+  .hero,
+  .example,
+  .step,
+  .api-group {
+    scroll-margin-top: 104px;
+  }
+
+  /* Comfortable touch targets. */
+  .btn.small {
+    min-height: 40px;
+    padding: 0 16px;
+  }
+
+  .copy-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+
+  .field {
+    min-height: 44px;
+    font-size: 16px; /* keeps iOS from zooming on focus */
+  }
+
+  .todo-item {
+    padding: 10px 12px;
+  }
+
+  .todo-label {
+    gap: 12px;
+    padding: 4px 0;
+  }
+
+  .todo-label input {
+    width: 20px;
+    height: 20px;
+  }
+
+  a,
+  button,
+  input,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Tighter rhythm so the page isn't excessively long on a phone. */
+  .section {
+    padding-bottom: 0;
+  }
+
+  .example,
+  .step,
+  .api-group {
+    padding: 20px 18px;
+  }
+
+  .hero h1 {
+    font-size: clamp(30px, 8.5vw, 40px);
   }
 
   .code-body {
@@ -915,5 +1018,12 @@ dl {
 
   .big-value {
     font-size: 38px;
+  }
+}
+
+/* Users who prefer reduced motion: drop the smooth anchor scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
