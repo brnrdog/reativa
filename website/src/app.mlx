@@ -712,10 +712,10 @@ let () =
             <a href="#examples">("Examples")</a>
             <a href="#start">("Get started")</a>
             <a href="#api">("API")</a>
-            <a className="nav-github" href="https://github.com/brnrdog/reativa">
-              ("GitHub")
-            </a>
           </nav>
+          <a className="nav-github" href="https://github.com/brnrdog/reativa">
+            ("GitHub")
+          </a>
         </div>
       </header>
 
