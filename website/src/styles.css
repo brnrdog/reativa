@@ -4,31 +4,31 @@
 :root {
   color-scheme: light dark;
 
-  --bg: #faf9f7;
+  --bg: #faf9fb;
   --bg-raise: #ffffff;
-  --ink: #1c1917;
-  --body: #44403c;
-  --muted: #78716c;
-  --line: #e7e5e4;
-  --line-strong: #d6d3d1;
-  --accent: #ea580c;
-  --accent-ink: #c2410c;
-  --accent-soft: #ffedd5;
-  --demo-bg: #f5f4f2;
+  --ink: #1d1a22;
+  --body: #443f4d;
+  --muted: #776f82;
+  --line: #e8e5ee;
+  --line-strong: #d6d1e0;
+  --accent: #8578b8;
+  --accent-ink: #5f5494;
+  --accent-soft: #edeaf6;
+  --demo-bg: #f5f3f8;
 
-  --code-bg: #211d1a;
-  --code-bar: #2b2622;
-  --code-line: #3a332e;
-  --code-fg: #e8e3dd;
-  --code-muted: #a39c93;
+  --code-bg: #1d1b26;
+  --code-bar: #262332;
+  --code-line: #363146;
+  --code-fg: #e7e4f0;
+  --code-muted: #9d97b3;
 
-  --tok-kw: #ff9d6e;
-  --tok-str: #b3d98c;
-  --tok-com: #8f867c;
-  --tok-mod: #85c7f2;
-  --tok-num: #ffce6b;
-  --tok-tag: #7ee0c2;
-  --tok-punct: #a89f95;
+  --tok-kw: #c0b3f0;
+  --tok-str: #a8d08c;
+  --tok-com: #7e7896;
+  --tok-mod: #8cc7f0;
+  --tok-num: #f0c580;
+  --tok-tag: #7edac5;
+  --tok-punct: #9c96b2;
 
   --radius: 12px;
   --maxw: 1080px;
@@ -40,17 +40,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131110;
-    --bg-raise: #1c1917;
-    --ink: #f5f4f2;
-    --body: #d6d3d1;
-    --muted: #a8a29e;
-    --line: #292524;
-    --line-strong: #3f3a36;
-    --accent: #fb923c;
-    --accent-ink: #fdba74;
-    --accent-soft: #33221a;
-    --demo-bg: #191614;
+    --bg: #121017;
+    --bg-raise: #1b1822;
+    --ink: #f3f1f7;
+    --body: #d4d0dd;
+    --muted: #a49db4;
+    --line: #292534;
+    --line-strong: #3d3850;
+    --accent: #a79bd6;
+    --accent-ink: #c3b9e8;
+    --accent-soft: #272138;
+    --demo-bg: #181521;
   }
 }
 
@@ -231,7 +231,7 @@ dl {
 
 .hero .accent {
   color: var(--accent);
-  background: linear-gradient(100deg, var(--accent), #f59e0b);
+  background: linear-gradient(100deg, var(--accent-ink), var(--accent) 60%, #b9a7d8);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -272,10 +272,42 @@ dl {
   vertical-align: 2px;
 }
 
+.hero-live {
+  margin-top: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--demo-bg);
+  padding: 14px 16px;
+}
+
+.hero-live-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 12px;
+}
+
+.hero-live-row .field {
+  flex: 0 1 180px;
+}
+
+.hero-live-out {
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.hero-live-out strong {
+  color: var(--accent-ink);
+}
+
 .hero-note {
-  margin-top: 10px;
+  margin-top: 12px;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 /* ----- buttons ----- */
@@ -444,6 +476,7 @@ dl {
 
 .examples {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -602,6 +635,35 @@ dl {
   margin-bottom: 14px;
 }
 
+.weather-demo .status {
+  margin-top: 14px;
+}
+
+.weather-card {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-raise);
+  padding: 14px 16px;
+}
+
+.weather-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.weather-line {
+  margin-top: 4px;
+  color: var(--body);
+  font-size: 14.5px;
+}
+
+.weather-line strong {
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .status {
   margin-top: 8px;
   border-left: 3px solid var(--accent);
@@ -621,6 +683,7 @@ dl {
 
 .steps {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 
@@ -798,16 +861,21 @@ dl {
 
 @media (max-width: 980px) {
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 40px;
   }
 
+  .hero-copy,
+  .hero-code {
+    min-width: 0;
+  }
+
   .features {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .example-panes {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .example-demo {
@@ -816,11 +884,11 @@ dl {
   }
 
   .step {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .api-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
 }

@@ -438,23 +438,186 @@ let stopwatch_demo =
   </div>
 
 (* ================================================================== *)
+(* Example 5 — weather: fetching async data into signals               *)
+(* ================================================================== *)
+
+type response
+type payload
+type current
+
+external fetch : string -> response Js.Promise.t = "fetch"
+external json : response -> payload Js.Promise.t = "json" [@@mel.send]
+external current_weather : payload -> current = "current_weather" [@@mel.get]
+external temperature : current -> float = "temperature" [@@mel.get]
+external windspeed : current -> float = "windspeed" [@@mel.get]
+external random : unit -> float = "random" [@@mel.scope "Math"]
+
+type city = { name : string; lat : string; lon : string }
+
+let cities =
+  [|
+    { name = "Lisbon"; lat = "38.72"; lon = "-9.14" };
+    { name = "Tokyo"; lat = "35.68"; lon = "139.69" };
+    { name = "Nairobi"; lat = "-1.29"; lon = "36.82" };
+    { name = "Reykjavik"; lat = "64.15"; lon = "-21.94" };
+    { name = "Sydney"; lat = "-33.87"; lon = "151.21" };
+    { name = "Cusco"; lat = "-13.53"; lon = "-71.97" };
+  |]
+
+type weather_state =
+  | Idle
+  | Loading of city
+  | Loaded of city * float * float
+  | Failed of city
+
+let weather = Signal.make Idle
+
+let fetch_weather _ =
+  let city =
+    cities.(int_of_float (random () *. float_of_int (Array.length cities)))
+  in
+  Signal.set weather (Loading city);
+  let url =
+    "https://api.open-meteo.com/v1/forecast?latitude=" ^ city.lat
+    ^ "&longitude=" ^ city.lon ^ "&current_weather=true"
+  in
+  ignore
+    (fetch url
+    |> Js.Promise.then_ json
+    |> Js.Promise.then_ (fun payload ->
+         let current = current_weather payload in
+         Signal.set weather
+           (Loaded (city, temperature current, windspeed current));
+         Js.Promise.resolve ())
+    |> Js.Promise.catch (fun _ ->
+         Signal.set weather (Failed city);
+         Js.Promise.resolve ()))
+
+let weather_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+(* Bindings for fetch and the shape of the Open-Meteo response. *)
+type response
+type payload
+type current
+
+external fetch : string -> response Js.Promise.t = "fetch"
+external json : response -> payload Js.Promise.t = "json" [@@mel.send]
+external current_weather : payload -> current = "current_weather" [@@mel.get]
+external temperature : current -> float = "temperature" [@@mel.get]
+external windspeed : current -> float = "windspeed" [@@mel.get]
+external random : unit -> float = "random" [@@mel.scope "Math"]
+
+type city = { name : string; lat : string; lon : string }
+
+let cities =
+  [|
+    { name = "Lisbon"; lat = "38.72"; lon = "-9.14" };
+    { name = "Tokyo"; lat = "35.68"; lon = "139.69" };
+    { name = "Nairobi"; lat = "-1.29"; lon = "36.82" };
+    { name = "Reykjavik"; lat = "64.15"; lon = "-21.94" };
+    { name = "Sydney"; lat = "-33.87"; lon = "151.21" };
+    { name = "Cusco"; lat = "-13.53"; lon = "-71.97" };
+  |]
+
+type state =
+  | Idle
+  | Loading of city
+  | Loaded of city * float * float
+  | Failed of city
+
+let weather = Signal.make Idle
+
+let fetch_weather _ =
+  let city =
+    cities.(int_of_float (random () *. float_of_int (Array.length cities)))
+  in
+  Signal.set weather (Loading city);
+  let url =
+    "https://api.open-meteo.com/v1/forecast?latitude=" ^ city.lat
+    ^ "&longitude=" ^ city.lon ^ "&current_weather=true"
+  in
+  ignore
+    (fetch url
+    |> Js.Promise.then_ json
+    |> Js.Promise.then_ (fun payload ->
+         let current = current_weather payload in
+         Signal.set weather
+           (Loaded (city, temperature current, windspeed current));
+         Js.Promise.resolve ())
+    |> Js.Promise.catch (fun _ ->
+         Signal.set weather (Failed city);
+         Js.Promise.resolve ()))
+
+let () =
+  View.mount_by_id "app"
+    <div className="weather">
+      <button onClick=fetch_weather>("Check a random city")</button>
+      (View.tracked (fun () ->
+         match Signal.get weather with
+         | Idle -> <p>("Real weather, one click away.")</p>
+         | Loading city -> <p>("Checking " ^ city.name ^ "...")</p>
+         | Failed city ->
+           <p>("Could not reach the service for " ^ city.name ^ ".")</p>
+         | Loaded (city, temp, wind) ->
+           <div>
+             <h3>(city.name)</h3>
+             <p>(temp) (" C now, wind ") (wind) (" km/h")</p>
+           </div>))
+    </div>|}
+
+let weather_demo =
+  <div className="weather-demo">
+    <button className="btn small" onClick=fetch_weather>
+      ("Check a random city")
+    </button>
+    (View.tracked (fun () ->
+       match Signal.get weather with
+       | Idle ->
+         <p className="status muted">("Real weather, one click away.")</p>
+       | Loading city ->
+         <p className="status muted">("Checking " ^ city.name ^ "...")</p>
+       | Failed city ->
+         <p className="status muted">
+           ("Could not reach the service for " ^ city.name ^ ".")
+         </p>
+       | Loaded (city, temp, wind) ->
+         <div className="weather-card">
+           <h3>(city.name)</h3>
+           <p className="weather-line">
+             <strong>(temp)</strong>
+             (" C now, wind ")
+             <strong>(wind)</strong>
+             (" km/h")
+           </p>
+         </div>))
+  </div>
+
+(* ================================================================== *)
 (* Static code snippets                                                *)
 (* ================================================================== *)
+
+let hero_name = Signal.make "world"
+
+let hero_shout =
+  Computed.make (fun () -> String.uppercase_ascii (Signal.get hero_name))
 
 let hero_code =
   {|open Reativa
 open Reativa.View.Mlx
 
-let count = Signal.make 0
-let doubled = Computed.make (fun () -> Signal.get count * 2)
+let name = Signal.make "world"
+let shout = Computed.make (fun () -> String.uppercase_ascii (Signal.get name))
 
 let () =
   View.mount_by_id "app"
     <section>
-      <p>(Signal.get doubled)</p>
-      <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
-        ("+1")
-      </button>
+      <input
+        value=(Signal.get name)
+        onInput=(fun ev -> Signal.set name (Dom.target_value ev))
+      />
+      <h1>("Hello, ") (Signal.get shout) ("!")</h1>
     </section>|}
 
 let install_code = {|opam pin add reativa https://github.com/brnrdog/reativa.git|}
@@ -484,16 +647,11 @@ let hello_code =
   {|open Reativa
 open Reativa.View.Mlx
 
-let name = Signal.make "world"
-
 let () =
   View.mount_by_id "app"
     <main>
-      <h1>("Hello, ") (Signal.get name) ("!")</h1>
-      <input
-        value=(Signal.get name)
-        onInput=(fun ev -> Signal.set name (Dom.target_value ev))
-      />
+      <h1>("Hello from reativa!")</h1>
+      <p>("This view mounted once - now wire in some signals.")</p>
     </main>|}
 
 let component_code =
@@ -564,7 +722,7 @@ let () =
       <main className="page">
         <section id="top" className="hero">
           <div className="hero-copy">
-            <p className="kicker">("OCaml · Melange · fine-grained signals")</p>
+            <p className="kicker">({js|OCaml · Melange · fine-grained signals|js})</p>
             <h1>
               ("Reactive web interfaces, ")
               <span className="accent">("written in OCaml.")</span>
@@ -583,10 +741,24 @@ let () =
             </ul>
           </div>
           <div className="hero-code">
-            (code_panel ~id:"hero" ~file:"counter.mlx" ~lang:"ocaml" hero_code)
-            <p className="hero-note">
-              ("Clicking the button updates one text node. Nothing else re-renders.")
-            </p>
+            (code_panel ~id:"hero" ~file:"hello.mlx" ~lang:"ocaml" hero_code)
+            <div className="hero-live">
+              <span className="demo-tag">("Live demo")</span>
+              <div className="hero-live-row">
+                <input
+                  className="field"
+                  aria_label="Your name"
+                  value=(Signal.get hero_name)
+                  onInput=(fun ev -> Signal.set hero_name (Dom.target_value ev))
+                />
+                <p className="hero-live-out">
+                  ("Hello, ") <strong>(Signal.get hero_shout)</strong> ("!")
+                </p>
+              </div>
+              <p className="hero-note">
+                ("This exact code is running here. Typing updates one text node - nothing else re-renders.")
+              </p>
+            </div>
           </div>
         </section>
 
@@ -619,6 +791,9 @@ let () =
             (example ~id:"example-stopwatch" ~title:"Stopwatch"
                ~intro:"Effect.run re-runs when a tracked read changes and can return a cleanup. Flipping the signal starts or stops the interval - the cleanup always runs before the next effect."
                ~file:"stopwatch.mlx" ~code:stopwatch_code stopwatch_demo)
+            (example ~id:"example-weather" ~title:"Fetch the weather"
+               ~intro:"Async data is just another signal write. A variant signal models idle, loading, loaded and failed; clicking fetches a random city from the free Open-Meteo API, and View.tracked re-renders the region on each state change."
+               ~file:"weather.mlx" ~code:weather_code weather_demo)
           </div>
         </section>
 
@@ -637,8 +812,8 @@ let () =
                "Add a melange.emit stanza with reativa's PPX. dune build @melange writes ES modules under _build - bundle the emitted app.js with esbuild or Vite."
                (code_panel ~id:"dune-stanza" ~file:"src/dune" ~lang:"dune" dune_code))
             (step "4" "Write your first view"
-               "Mount into any element - here, <div id=\"app\"></div> in your index.html. The input and the heading share one signal."
-               (code_panel ~id:"hello" ~file:"hello.mlx" ~lang:"ocaml" hello_code))
+               "Mount into any element - here, <div id=\"app\"></div> in your index.html. Static views are created once; from there, inline signal reads make exact nodes reactive - like the hero demo at the top of this page."
+               (code_panel ~id:"hello" ~file:"app.mlx" ~lang:"ocaml" hello_code))
           </div>
         </section>
 
@@ -782,7 +957,7 @@ let () =
       <footer className="footer">
         <div className="footer-inner">
           <p>
-            ("MIT © Bernardo Gurgel. reativa is experimental - APIs may change.")
+            ({js|MIT © Bernardo Gurgel. reativa is experimental - APIs may change.|js})
           </p>
           <p className="footer-meta">
             ("Inspired by ")
