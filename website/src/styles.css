@@ -1,5 +1,5 @@
 /* reativa docs — design system.
-   Light/dark via prefers-color-scheme; code panels are always dark. */
+   Light/dark via prefers-color-scheme; code panels follow the page theme. */
 
 :root {
   color-scheme: light dark;
@@ -16,19 +16,20 @@
   --accent-soft: #edeaf6;
   --demo-bg: #f5f3f8;
 
-  --code-bg: #1d1b26;
-  --code-bar: #262332;
-  --code-line: #363146;
-  --code-fg: #e7e4f0;
-  --code-muted: #9d97b3;
+  /* Light code panel: a soft lavender-tinted surface with dark ink. */
+  --code-bg: #f4f2fb;
+  --code-bar: #ebe8f6;
+  --code-line: #e0dcf0;
+  --code-fg: #2c2738;
+  --code-muted: #6d6684;
 
-  --tok-kw: #c0b3f0;
-  --tok-str: #a8d08c;
-  --tok-com: #7e7896;
-  --tok-mod: #8cc7f0;
-  --tok-num: #f0c580;
-  --tok-tag: #7edac5;
-  --tok-punct: #9c96b2;
+  --tok-kw: #7c3aed;
+  --tok-str: #2f7d51;
+  --tok-com: #948da6;
+  --tok-mod: #2563b0;
+  --tok-num: #a85d00;
+  --tok-tag: #0e8a6e;
+  --tok-punct: #7c7592;
 
   --radius: 12px;
   --maxw: 1080px;
@@ -51,6 +52,21 @@
     --accent-ink: #c3b9e8;
     --accent-soft: #272138;
     --demo-bg: #181521;
+
+    /* Dark code panel. */
+    --code-bg: #1d1b26;
+    --code-bar: #262332;
+    --code-line: #363146;
+    --code-fg: #e7e4f0;
+    --code-muted: #9d97b3;
+
+    --tok-kw: #c0b3f0;
+    --tok-str: #a8d08c;
+    --tok-com: #7e7896;
+    --tok-mod: #8cc7f0;
+    --tok-num: #f0c580;
+    --tok-tag: #7edac5;
+    --tok-punct: #9c96b2;
   }
 }
 
@@ -412,7 +428,7 @@ dl {
   border: 1px solid var(--code-line);
   border-radius: var(--radius);
   background: var(--code-bg);
-  box-shadow: 0 12px 32px -18px rgb(0 0 0 / 0.35);
+  box-shadow: 0 10px 28px -20px rgb(31 27 46 / 0.28);
 }
 
 .code-panel-bar {
@@ -906,35 +922,39 @@ dl {
     width: calc(100% - 28px);
   }
 
-  /* Two-row header: brand + GitHub on top, section links scroll below. */
+  /* Condensed single-row header: brand, scrollable section links, GitHub. */
   .topbar-inner {
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 6px 0;
-    min-height: 0;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 0;
+    min-height: 52px;
   }
 
   .brand {
-    order: 1;
+    gap: 7px;
+    font-size: 16px;
   }
 
-  .nav-github {
-    order: 2;
-    margin-left: auto;
-    padding: 8px 15px;
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    font-size: 15px;
   }
 
   .topnav {
-    order: 3;
-    flex: 1 0 100%;
+    flex: 1;
+    min-width: 0;
     flex-wrap: nowrap;
     justify-content: flex-start;
-    gap: 0;
-    margin-top: 4px;
+    gap: 0 4px;
+    margin: 0;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    /* Fade the right edge to hint that the links scroll. */
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 20px), transparent);
   }
 
   .topnav::-webkit-scrollbar {
@@ -943,21 +963,25 @@ dl {
 
   .topnav a {
     flex: none;
-    padding: 7px 14px 7px 0;
+    padding: 14px 10px;
     white-space: nowrap;
   }
 
-  /* Sticky header is ~two rows (~96px) tall now; keep anchored targets clear. */
+  .nav-github {
+    padding: 7px 13px;
+  }
+
+  /* Sticky header is a single ~52px row; keep anchored targets clear of it. */
   .section {
-    padding-top: 52px;
-    scroll-margin-top: 104px;
+    padding-top: 48px;
+    scroll-margin-top: 62px;
   }
 
   .hero,
   .example,
   .step,
   .api-group {
-    scroll-margin-top: 104px;
+    scroll-margin-top: 62px;
   }
 
   /* Comfortable touch targets. */
