@@ -1,10 +1,17 @@
 opam-version: "2.0"
-synopsis: "Fine-grained reactive web interfaces for OCaml and Melange"
+synopsis: "Fine-grained reactive web interfaces for OCaml, with pluggable JS backends"
 description: """
-Reativa builds reactive browser interfaces with OCaml and Melange. Its
-fine-grained reactive core provides Signal, Computed, Effect and a glitch-free
-scheduler, while the View layer mounts real DOM nodes and updates reactive
-text, attributes and dynamic regions in place.
+Reativa builds reactive browser interfaces in OCaml. Its fine-grained reactive
+core provides Signal, Computed, Effect and a glitch-free scheduler, while the
+View layer mounts real DOM nodes and updates reactive text, attributes and
+dynamic regions in place — no virtual DOM.
+
+The browser FFI lives behind two dune virtual modules (Dom and History). This
+package ships the core, the mlx JSX ppx, and the Melange backend as the default
+implementation, so (libraries reativa) compiles to JavaScript with Melange.
+
+To use js_of_ocaml instead, install the reativa-jsoo package and name it
+alongside this one: (libraries reativa reativa-jsoo).
 """
 maintainer: "Bernardo Gurgel <brnrdog@hey.com>"
 authors: "Bernardo Gurgel <brnrdog@hey.com>"
