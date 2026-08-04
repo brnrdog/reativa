@@ -1,0 +1,26 @@
+; The js_of_ocaml half of the mlx PPX inference test.
+;
+; ../test_mlx_inference.ml is a compile-only fixture: it exercises every shape
+; the PPX infers (auto-thunked signal reads, static/dynamic wrappers, bare
+; scalar children, explicit View.* wrappers) and asserts nothing at runtime —
+; type-checking it *is* the assertion. The sibling `melange.emit` in ../dune
+; compiles it with the Melange backend; this stanza compiles the very same
+; fixture with the js_of_ocaml backend.
+;
+; Without this, a PPX change that happens to type-check only under Melange —
+; or an inferred call that resolves differently against the other backend's
+; Dom — would ship uncaught.
+;
+; The fixture is copied rather than shared because ../dune's melange.emit
+; already claims the module, and a module can only belong to one stanza per
+; directory.
+(copy_files# ../test_mlx_inference.ml)
+
+(executable
+ (name test_mlx_inference)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries reativa reativa-jsoo)
+ (preprocess
+  (pps reativa.mlx_ppx)))
