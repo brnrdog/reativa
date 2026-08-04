@@ -1,7 +1,7 @@
 # reativa
 
 Experimental UI library for building reactive user interfaces for the web with
-**OCaml** and **Melange**.
+**OCaml**, compiling to JavaScript through **Melange** or **js_of_ocaml**.
 
 reativa is powered by fine-grained signals and inspired by
 [xote](https://github.com/brnrdog/xote) and
@@ -28,8 +28,9 @@ let () =
 
 ## Core APIs
 
-The signal graph is plain OCaml. The view layer targets the browser through
-Melange and can be written with constructors or `.mlx` JSX-like syntax.
+The signal graph is plain OCaml. The view layer reaches the browser through a
+pluggable backend (see [Backends](#backends)) and can be written with
+constructors or `.mlx` JSX-like syntax.
 
 ### Signal
 
@@ -174,12 +175,17 @@ let hello user =
 ```
 
 Literals are wrapped at compile time. Everything else goes through
-`View.child`, xote-style runtime coercion on the Melange representation:
-strings render as text, numbers and booleans render via JS `String`, a
-function is treated as a tracked thunk whose result is re-coerced when its
-signal reads change, `None` renders nothing, and already-built views pass
+`View.child`, xote-style runtime coercion: strings render as text, numbers
+render via JS `String`, a function is treated as a tracked thunk whose result
+is re-coerced when its signal reads change, and already-built views pass
 through untouched. Nested elements and explicit `View.*` calls skip the
 coercion and stay fully typed.
+
+Bare children are guaranteed on every backend for **string, int, float, an
+already-built view, or a thunk**. Options and booleans are not: js_of_ocaml
+represents `None`, `false` and `0` as the same JavaScript value, so no runtime
+check can recover them. Use `View.Maybe` and `View.Show` (below), which carry
+the OCaml type through and render identically on both backends.
 
 The runtime coercion applies inside HTML element tags. Component tags
 (`<Router>`, `<View.Show>`, ...) only auto-wrap literals — their children are
@@ -321,6 +327,57 @@ match (Signal.peek (Router.location ())).state with
 | Some state -> Router.state_value state
 | None -> "no state"
 ```
+
+## Backends
+
+The reactive core, `View`, `Router` and the mlx JSX ppx are plain OCaml. Only
+the browser FFI is backend-specific, and it lives behind two dune *virtual
+modules* — `Dom` and `History` — so Reativa compiles to JavaScript through
+either of two backends:
+
+| Backend | Select with | Output |
+|---|---|---|
+| [Melange](https://melange.re) (default) | `(libraries reativa)` | per-module, tree-shakeable ES modules; bundle with esbuild/vite |
+| [js_of_ocaml](https://ocsigen.org/js_of_ocaml) | `(libraries reativa reativa-jsoo)` | one self-contained script, no bundler, full opam ecosystem |
+
+Melange is the default, and the reason is size: it emits per-module ES that a
+bundler tree-shakes, and it ships no OCaml runtime. js_of_ocaml links the OCaml
+runtime and every reachable module into one script, so it starts from a fixed
+floor Melange never pays — the Melange todo demo minifies to roughly 23 KB
+gzipped, and js_of_ocaml's is several times that.
+
+CI builds the same todo demo both ways on every run, minified and in the
+release profile, and prints both numbers to the job summary — that table is the
+source of truth rather than figures pasted here.
+
+js_of_ocaml is the right choice for an app that is already js_of_ocaml, or that
+needs opam packages Melange cannot consume — the runtime is a fixed cost that
+stops mattering as the app grows. Nothing else changes between the two: the
+same JSX, the same `View` and `Router`, the same compiled core library.
+
+To use js_of_ocaml, install the extra package and name it in `dune`:
+
+```sh
+opam install reativa-jsoo
+```
+
+```lisp
+(executables
+ (names app)
+ (modes js)
+ (libraries reativa reativa-jsoo)
+ (preprocess (pps reativa.mlx_ppx)))
+```
+
+Note that the Melange backend ships inside the `reativa` package rather than
+its own, so Melange is a dependency of the core even for a js_of_ocaml build.
+That is a dune constraint, not a choice: an implementation of a virtual library
+links against the virtual library's Melange-mode artifacts instead of producing
+them, so the core has to be built in Melange mode to be usable by the Melange
+backend at all.
+
+See [`examples/jsoo/`](examples/jsoo/) for the same demos built both ways, and
+for the one place where the two backends genuinely differ (`View.child`).
 
 ## Build, test, demo
 
