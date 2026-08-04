@@ -1276,7 +1276,7 @@ let () =
 
         <section id="api" className="section">
           (section_head "API reference" "The whole surface, at a glance"
-             "Five small modules under the Reativa namespace. The signal graph is plain OCaml; View and Router target the browser through Melange.")
+             "Five small modules under the Reativa namespace. The signal graph is plain OCaml; View and Router reach the browser through a pluggable backend - Melange or js_of_ocaml.")
 
           (api_group ~id:"api-signal" ~name:"Signal"
              ~blurb:"Mutable reactive state - the root of the graph. Reads with get are tracked by whatever computed, effect or reactive view is currently running."
