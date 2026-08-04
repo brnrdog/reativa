@@ -80,9 +80,39 @@ external log : 'a -> unit = "log" [@@mel.scope "console"]
 (* JS [typeof x]: "string", "number", "boolean", "function", "object", ...
    Bound via the shipped helper because the melange primitive spelling
    ("#typeof") is not a valid symbol for the native toolchain, which also
-   compiles (but never links) this module. *)
-external typeof : 'a -> string = "classify"
+   compiles (but never links) this module.
+
+   Kept private to this implementation: the backend contract (src/dom.mli)
+   exposes the classified form below, not the raw JS string. *)
+external raw_typeof : 'a -> string = "classify"
   [@@mel.module "./reativa_runtime.js"]
+
+(* Melange maps OCaml strings, numbers, booleans and closures onto their
+   natural JS counterparts, and [None] onto [undefined], so the JS [typeof]
+   answer translates directly. *)
+let classify x =
+  match raw_typeof x with
+  | "string" -> `String
+  | "number" | "bigint" -> `Number
+  | "boolean" -> `Boolean
+  | "function" -> `Function
+  | "undefined" -> `Undefined
+  | "object" -> `Object
+  | _ -> `Other
 
 (* JS [String(x)]: canonical display form for numbers and booleans. *)
 external display_string : 'a -> string = "String"
+
+(* ----- event modifier/state accessors -----
+
+   Read by {!Router} to decide whether a link click should be handled as an SPA
+   navigation. They live here (rather than inline in the router) so the router
+   itself carries no FFI and stays engine-agnostic — the js_of_ocaml backend
+   swaps this [Dom] module and the [History] module, nothing else. *)
+
+external default_prevented : event -> bool = "defaultPrevented" [@@mel.get]
+external mouse_button : event -> int = "button" [@@mel.get]
+external meta_key : event -> bool = "metaKey" [@@mel.get]
+external ctrl_key : event -> bool = "ctrlKey" [@@mel.get]
+external shift_key : event -> bool = "shiftKey" [@@mel.get]
+external alt_key : event -> bool = "altKey" [@@mel.get]
