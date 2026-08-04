@@ -1,13 +1,29 @@
 (include_subdirs unqualified)
 
-; Reativa compiles both to JavaScript via Melange and to native/bytecode. The
-; browser-facing DOM/View modules are present in the same package namespace but
-; only exercised by Melange targets. reativa_runtime.js ships alongside the
-; emitted modules; externals bound to it (instead of "#..." melange primitive
-; spellings) keep those modules compilable by the native toolchain too.
+; The backend-agnostic core of Reativa.
+;
+; [dom] and [history] are dune *virtual modules*: this library declares only
+; their signatures (dom.mli / history.mli) and each backend ships an
+; implementation — see backends/melange (Melange FFI) and backends/jsoo
+; (js_of_ocaml FFI). Everything else here (the Signal/Computed/Effect core, the
+; scheduler, View, Router and Router_match) is plain OCaml compiled once and
+; shared by every backend.
+;
+; This library must itself carry the melange mode: an implementation links
+; against the virtual library's melange-mode artifacts rather than producing
+; them, so dropping the mode here fails with "No rule found for
+; src/.reativa.objs/melange/reativa__View.cmj". That is why the Melange backend
+; cannot be split into its own opam package — the core would need the Melange
+; compiler regardless — and therefore why it stays in this package and remains
+; the [default_implementation]. js_of_ocaml has no such constraint and does
+; live in its own package.
+;
+; [default_implementation] keeps existing consumers writing
+; [(libraries reativa)] and transparently getting the Melange backend; a build
+; that wants js_of_ocaml adds [reativa-jsoo].
 (library
  (name reativa)
- (modes melange native)
- (melange.runtime_deps reativa_runtime.js)
- (preprocess
-  (pps melange.ppx)))
+ (public_name reativa)
+ (modes melange native byte)
+ (virtual_modules dom history)
+ (default_implementation reativa.melange_backend))

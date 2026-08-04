@@ -377,23 +377,46 @@ let dyn f = Dynamic f
 let tracked f = Dynamic f
 
 (* Runtime child coercion (xote's [View.child]): accept whatever a JSX child
-   evaluates to and build the right node for it. Strings render as text;
-   numbers and booleans render via JS [String]; a function is treated as a
-   tracked thunk whose result is re-coerced whenever a signal it read changes;
-   [None]/[undefined] renders nothing; anything else is assumed to be an
-   already-built view and passes through untouched.
+   evaluates to and build the right node for it. The mlx PPX routes bare JSX
+   children here when it cannot tell their type at compile time.
 
-   The checks are on the Melange (JS) representation, so like the rest of the
-   DOM-facing layer this must only be reached from browser-compiled code. The
-   mlx PPX routes bare JSX children here. *)
+   SUPPORTED BARE CHILDREN — guaranteed identical on every backend:
+
+   - [string]                  renders as text
+   - [int] / [float]           rendered via JS [String]
+   - an already-built [t]      passes through untouched
+   - a thunk ([unit -> _])     becomes a tracked region, re-coerced whenever a
+                               signal it read changes
+
+   NOT SUPPORTED — [option] and [bool]. Their JS representation is
+   backend-specific: js_of_ocaml maps [None], [false] and [0] onto the same JS
+   value, so no runtime check can recover them (see {!Dom.classify}). Use the
+   constructors that carry the OCaml type through instead, which render the
+   same on any backend:
+
+   {[
+     View.maybe (fun () -> current_user ()) render   (* not a bare option *)
+     View.show  (fun () -> is_open ()) content       (* not a bare bool   *)
+   ]}
+
+   The [Obj.magic]s below are irreducible for a function of this shape: it
+   accepts ['a] precisely because the PPX has no type information to give it,
+   so the classification is the only evidence available. They are confined to
+   this one function, and each is guarded by the classification immediately
+   above it. *)
 let rec child : 'a. 'a -> t =
  fun x ->
-  match Dom.typeof x with
-  | "string" -> Text (Obj.magic x : string)
-  | "number" | "boolean" | "bigint" -> Text (Dom.display_string x)
-  | "function" -> Dynamic (fun () -> child ((Obj.magic x : unit -> Obj.t) ()))
-  | "undefined" -> Empty
-  | _ -> (Obj.magic x : t)
+  match Dom.classify x with
+  | `String -> Text (Obj.magic x : string)
+  | `Number | `Boolean -> Text (Dom.display_string x)
+  | `Function -> Dynamic (fun () -> child ((Obj.magic x : unit -> Obj.t) ()))
+  | `Object -> (Obj.magic x : t)
+  (* Melange's [None]. Unreachable under js_of_ocaml, which classifies it as
+     [`Number] — hence the "not supported" note above. *)
+  | `Undefined -> Empty
+  (* [symbol], and anything a future backend classifies as neither a scalar nor
+     an object. Render nothing rather than [Obj.magic] a non-view into [t]. *)
+  | `Other -> Empty
 
 (* ----- control flow (xote-style components, as plain functions) ----- *)
 

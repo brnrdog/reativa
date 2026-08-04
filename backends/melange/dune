@@ -1,0 +1,21 @@
+; The Melange backend: implements Reativa's [Dom] and [History] virtual modules
+; with Melange's [external ... [@@mel.*]] FFI.
+;
+; Reativa's default backend — [(libraries reativa)] resolves here without
+; naming it (see [default_implementation] in src/dune).
+;
+; The public name is deliberately NOT [reativa.melange]: melange-mode artifacts
+; install under lib/<pkg>/melange/, so a sublibrary by that name collides with
+; them ("Multiple rules generated for lib/reativa/melange/reativa__View.cmi").
+;
+; reativa_runtime.js ships alongside the emitted modules; the handful of
+; externals bound to it (rather than to "#..." melange primitive spellings)
+; are what keep this module compilable by the native toolchain too.
+(library
+ (name reativa_melange)
+ (public_name reativa.melange_backend)
+ (implements reativa)
+ (modes melange native byte)
+ (melange.runtime_deps reativa_runtime.js)
+ (preprocess
+  (pps melange.ppx)))
