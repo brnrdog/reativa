@@ -1,7 +1,7 @@
 # reativa
 
-Experimental UI library for building reactive user interfaces for the web with
-**OCaml**, compiling to JavaScript through **Melange** or **js_of_ocaml**.
+UI library for building reactive user interfaces for the web with **OCaml** or
+**ReasonML**, compiling to JavaScript through **Melange** or **js_of_ocaml**.
 
 reativa is powered by fine-grained signals and inspired by
 [xote](https://github.com/brnrdog/xote) and
