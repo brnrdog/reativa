@@ -4,6 +4,20 @@ on:
   push:
   pull_request:
 
+# Bundle-size ceilings. These are deliberately generous backstops against a
+# runaway regression (a backend accidentally linking the whole stdlib, a
+# dependency creeping into the core), not tight budgets — every run prints the
+# measured size to the job summary, so tighten these once the numbers have
+# settled.
+#
+# JSOO_BUNDLE_LIMIT_KB was set against a dev-profile build, which linked
+# without whole-program dead-code elimination. The measurement jobs now build
+# with --profile release, so the real number should be far below this; tighten
+# it (and the figures in README.md) from the first release-profile run.
+env:
+  MELANGE_BUNDLE_LIMIT_KB: 250
+  JSOO_BUNDLE_LIMIT_KB: 4096
+
 jobs:
   build-and-test:
     name: Build & native test (OCaml ${{ matrix.ocaml-compiler }})
@@ -32,7 +46,7 @@ jobs:
         run: opam exec -- dune test
 
   melange-build:
-    name: Melange JS build
+    name: Melange backend build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,10 +57,109 @@ jobs:
         with:
           ocaml-compiler: "5.2.x"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Install dependencies (incl. melange)
         run: |
           opam install . --deps-only --with-test
           opam install melange
 
+      # Release profile, to match the js_of_ocaml job (see the note there). The
+      # dev-profile build of the whole workspace is covered by build-and-test.
       - name: Build Melange (JS) target
-        run: opam exec -- dune build @melange
+        run: opam exec -- dune build --profile release @melange
+
+      - name: Bundle the demo and check its size
+        run: |
+          npx --yes esbuild \
+            _build/default/demo/ui/output/demo/ui/todo.js \
+            --bundle --format=esm --minify --outfile=/tmp/melange-todo.js
+          ./scripts/check-bundle-size.sh \
+            /tmp/melange-todo.js "Melange (minified)" "$MELANGE_BUNDLE_LIMIT_KB"
+
+  jsoo-build:
+    name: js_of_ocaml backend build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.2.x"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies (incl. js_of_ocaml)
+        run: |
+          opam install . --deps-only --with-test
+          opam install js_of_ocaml js_of_ocaml-compiler
+
+      # Release profile matters here beyond the usual reasons: dune's
+      # js_of_ocaml compilation_mode defaults to `separate` in dev and
+      # `whole_program` in release, and only whole-program linking runs
+      # cross-module dead-code elimination. A dev-profile build links the whole
+      # stdlib, so measuring it would compare an un-eliminated js_of_ocaml link
+      # against a Melange bundle that esbuild *has* tree-shaken — the very
+      # apples-to-oranges the minify step below is trying to avoid.
+      - name: Build js_of_ocaml demos (examples/jsoo)
+        run: |
+          REATIVA_JSOO=enabled opam exec -- dune build --profile release \
+            examples/jsoo/todo.bc.js examples/jsoo/router_demo.bc.js
+
+      # Compile-only: type-checking the PPX inference fixture against the
+      # js_of_ocaml backend is the assertion. Its Melange twin is covered by
+      # `dune build @melange` in the Melange job.
+      - name: Type-check the mlx inference fixture on js_of_ocaml
+        run: |
+          REATIVA_JSOO=enabled opam exec -- dune build --profile release \
+            test/jsoo/test_mlx_inference.bc.js
+
+      # Minified before measuring, so the number is comparable with the Melange
+      # job's — which esbuild minifies on the way to a bundle. Comparing a
+      # minified bundle against a raw js_of_ocaml link would overstate the gap.
+      - name: Check bundle sizes
+        run: |
+          for demo in todo router_demo; do
+            npx --yes esbuild "_build/default/examples/jsoo/$demo.bc.js" \
+              --minify --outfile="/tmp/jsoo-$demo.js"
+            ./scripts/check-bundle-size.sh \
+              "/tmp/jsoo-$demo.js" \
+              "js_of_ocaml $demo (minified)" "$JSOO_BUNDLE_LIMIT_KB"
+          done
+
+  # Actually installs every package in the repo, which is the only thing that
+  # exercises the per-package metadata. A plain `dune build` builds the whole
+  # workspace at once and would happily hide a package that cannot stand on its
+  # own — which is how a broken default_implementation reached CI once already.
+  #
+  # `opam install .` is what a user runs: it resolves the packages in dependency
+  # order and builds each with `dune build -p <pkg>` in isolation, so
+  # reativa-jsoo is compiled against an *installed* reativa rather than one that
+  # merely happens to sit in the same workspace.
+  packaging:
+    name: opam packages install cleanly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.2.x"
+
+      - name: Install dependencies for every package
+        run: |
+          opam install . --deps-only --with-test
+          opam install melange js_of_ocaml js_of_ocaml-compiler
+
+      - name: Install reativa and reativa-jsoo from this checkout
+        run: opam install . --with-test
