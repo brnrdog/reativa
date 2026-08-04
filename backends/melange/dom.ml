@@ -103,6 +103,10 @@ let classify x =
 (* JS [String(x)]: canonical display form for numbers and booleans. *)
 external display_string : 'a -> string = "String"
 
+(* ----- URI decoding ----- *)
+
+external decode_uri_component : string -> string = "decodeURIComponent"
+
 (* ----- event modifier/state accessors -----
 
    Read by {!Router} to decide whether a link click should be handled as an SPA
