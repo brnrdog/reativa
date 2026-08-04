@@ -1,0 +1,33 @@
+opam-version: "2.0"
+synopsis: "js_of_ocaml backend for Reativa"
+description: """
+Implements Reativa's Dom and History virtual modules with js_of_ocaml's
+Js.Unsafe FFI, so Reativa applications can be compiled by js_of_ocaml into a
+single self-contained script with no bundler step, and reach the full opam
+ecosystem.
+
+Select it alongside the core library:
+
+  (libraries reativa reativa-jsoo)
+
+in place of the default Melange backend that ships with the reativa package.
+
+This package pins reativa to the exact same version, so the two must always be
+released together.
+"""
+maintainer: "Bernardo Gurgel <brnrdog@hey.com>"
+authors: "Bernardo Gurgel <brnrdog@hey.com>"
+license: "MIT"
+homepage: "https://github.com/brnrdog/reativa"
+bug-reports: "https://github.com/brnrdog/reativa/issues"
+dev-repo: "git+https://github.com/brnrdog/reativa.git"
+depends: [
+  "ocaml" {>= "4.14"}
+  "dune" {>= "3.16"}
+  "reativa" {= version}
+  "js_of_ocaml" {>= "5.0.0"}
+  "js_of_ocaml-compiler" {>= "5.0.0"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]
+]

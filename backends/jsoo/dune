@@ -1,0 +1,22 @@
+; The js_of_ocaml backend: implements Reativa's [Dom] and [History] virtual
+; modules with js_of_ocaml's [Js.Unsafe] FFI.
+;
+; Selected by naming it alongside the core library:
+;   (libraries reativa reativa-jsoo)
+;
+; No melange mode: js_of_ocaml consumes bytecode, so this backend builds in
+; byte (for the .bc.js link) and native (so it type-checks in the default
+; build) only.
+;
+; [Dom.classify] — the runtime coercion behind bare JSX children — depends on
+; OCaml strings being JS strings, which is js_of_ocaml's default (the js-string
+; runtime). A consumer that links with [--disable use-js-string] would see bare
+; string children classified as objects and rendered wrong. The flag is set on
+; the *linking executable*, not here, so this is a note rather than something
+; the library can enforce.
+(library
+ (name reativa_jsoo)
+ (public_name reativa-jsoo)
+ (implements reativa)
+ (modes native byte)
+ (libraries js_of_ocaml))
