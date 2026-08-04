@@ -99,6 +99,20 @@ val classify :
 (* JS [String(x)]: canonical display form for numbers and booleans. *)
 val display_string : 'a -> string
 
+(* ----- URI decoding ----- *)
+
+(* The browser's [decodeURIComponent].
+
+   This is part of the backend contract rather than a helper in
+   {!Router_match} because percent-decoding is representation-sensitive:
+   decoding "%C3%A9" to "é" requires producing a string element above 255,
+   which OCaml's [string]/[Char] API cannot express where strings are JS
+   strings. The platform's own decoder is the only portable answer.
+
+   {!Router} passes this to {!Router_match.match_path}; the pure byte-level
+   fallback there is what keeps route matching natively testable. *)
+val decode_uri_component : string -> string
+
 (* ----- event modifier/state accessors -----
 
    Read by {!Router} to decide whether a link click should be handled as an SPA

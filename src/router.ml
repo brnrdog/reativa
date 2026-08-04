@@ -129,7 +129,14 @@ type route = {
 
 let route path render = { route_path = path; render }
 
-let match_path = Router_match.match_path
+(* Route matching in the browser decodes captured parameters with the
+   platform's own [decodeURIComponent]. {!Router_match}'s default decoder works
+   byte by byte, which is right natively but mangles non-ASCII escapes where
+   OCaml strings are JS strings — so every browser-side match goes through the
+   backend instead. See the note in router_match.ml. *)
+let match_path pattern pathname =
+  Router_match.match_path ~decode:Dom.decode_uri_component pattern pathname
+
 let param = Router_match.param
 
 let rec match_route pathname = function
