@@ -42,13 +42,30 @@ jobs:
 
       # Analytics is wired in only when the repository carries a PostHog
       # project key; without it the site builds with reporting switched off.
-      # The key is a public, write-only client key, so it is a repository
-      # variable rather than a secret.
+      # The key is a public, write-only client key, so a repository variable
+      # is enough — but secrets and variables are separate contexts, and
+      # reading only one silently yields an empty string when the values were
+      # stored in the other. Take either.
       - name: Build site
         env:
-          VITE_POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
-          VITE_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.POSTHOG_HOST || vars.POSTHOG_HOST }}
         run: npm run docs:build
+
+      # A missing key is not a build failure — it is how forks and clones
+      # build — but it is worth saying out loud, because the symptom is a
+      # deployed site that quietly reports nothing.
+      - name: Report analytics wiring
+        env:
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
+        run: |
+          if [ -z "$POSTHOG_KEY" ]; then
+            echo "::warning::No PostHog key (POSTHOG_KEY secret or variable) — the site was built without analytics."
+          elif ls _site/assets | grep -q '^module-'; then
+            echo "PostHog key present, SDK chunk emitted — analytics enabled." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::PostHog key was set but no SDK chunk was emitted."
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
