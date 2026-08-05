@@ -16,7 +16,12 @@ npm run docs:preview   # serve the static build
 `.github/workflows/pages.yml` builds and deploys the site on every push to
 `main`.
 
-## Playground
+## Playground (local only)
+
+The playground is **not part of the published site**: compiling needs the OCaml
+toolchain, and there is nowhere online to run it. It still runs against the dev
+server, and shipping it again is a matter of adding its two pages back to
+`input` in `vite.config.mjs`.
 
 ```sh
 npm run playground
@@ -40,8 +45,8 @@ The js_of_ocaml option needs its own packages:
 opam install reativa-jsoo js_of_ocaml
 ```
 
-Compiling requires the OCaml toolchain, so the playground published with the
-site is read-only: it shows the examples but cannot run edits.
+Served without a compile endpoint — a static build, for instance — the editor
+falls back to read-only: it shows the examples but cannot run edits.
 
 ## Analytics
 
@@ -61,11 +66,11 @@ A missing key never fails the build; the workflow writes a warning to the run
 summary instead. For a local build, copy `.env.example` to `.env.local`.
 
 Collected: one pageview per document load plus named events such as
-`docs_code_copied`, `docs_syntax_changed`, `playground_compiled` and
-`playground_run_failed`, defined at their call sites in `src/main.js` and
-`playground/playground.js`. Autocapture, session recording and person profiles
-are off, Do Not Track is honoured, and the playground never reports the program
-in the editor — only which backend ran, how big its output was and whether it
-built.
+`docs_code_copied`, `docs_syntax_changed` and `docs_section_viewed`, defined at
+their call sites in `src/main.js`. Autocapture, session recording and person
+profiles are off, and Do Not Track is honoured. The playground has its own
+events in `playground/playground.js`, which report only which backend ran, how
+big its output was and whether it built — never the program in the editor —
+and are dormant while it stays off the published site.
 
 [PostHog]: https://posthog.com

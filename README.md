@@ -12,7 +12,6 @@
 
 <p align="center">
   <a href="https://brnrdog.github.io/reativa/">Documentation</a> ·
-  <a href="https://brnrdog.github.io/reativa/playground/">Playground</a> ·
   <a href="examples/jsoo/">Examples</a>
 </p>
 
@@ -245,7 +244,7 @@ npm install
 | `npm run demo:watch` | rebuild the demo on change (pair with `demo:serve`) |
 | `npm run demo:jsoo` | build the js_of_ocaml demos — see [`examples/jsoo/`](examples/jsoo/) |
 | `npm run docs:dev` | run the documentation site locally |
-| `npm run playground` | open the playground and compile from the browser |
+| `npm run playground` | write a component and compile it from the browser (local only) |
 
 The docs site and the playground live in [`website/`](website/), which has its
 own [README](website/README.md).

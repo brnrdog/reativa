@@ -72,8 +72,6 @@ document.addEventListener("click", (event) => {
   const href = link.getAttribute("href");
   if (href.startsWith("http")) {
     track("docs_outbound_click", { href, text: link.textContent.trim() });
-  } else if (href.startsWith("playground")) {
-    track("docs_playground_opened");
   }
 });
 
