@@ -10,6 +10,7 @@
 
 import { highlightOCaml } from "../src/highlight.js";
 import { EXAMPLES, DEFAULT_EXAMPLE } from "./examples.js";
+import { track } from "../src/analytics.js";
 
 const COMPILE_URL = "/__playground/compile";
 const STATUS_URL = "/__playground/status";
@@ -142,8 +143,9 @@ function selectBackend(id) {
   } catch (error) {
     /* the choice just won't survive a reload */
   }
+  track("playground_backend_selected", { backend: id });
   paintBackends();
-  if (compileAvailable) run();
+  if (compileAvailable) run("backend");
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +210,7 @@ function onKeyDown(event) {
   const isRun = (event.metaKey || event.ctrlKey) && event.key === "Enter";
   if (isRun) {
     event.preventDefault();
-    run();
+    run("shortcut");
     return;
   }
 
@@ -313,7 +315,9 @@ function postToFrame(message) {
   );
 }
 
-async function run() {
+// [trigger] records how the run was asked for — the Run button, the keyboard
+// shortcut, picking an example, or the one that fires on load.
+async function run(trigger = "button") {
   if (running || !compileAvailable) return;
 
   clearError();
@@ -321,6 +325,7 @@ async function run() {
   setBusy(true);
   setStatus("Compiling…");
 
+  const startedAt = Date.now();
   let result;
   try {
     const response = await fetch(COMPILE_URL, {
@@ -338,6 +343,7 @@ async function run() {
       "Run the playground locally with:\n\n  npm run playground\n\n" +
         String(error && error.message ? error.message : error),
     );
+    track("playground_run_failed", { backend, trigger, stage: "unreachable" });
     return;
   }
 
@@ -345,6 +351,7 @@ async function run() {
 
   if (!result || !result.ok) {
     const stage = (result && result.stage) || "build";
+    track("playground_run_failed", { backend, trigger, stage });
     const titles = {
       input: "Nothing to compile",
       toolchain: "Toolchain missing",
@@ -356,6 +363,14 @@ async function run() {
     showError(titles[stage] || "Build failed", (result && result.error) || "Unknown error.");
     return;
   }
+
+  track("playground_compiled", {
+    backend: result.backend || backend,
+    trigger,
+    format: result.format,
+    bytes: result.bytes,
+    duration_ms: Date.now() - startedAt,
+  });
 
   pendingBundle = { js: result.js, format: result.format };
   pendingRunId = String(Date.now());
@@ -405,10 +420,14 @@ window.addEventListener("message", (event) => {
     appendLog("error", data.text);
     setStatus("Runtime error", "error");
     showTab("console");
+    // The message itself can quote the visitor's own code, so only the fact
+    // that the program threw is reported.
+    track("playground_runtime_error", { backend });
     return;
   }
 
   if (data.type === "mounted") {
+    track("playground_mounted", { backend });
     const size = lastResult ? ` · ${formatSize(lastResult.bytes)}` : "";
     setStatus(`Mounted · ${backendLabel(backend)}${size}`, "ok");
     statusEl.title = lastResult
@@ -422,6 +441,9 @@ window.addEventListener("message", (event) => {
 // ---------------------------------------------------------------------------
 
 function setOffline() {
+  // Worth counting on its own: it separates visitors reading the published,
+  // read-only playground from the ones running it against a local compiler.
+  if (compileAvailable) track("playground_read_only");
   compileAvailable = false;
   offlineEl.hidden = false;
   paintBackends();
@@ -457,13 +479,15 @@ for (const example of EXAMPLES) {
 examplesSelect.addEventListener("change", () => {
   const example = EXAMPLES.find((item) => item.id === examplesSelect.value);
   if (!example) return;
+  track("playground_example_selected", { example: example.id });
   setCode(example.code, { focus: true });
-  if (compileAvailable) run();
+  if (compileAvailable) run("example");
 });
 
 resetButton.addEventListener("click", () => {
   const example =
     EXAMPLES.find((item) => item.id === examplesSelect.value) || DEFAULT_EXAMPLE;
+  track("playground_reset", { example: example.id });
   setCode(example.code, { focus: true });
 });
 
@@ -471,18 +495,23 @@ shareButton.addEventListener("click", async () => {
   const url = new URL(window.location.href);
   url.hash = "backend=" + backend + "&code=" + encodeCode(source.value);
   window.history.replaceState(null, "", url.toString());
+  let copied = true;
   try {
     await navigator.clipboard.writeText(url.toString());
     shareButton.textContent = "Copied";
   } catch (error) {
+    copied = false;
     shareButton.textContent = "Link in URL";
   }
+  // The link carries the program in its fragment, so only the fact that one
+  // was made is reported — never the URL.
+  track("playground_shared", { backend, copied });
   setTimeout(() => {
     shareButton.textContent = "Share";
   }, 1600);
 });
 
-runButton.addEventListener("click", run);
+runButton.addEventListener("click", () => run("button"));
 errorClose.addEventListener("click", clearError);
 previewTab.addEventListener("click", () => showTab("preview"));
 consoleTab.addEventListener("click", () => showTab("console"));
@@ -504,6 +533,7 @@ themeButton.addEventListener("click", () => {
   }
   themeButton.textContent = next === "dark" ? "☀" : "☾";
   postToFrame({ type: "theme", theme: next });
+  track("playground_theme_changed", { theme: next });
 });
 
 themeButton.textContent = currentTheme() === "dark" ? "☀" : "☾";
@@ -520,5 +550,5 @@ showTab("preview");
 setStatus("Ready");
 
 probeCompiler().then(() => {
-  if (compileAvailable) run();
+  if (compileAvailable) run("startup");
 });
