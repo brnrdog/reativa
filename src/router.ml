@@ -4,8 +4,8 @@
    history changes immediately, and refreshes from [popstate] for back/forward
    navigation. Route matching is pure so it can be tested natively. *)
 
-(* All browser FFI now lives in {!History} (window/history/location) and {!Dom}
-   (event modifier accessors), so this module is engine-agnostic OCaml. *)
+(* All browser FFI lives in {!History} (window/history/location) and {!Dom}
+   (event modifier accessors), so this module is backend-agnostic OCaml. *)
 
 type state = History.state
 

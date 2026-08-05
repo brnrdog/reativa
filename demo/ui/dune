@@ -1,9 +1,8 @@
-; Compiles the mlx-backed view demo to JavaScript ES modules under
-; demo/ui/output/. Bundle the emitted entry for the browser with esbuild; see
-; the npm "demo" script.
+; Compiles the todo demo to ES modules under demo/ui/output/. The npm "demo"
+; script bundles the emitted entry with esbuild.
 (melange.emit
  (target output)
- (modules app todo)
+ (modules todo)
  (libraries reativa)
  (preprocess
   (pps reativa.mlx_ppx melange.ppx))

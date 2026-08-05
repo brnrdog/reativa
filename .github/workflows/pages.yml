@@ -40,21 +40,17 @@ jobs:
       - name: Install opam dependencies
         run: opam install . --deps-only --with-test
 
-      # Analytics is wired in only when the repository carries a PostHog
-      # project key; without it the site builds with reporting switched off.
-      # The key is a public, write-only client key, so a repository variable
-      # is enough — but secrets and variables are separate contexts, and
-      # reading only one silently yields an empty string when the values were
-      # stored in the other. Take either.
+      # Analytics is wired in only when a PostHog project key is configured.
+      # It is a public, write-only client key, so either a secret or a
+      # repository variable works — read both, since they are separate contexts.
       - name: Build site
         env:
           VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
           VITE_POSTHOG_HOST: ${{ secrets.POSTHOG_HOST || vars.POSTHOG_HOST }}
         run: npm run docs:build
 
-      # A missing key is not a build failure — it is how forks and clones
-      # build — but it is worth saying out loud, because the symptom is a
-      # deployed site that quietly reports nothing.
+      # A missing key is not a build failure — that is how forks build — but it
+      # is worth a warning, since the symptom is a site that reports nothing.
       - name: Report analytics wiring
         env:
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}

@@ -27,14 +27,11 @@ for (const [selector, highlight] of HIGHLIGHTERS) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Analytics
+// ----- analytics -----
 //
-// The page is one document, so a pageview on its own says nothing about what
-// people came for. The events below are observed from the outside — a
-// delegated click listener and an observer over the sections — rather than
-// wired into app.mlx, so the OCaml source stays free of tracking calls.
-// ---------------------------------------------------------------------------
+// Observed from the outside (a delegated click listener plus a section
+// observer) rather than wired into app.mlx, so the OCaml source stays free of
+// tracking calls. See website/README.md for what is collected.
 
 const syntaxNow = () =>
   document.querySelector(".syntax-opt.is-active")?.textContent || "";

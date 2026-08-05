@@ -4,16 +4,8 @@ on:
   push:
   pull_request:
 
-# Bundle-size ceilings. These are deliberately generous backstops against a
-# runaway regression (a backend accidentally linking the whole stdlib, a
-# dependency creeping into the core), not tight budgets — every run prints the
-# measured size to the job summary, so tighten these once the numbers have
-# settled.
-#
-# JSOO_BUNDLE_LIMIT_KB was set against a dev-profile build, which linked
-# without whole-program dead-code elimination. The measurement jobs now build
-# with --profile release, so the real number should be far below this; tighten
-# it (and the figures in README.md) from the first release-profile run.
+# Bundle-size ceilings: generous backstops against a runaway regression, not
+# tight budgets. Every run prints the measured size to the job summary.
 env:
   MELANGE_BUNDLE_LIMIT_KB: 250
   JSOO_BUNDLE_LIMIT_KB: 4096

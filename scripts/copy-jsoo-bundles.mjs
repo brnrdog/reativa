@@ -1,9 +1,8 @@
 // Copy the js_of_ocaml demo bundles out of _build and next to their index.html.
 //
 // The demos load `./todo.bundle.js` / `./router_demo.bundle.js` as plain
-// scripts, while dune writes `*.bc.js` under _build. Without this copy the
-// served page never sees a rebuild, which is what made `demo:jsoo:watch` a
-// no-op: dune rebuilt into _build and nothing downstream noticed.
+// scripts, while dune writes `*.bc.js` under _build — without this copy the
+// served page never sees a rebuild.
 //
 // Usage:
 //   node scripts/copy-jsoo-bundles.mjs            copy once

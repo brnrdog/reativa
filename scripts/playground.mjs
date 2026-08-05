@@ -1,19 +1,12 @@
-// Playground compile service.
+// Playground compile service, exposed as a Vite plugin.
 //
-// The playground page posts OCaml/mlx source here; this module writes it into a
-// scratch dune project (playground/sandbox, gitignored) and builds it with the
-// backend the page asked for:
+// The page posts OCaml/mlx source here; this module writes it to a scratch dune
+// project (playground/sandbox, gitignored), builds it with the requested
+// backend and answers with the JavaScript produced plus its shape, so the
+// preview frame knows whether to import it or run it as a <script>.
 //
-//   melange  dune emits per-module ES, esbuild bundles them into one module
-//   jsoo     dune links one self-contained script, no bundler involved
-//
-// The response is the JavaScript that run produced, plus the shape it takes, so
-// the preview frame knows whether to import it or drop it in a <script> tag.
-//
-// It is exposed as a Vite plugin so `npm run playground` (and `npm run
-// docs:dev`) is all you need. Compiling arbitrary source is as privileged as
-// running the toolchain by hand, so it is a dev-server-only feature — the
-// static site published to Pages has no such endpoint.
+// Compiling arbitrary source is as privileged as running the toolchain by hand,
+// so this is dev-server only — the published static site has no such endpoint.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
