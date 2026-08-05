@@ -30,10 +30,10 @@ if (KEY) {
       posthog.init(KEY, {
         api_host: HOST,
 
-        // The site is two static pages (docs and playground) with no
-        // client-side router, so one pageview per document load is the whole
-        // story. The modern default ('history_change') would count every
-        // in-page anchor — #why, #examples, #api — as another pageview.
+        // Static pages with no client-side router, so one pageview per
+        // document load is the whole story. The modern default
+        // ('history_change') would count every in-page anchor — #why,
+        // #examples, #api — as another pageview.
         capture_pageview: true,
         capture_pageleave: true,
 

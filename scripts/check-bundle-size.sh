@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Report a built bundle's size and fail if it exceeds a ceiling.
-#
-# The size delta between backends is the main reason Melange stays Reativa's
-# default, so it should be visible on every run rather than discovered later.
-# The measured size always goes to the job summary; the ceiling is only a
-# backstop against a runaway regression.
+# Report a built bundle's size and fail if it exceeds a ceiling. The measured
+# size always goes to the job summary; the ceiling is only a backstop.
 #
 # Usage: check-bundle-size.sh <file> <label> <limit-kb>
 set -euo pipefail
@@ -31,9 +27,8 @@ gz_kb=$(round_up_kb "$gz_bytes")
 printf '%s: %s KB (%s KB gzipped), ceiling %s KB\n' \
   "$label" "$kb" "$gz_kb" "$limit_kb"
 
-# A markdown table needs its header emitted before the first row, and each job
-# gets its own summary file — so write the header the first time this script
-# appends to a given summary, tracked by a marker file beside it.
+# Each job has its own summary file, so emit the table header the first time we
+# append to a given one — tracked by a marker file beside it.
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   header_marker="${GITHUB_STEP_SUMMARY}.reativa-bundle-header"
   if [ ! -f "$header_marker" ]; then

@@ -1,14 +1,9 @@
-(* A second js_of_ocaml demo, exercising the SPA router.
+(* A small SPA on the js_of_ocaml backend: links, pushState navigation and a
+   redirect, all through [Reativa.Router].
 
-   This proves the router port end to end: [src/router.ml] is the very same
-   compiled module the Melange build uses, driving the browser through the
-   js_of_ocaml implementations of the [History] and [Dom] virtual modules
-   (backends/jsoo) instead of their Melange counterparts.
-
-   Written against the plain constructor API (Router.outlet / route / link /
-   redirect) rather than JSX so the demo is fully self-contained; the
-   <Router>/<Route>/<Link>/<Redirect> markup used elsewhere lowers to these same
-   calls via the (backend-neutral) mlx ppx. *)
+   It uses the constructor API (Router.outlet / route / link / redirect) rather
+   than JSX, which keeps the file self-contained — the <Router>/<Route>/<Link>
+   markup used elsewhere lowers to these same calls. *)
 
 open Reativa
 

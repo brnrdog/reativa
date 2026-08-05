@@ -4,52 +4,71 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>reativa - js_of_ocaml router demo</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        colors: {
-                            ink: "oklch(20% 0.018 255)",
-                            paper: "oklch(98% 0.006 255)",
-                            line: "oklch(88% 0.012 255)",
-                            muted: "oklch(47% 0.015 255)",
-                        },
-                    },
-                },
-            };
-        </script>
-        <style type="text/tailwindcss">
-            @layer components {
-                #app {
-                    @apply mx-auto mt-12 flex w-full max-w-xl flex-col gap-4 px-4;
-                }
-                .router-nav {
-                    @apply flex gap-3 text-sm font-semibold text-muted;
-                }
-                .router-nav a {
-                    @apply text-ink underline-offset-4 hover:underline;
-                }
-                .page {
-                    @apply rounded-2xl border border-line bg-white/90 p-6 shadow-sm;
-                }
-                .page h1 {
-                    @apply text-2xl font-semibold text-ink;
-                }
-                .page p {
-                    @apply mt-2 text-sm leading-6 text-muted;
-                }
+        <style>
+            :root {
+                --ink: oklch(20% 0.018 255);
+                --paper: oklch(98% 0.006 255);
+                --line: oklch(88% 0.012 255);
+                --muted: oklch(47% 0.015 255);
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                background: var(--paper);
+                color: var(--ink);
+                font: 15px/1.5 system-ui, sans-serif;
+            }
+
+            #app {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                margin: 3rem auto;
+                max-width: 36rem;
+                padding: 0 1rem;
+            }
+
+            .router-nav {
+                color: var(--muted);
+                font-size: 0.875rem;
+                font-weight: 600;
+            }
+
+            .router-nav a {
+                color: var(--ink);
+                text-decoration: none;
+            }
+
+            .router-nav a:hover {
+                text-decoration: underline;
+            }
+
+            .page {
+                padding: 1.5rem;
+                border: 1px solid var(--line);
+                border-radius: 1rem;
+                background: #fff;
+            }
+
+            .page h1 {
+                margin: 0;
+                font-size: 1.5rem;
+            }
+
+            .page p {
+                margin: 0.5rem 0 0;
+                color: var(--muted);
+                font-size: 0.875rem;
             }
         </style>
     </head>
-    <body class="min-h-screen bg-paper text-ink antialiased">
+    <body>
         <div id="app"></div>
 
         <!--
           Built by `npm run demo:jsoo`. Served from its own directory so the dev
-          server's SPA fallback (serve index.html for extensionless paths) keeps
-          /about and /old working on a full reload. Plain <script>: js_of_ocaml
-          links everything, including the router, into one self-contained file.
+          server's SPA fallback keeps /about and /old working on a full reload.
         -->
         <script src="./router_demo.bundle.js"></script>
     </body>

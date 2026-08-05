@@ -126,4 +126,33 @@ let _link_view =
 let _redirect_view =
   ((Redirect.createElement () ~to_:"/" ~children:[]) [@JSX])
 
+(* Components: a module defining [component] gets a [createElement] generated
+   for it, so the module name works as a capitalized tag. Labelled arguments
+   are the props. *)
+
+module Greeting = struct
+  let component = fun ~name -> ((h2 ~children:[ "Hello, "; name; "!" ] ()) [@JSX])
+end
+
+let _greeting_view = ((Greeting.createElement () ~children:[] ~name:"OCaml") [@JSX])
+
+(* A component that takes [~children] receives the nested markup as a
+   [View.t list], which [View.fragment] splices into place. *)
+
+module Card = struct
+  let component = fun ~title ~children ->
+    ((section
+        ~className:"card"
+        ~children:
+          [ ((h3 ~children:[ View.text title ] ()) [@JSX]); View.fragment children ]
+        ())
+     [@JSX])
+end
+
+let _card_view =
+  ((Card.createElement ()
+      ~children:[ ((p ~children:[ "Body" ] ()) [@JSX]); _greeting_view ]
+      ~title:"Tasks")
+   [@JSX])
+
 let () = print_endline "mlx inference ok"

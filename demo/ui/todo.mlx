@@ -86,27 +86,25 @@ module TodoApp = struct
         </button>
       </div>
       <TodoList todos=filtered_todos />
-      <div className="flex flex-col gap-3">
-        <div className="todo-filters">
-          <button onClick=(fun (_e) -> Signal.set filters All)>
-            ("All")
-            (" (")
-            (List.length (Signal.get todos))
-            (")")
-          </button>
-          <button onClick=(fun (_e) -> Signal.set filters Completed)>
-            ("Completed")
-            (" (")
-            (List.length (List.filter (fun t -> t.completed) (Signal.get todos)))
-            (")")
-          </button>
-          <button onClick=(fun (_e) -> Signal.set filters Incomplete)>
-            ("Incomplete")
-            (" (")
-            (List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos)))
-            (")")
-          </button>
-        </div>
+      <div className="todo-filters">
+        <button onClick=(fun (_e) -> Signal.set filters All)>
+          ("All")
+          (" (")
+          (List.length (Signal.get todos))
+          (")")
+        </button>
+        <button onClick=(fun (_e) -> Signal.set filters Completed)>
+          ("Completed")
+          (" (")
+          (List.length (List.filter (fun t -> t.completed) (Signal.get todos)))
+          (")")
+        </button>
+        <button onClick=(fun (_e) -> Signal.set filters Incomplete)>
+          ("Incomplete")
+          (" (")
+          (List.length (List.filter (fun t -> not (t.completed)) (Signal.get todos)))
+          (")")
+        </button>
       </div>
     </div>
 end

@@ -1,22 +1,14 @@
-; ---------------------------------------------------------------------------
-; The Reativa demos built with the js_of_ocaml backend instead of Melange.
+; The Reativa demos, built with the js_of_ocaml backend.
 ;
-; The whole backend selection is the [reativa-jsoo] entry in [libraries] below:
-; it supplies the [Dom] and [History] virtual modules that the core library
-; leaves abstract. The reactive core, View, Router and Router_match are the very
-; same compiled library the Melange build uses — not copies of its sources.
+; Backend selection is the [reativa-jsoo] entry below: it implements the [Dom]
+; and [History] virtual modules that the core library leaves abstract. See
+; README.md in this directory.
 ;
-; Two demos:
-;   - todo        the demo/ui todo app, reused verbatim (same JSX, same ppx)
-;   - router_demo a small SPA exercising the Router end to end
-;
-; Gated behind REATIVA_JSOO=enabled so the default `dune build` / `dune test`
-; never require js_of_ocaml to be installed.
-; ---------------------------------------------------------------------------
+; Gated behind REATIVA_JSOO=enabled so a plain `dune build` never requires
+; js_of_ocaml to be installed.
 
-; The todo demo app, reused verbatim from the Melange demo. This is the only
-; source still copied: it lives in a `melange.emit` directory rather than a
-; library, so there is nothing to depend on.
+; The todo demo lives in a `melange.emit` directory rather than a library, so
+; there is nothing to depend on — it is the one source still copied.
 (copy_files# ../../demo/ui/todo.mlx)
 
 (executables
