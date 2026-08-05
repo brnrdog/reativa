@@ -171,6 +171,68 @@ View.button
   [ View.text (View.dynamic (fun () -> string_of_int (Signal.get count))) ]
 ```
 
+### Components
+
+A component is a module with a `component` binding. Its labelled arguments are
+the props, and the module name becomes a capitalized tag:
+
+```ocaml
+module Greeting = struct
+  let component = fun ~name ->
+    <h2>("Hello, ") (name) ("!")</h2>
+end
+
+let view = <Greeting name="OCaml" />
+```
+
+Props are ordinary OCaml values — records, signals, functions — and are
+type-checked at the call site, so a missing or misspelled prop is a compile
+error. A prop whose name matches the variable can be punned:
+
+```ocaml
+module TodoItem = struct
+  let component = fun ~todo ->
+    <li className="todo">
+      <input type_="checkbox" checked=todo.completed onChange=(toggle todo.id) />
+      <span>(todo.title)</span>
+    </li>
+end
+
+module TodoList = struct
+  let component = fun ~todos ->
+    <ul>
+      <View.ForEach
+        items=(fun () -> Signal.get todos)
+        key=(fun todo -> string_of_int todo.id)
+        render=(fun todo -> <TodoItem todo />)   (* punned: ~todo:todo *)
+      />
+    </ul>
+end
+```
+
+Add a `~children` argument to accept nested markup. It arrives as a
+`View.t list`, which `View.fragment` splices into place:
+
+```ocaml
+module Card = struct
+  let component = fun ~title ~children ->
+    <section className="card">
+      <h3>(title)</h3>
+      (View.fragment children)
+    </section>
+end
+
+let view =
+  <Card title="Tasks">
+    <TodoList todos=filtered_todos />
+  </Card>
+```
+
+Components are plain functions, so they can also be applied directly —
+`Greeting.component ~name:"OCaml"` — and they carry no lifecycle of their own:
+a component body runs once, when the view is built, and signals do the
+updating from there.
+
 ### Router
 
 Client-side routing: a reactive location signal, `pushState` / `replaceState`
