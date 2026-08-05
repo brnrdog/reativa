@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>reativa playground preview</title>
+    <style>
+      /* Ambient styles for playground programs. Enough shape that a small
+         example looks finished without shipping its own CSS, and nothing that
+         a program's own class names would fight with. */
+      :root {
+        --pv-bg: #f4f1ea;
+        --pv-surface: #ffffff;
+        --pv-ink: #1a1a17;
+        --pv-muted: #6b6862;
+        --pv-line: #e7e2d8;
+        --pv-accent: #8578b8;
+        --pv-accent-ink: #ffffff;
+        color-scheme: light;
+      }
+
+      [data-theme="dark"] {
+        --pv-bg: #17160f;
+        --pv-surface: #1a1a16;
+        --pv-ink: #f5f3ee;
+        --pv-muted: #a29d92;
+        --pv-line: #2a2924;
+        --pv-accent: #a79bd6;
+        --pv-accent-ink: #1a1a16;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        padding: 24px;
+        background: var(--pv-bg);
+        color: var(--pv-ink);
+        font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system,
+          "Segoe UI", Roboto, sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+        letter-spacing: -0.02em;
+      }
+
+      h2 {
+        margin: 0 0 4px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 0 0 10px;
+      }
+
+      .card {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 22px;
+        border: 1px solid var(--pv-line);
+        border-radius: 14px;
+        background: var(--pv-surface);
+        box-shadow: 0 18px 50px rgb(26 26 23 / 0.06);
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0;
+      }
+
+      .value {
+        margin: 8px 0;
+        font-size: 34px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+      }
+
+      .muted {
+        color: var(--pv-muted);
+        font-size: 14px;
+      }
+
+      .list {
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .list .row {
+        margin: 0 0 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--pv-line);
+        border-radius: 10px;
+      }
+
+      .done span {
+        color: var(--pv-muted);
+        text-decoration: line-through;
+      }
+
+      button {
+        min-height: 38px;
+        padding: 0 16px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: var(--pv-accent);
+        color: var(--pv-accent-ink);
+        font: inherit;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        filter: brightness(1.06);
+      }
+
+      button.ghost {
+        border-color: var(--pv-line);
+        background: transparent;
+        color: var(--pv-ink);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      input[type="text"],
+      input:not([type]),
+      input[type="search"],
+      input[type="number"],
+      input[type="email"],
+      textarea,
+      select {
+        min-height: 38px;
+        min-width: 0;
+        flex: 1 1 160px;
+        padding: 0 12px;
+        border: 1px solid var(--pv-line);
+        border-radius: 9px;
+        background: var(--pv-bg);
+        color: var(--pv-ink);
+        font: inherit;
+        font-size: 14px;
+      }
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        flex: none;
+        accent-color: var(--pv-accent);
+      }
+
+      label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      code,
+      pre {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas,
+          monospace;
+        font-size: 13px;
+      }
+
+      #pv-empty {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 28px;
+        border: 1px dashed var(--pv-line);
+        border-radius: 14px;
+        color: var(--pv-muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="pv-empty">Press Run to compile and mount your program here.</div>
+
+    <script>
+      // The preview frame is a blank slate per run: the parent reloads it, waits
+      // for "ready", then posts the compiled bundle. Console output and errors
+      // are forwarded back so the playground can show them next to the editor.
+      (function () {
+        var ORIGIN = window.location.origin;
+
+        // The frame reloads on every run, so the webfonts are pulled in
+        // asynchronously: a slow or unreachable font host must never delay the
+        // program that is about to mount.
+        var fonts = document.createElement("link");
+        fonts.rel = "stylesheet";
+        fonts.href =
+          "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap";
+        document.head.appendChild(fonts);
+
+        function post(message) {
+          try {
+            window.parent.postMessage(
+              Object.assign({ source: "reativa-playground-preview" }, message),
+              ORIGIN,
+            );
+          } catch (error) {
+            /* the parent went away — nothing to do */
+          }
+        }
+
+        function stringify(value) {
+          if (typeof value === "string") return value;
+          if (value instanceof Error) return value.stack || String(value);
+          try {
+            return JSON.stringify(value);
+          } catch (error) {
+            return String(value);
+          }
+        }
+
+        ["log", "info", "warn", "error", "debug"].forEach(function (level) {
+          var original = console[level];
+          console[level] = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var text = args.map(stringify).join(" ");
+            // The dev server injects its HMR client here; its chatter is not
+            // the program's output.
+            if (text.indexOf("[vite]") !== 0) {
+              post({ type: "log", level: level, text: text });
+            }
+            if (original) original.apply(console, args);
+          };
+        });
+
+        window.addEventListener("error", function (event) {
+          post({
+            type: "runtime-error",
+            text: event.error
+              ? event.error.stack || String(event.error)
+              : event.message,
+          });
+        });
+
+        window.addEventListener("unhandledrejection", function (event) {
+          post({ type: "runtime-error", text: stringify(event.reason) });
+        });
+
+        window.addEventListener("message", function (event) {
+          if (event.origin !== ORIGIN) return;
+          var data = event.data;
+          if (!data || data.source !== "reativa-playground") return;
+
+          if (data.type === "theme") {
+            document.documentElement.setAttribute("data-theme", data.theme);
+            return;
+          }
+
+          if (data.type !== "run" || typeof data.js !== "string") return;
+
+          if (data.theme) {
+            document.documentElement.setAttribute("data-theme", data.theme);
+          }
+
+          var empty = document.getElementById("pv-empty");
+          if (empty) empty.remove();
+
+          var blob = new Blob([data.js], { type: "text/javascript" });
+          var url = URL.createObjectURL(blob);
+
+          import(url)
+            .then(function () {
+              post({ type: "mounted" });
+            })
+            .catch(function (error) {
+              post({
+                type: "runtime-error",
+                text: (error && (error.stack || error.message)) || String(error),
+              });
+            })
+            .finally(function () {
+              URL.revokeObjectURL(url);
+            });
+        });
+
+        var runId = new URLSearchParams(window.location.search).get("run") || "";
+        post({ type: "ready", runId: runId });
+      })();
+    </script>
+  </body>
+</html>

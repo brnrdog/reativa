@@ -12,6 +12,7 @@
     "demo:jsoo:watch": "REATIVA_JSOO=enabled opam exec -- dune build -w examples/jsoo/todo.bc.js examples/jsoo/router_demo.bc.js & node scripts/copy-jsoo-bundles.mjs --watch",
     "demo:jsoo:serve": "node scripts/serve-demo.mjs --root examples/jsoo",
     "demo:jsoo:router:serve": "node scripts/serve-demo.mjs --root examples/jsoo/router",
+    "playground": "opam exec -- dune build @melange && vite --config website/vite.config.mjs --open /reativa/playground/",
     "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
     "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs",
     "docs:preview": "vite preview --config website/vite.config.mjs",
@@ -51,6 +52,7 @@
     "@semantic-release/github": "^11.0.0",
     "@semantic-release/npm": "^12.0.1",
     "@semantic-release/release-notes-generator": "^14.0.1",
+    "esbuild": "^0.28.1",
     "husky": "^9.1.7",
     "semantic-release": "^24.2.0",
     "vite": "^8.1.0"

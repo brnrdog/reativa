@@ -384,6 +384,31 @@ backend at all.
 See [`examples/jsoo/`](examples/jsoo/) for the same demos built both ways, and
 for the one place where the two backends genuinely differ (`View.child`).
 
+## Playground
+
+Write a component, compile it with Melange and watch it mount — without setting
+up a project:
+
+```sh
+opam install . --deps-only --with-test
+npm install
+
+npm run playground
+```
+
+The dev server opens the playground at `/reativa/playground/`. Each run writes
+the editor buffer to a scratch dune project, builds it with Melange, bundles the
+emitted modules and imports the result into the preview frame; when the build
+fails, the compiler's own message comes back in place of the preview. Programs
+are complete `.mlx` modules that end in `View.mount_by_id "app"`, and the preview
+frame ships a small stylesheet (`.card`, `.row`, `.list`, `.value`, `.muted`,
+plus the usual form controls) so short examples look finished. Press
+<kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run, and use *Copy link* to
+share a program — the source travels in the URL fragment.
+
+Compiling needs the OCaml toolchain, so the playground published with the docs
+site is read-only: it shows the examples but cannot run edits.
+
 ## Build, test, demo
 
 ```sh
@@ -394,6 +419,7 @@ opam exec -- dune test
 npm run demo
 npm run demo:serve
 npm run docs:dev
+npm run playground
 ```
 
 For the demo development loop, run `npm run demo:watch` in one terminal and

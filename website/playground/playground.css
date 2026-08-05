@@ -1,0 +1,464 @@
+/* Playground — layered on the docs design system (src/styles.css). The editor
+   reuses the dark code-panel palette; the preview keeps the page surface so a
+   mounted program looks like it would in a real app. */
+
+/* Several panes below set an explicit display, which would otherwise win over
+   the user-agent rule for [hidden]. */
+.pg-body [hidden] {
+  display: none !important;
+}
+
+.pg-shell {
+  width: min(1320px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+}
+
+.pg-intro h1 {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.pg-intro p {
+  max-width: 60ch;
+  margin-top: 8px;
+  color: var(--body);
+  font-size: 15px;
+}
+
+.pg-intro kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.pg-intro code,
+.pg-note code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.pg-offline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--body);
+  font-size: 14px;
+}
+
+.pg-offline strong {
+  color: var(--ink);
+}
+
+.pg-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  height: clamp(520px, calc(100vh - 260px), 820px);
+  margin-top: 22px;
+}
+
+.pg-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* ----- bars ----- */
+
+.pg-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.pg-bar-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pg-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-select select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pg-file {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pg-bar-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.pg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.pg-btn.primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.pg-btn.ghost {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--body);
+}
+
+.pg-btn.ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pg-kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.pg-tabs {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.pg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pg-tab.is-active {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--ink);
+}
+
+.pg-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pg-status {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.pg-status[data-tone="ok"] {
+  color: var(--accent-ink);
+}
+
+.pg-status[data-tone="error"] {
+  color: #c2554b;
+}
+
+[data-theme="dark"] .pg-status[data-tone="error"] {
+  color: #e88b80;
+}
+
+/* ----- editor ----- */
+
+.pg-code {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--code-bg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.pg-gutter,
+.pg-highlight,
+.pg-code textarea {
+  padding: 14px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+.pg-gutter {
+  flex: none;
+  width: 52px;
+  padding-right: 10px;
+  overflow: hidden;
+  border-right: 1px solid var(--code-line);
+  color: var(--code-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.pg-input {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.pg-highlight {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding-left: 14px;
+  padding-right: 14px;
+  overflow: hidden;
+  color: var(--code-fg);
+  pointer-events: none;
+  white-space: pre;
+}
+
+.pg-code textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding-left: 14px;
+  padding-right: 14px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--code-fg);
+  overflow: auto;
+  resize: none;
+  white-space: pre;
+}
+
+.pg-code textarea::selection {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: transparent;
+}
+
+/* ----- preview ----- */
+
+.pg-result {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--demo-bg);
+}
+
+.pg-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.pg-frame[hidden] {
+  display: none;
+}
+
+.pg-console {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.pg-console:empty::after {
+  content: "Nothing logged yet. Js.log from your program shows up here.";
+  color: var(--code-muted);
+}
+
+.pg-log-error {
+  color: #ff9d92;
+}
+
+.pg-log-warn {
+  color: #f0c580;
+}
+
+.pg-error {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 70%;
+  border-top: 2px solid #c2554b;
+  background: var(--code-bg);
+  color: var(--code-fg);
+}
+
+.pg-error-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--code-line);
+  color: #ff9d92;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pg-error-head .pg-btn.ghost {
+  border-color: var(--code-line);
+  background: transparent;
+  color: var(--code-muted);
+}
+
+.pg-error pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.pg-busy {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pg-busy span {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pg-spin 0.7s linear infinite;
+}
+
+@keyframes pg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pg-note {
+  max-width: 78ch;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-busy span {
+    animation-duration: 2.4s;
+  }
+}
+
+@media (max-width: 900px) {
+  .pg-shell {
+    width: calc(100% - 32px);
+    padding-top: 24px;
+  }
+
+  .pg-grid {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  .pg-editor-pane {
+    height: 58vh;
+  }
+
+  .pg-preview-pane {
+    height: 62vh;
+  }
+
+  .pg-bar {
+    flex-wrap: wrap;
+  }
+
+  .pg-file {
+    display: none;
+  }
+}
