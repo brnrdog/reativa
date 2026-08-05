@@ -43,29 +43,55 @@ jobs:
       # Analytics is wired in only when the repository carries a PostHog
       # project key; without it the site builds with reporting switched off.
       # The key is a public, write-only client key, so a repository variable
-      # is enough — but secrets and variables are separate contexts, and
-      # reading only one silently yields an empty string when the values were
-      # stored in the other. Take either.
+      # is enough. Secrets and variables are separate contexts, and the
+      # Vite-prefixed name is the one that appears in website/.env.example, so
+      # all four spellings are accepted: reading only one silently yields an
+      # empty string when the value was stored under another.
       - name: Build site
         env:
-          VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
-          VITE_POSTHOG_HOST: ${{ secrets.POSTHOG_HOST || vars.POSTHOG_HOST }}
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY || vars.VITE_POSTHOG_KEY || secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST || vars.VITE_POSTHOG_HOST || secrets.POSTHOG_HOST || vars.POSTHOG_HOST }}
         run: npm run docs:build
 
       # A missing key is not a build failure — it is how forks and clones
       # build — but it is worth saying out loud, because the symptom is a
-      # deployed site that quietly reports nothing.
+      # deployed site that quietly reports nothing. When none of the accepted
+      # names carries a value, say which ones were looked for and which are
+      # set, so the next fix does not need another round trip. Only presence
+      # is reported, never a value.
       - name: Report analytics wiring
         env:
-          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY || vars.POSTHOG_KEY }}
+          KEY_SECRET_VITE: ${{ secrets.VITE_POSTHOG_KEY }}
+          KEY_VAR_VITE: ${{ vars.VITE_POSTHOG_KEY }}
+          KEY_SECRET: ${{ secrets.POSTHOG_KEY }}
+          KEY_VAR: ${{ vars.POSTHOG_KEY }}
         run: |
-          if [ -z "$POSTHOG_KEY" ]; then
-            echo "::warning::No PostHog key (POSTHOG_KEY secret or variable) — the site was built without analytics."
-          elif ls _site/assets | grep -q '^module-'; then
-            echo "PostHog key present, SDK chunk emitted — analytics enabled." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::PostHog key was set but no SDK chunk was emitted."
+          resolved="${KEY_SECRET_VITE:-${KEY_VAR_VITE:-${KEY_SECRET:-$KEY_VAR}}}"
+          if [ -n "$resolved" ]; then
+            if ls _site/assets | grep -q '^module-'; then
+              echo "PostHog key present, SDK chunk emitted — analytics enabled." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::warning::PostHog key was set but no SDK chunk was emitted."
+            fi
+            exit 0
           fi
+          # Presence only — the values themselves never reach the log.
+          mark() { if [ -n "$1" ]; then echo "set"; else echo "—"; fi; }
+          {
+            echo "### PostHog analytics: not wired"
+            echo
+            echo "The site was built without analytics. Accepted names, and whether each carries a value:"
+            echo
+            echo "| Name | Secret | Variable |"
+            echo "| --- | --- | --- |"
+            echo "| VITE_POSTHOG_KEY | $(mark "$KEY_SECRET_VITE") | $(mark "$KEY_VAR_VITE") |"
+            echo "| POSTHOG_KEY | $(mark "$KEY_SECRET") | $(mark "$KEY_VAR") |"
+            echo
+            echo "An *environment* secret is invisible to this job — it declares no"
+            echo "environment — so a key stored on the github-pages environment reads"
+            echo "as empty here even though it exists."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::No PostHog key under any accepted name — the site was built without analytics. See the run summary."
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

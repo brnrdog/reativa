@@ -450,13 +450,18 @@ repository variables (Settings → Secrets and variables → Actions). Either
 works — the project API key is a public, write-only client key that ships in
 the bundle regardless:
 
-| Name            | Value                                                        |
-| --------------- | ------------------------------------------------------------ |
-| `POSTHOG_KEY`   | Project API key, from PostHog → Settings → Project            |
-| `POSTHOG_HOST`  | `https://us.i.posthog.com` or `https://eu.i.posthog.com`      |
+| Name                                    | Value                                                    |
+| --------------------------------------- | -------------------------------------------------------- |
+| `POSTHOG_KEY` or `VITE_POSTHOG_KEY`     | Project API key, from PostHog → Settings → Project        |
+| `POSTHOG_HOST` or `VITE_POSTHOG_HOST`   | `https://us.i.posthog.com` or `https://eu.i.posthog.com`  |
+
+They must be **repository** secrets or variables, not *environment* ones: the
+build job declares no environment, so a value scoped to the `github-pages`
+environment is invisible to it and reads as empty.
 
 The build never fails over a missing key — that is how forks build — so the
-workflow writes a warning to the run summary when it builds without one.
+workflow warns in the run summary instead, listing which of the accepted
+names carry a value (presence only, never the value itself).
 
 To report from a local build, copy `website/.env.example` to
 `website/.env.local` and fill in the same values.
