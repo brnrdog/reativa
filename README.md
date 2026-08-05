@@ -445,15 +445,18 @@ reported unless the build is handed a project key, so clones, forks and
 `npm run docs:dev` are silent by default — without `VITE_POSTHOG_KEY` the
 PostHog chunk is not even emitted into the site.
 
-The GitHub Pages workflow reads two repository variables (Settings → Secrets
-and variables → Actions → Variables). The PostHog project API key is a public,
-write-only client key meant to ship in the bundle, which is why it is a
-variable rather than a secret:
+The GitHub Pages workflow takes two settings, as either repository secrets or
+repository variables (Settings → Secrets and variables → Actions). Either
+works — the project API key is a public, write-only client key that ships in
+the bundle regardless:
 
-| Variable        | Value                                                        |
+| Name            | Value                                                        |
 | --------------- | ------------------------------------------------------------ |
 | `POSTHOG_KEY`   | Project API key, from PostHog → Settings → Project            |
 | `POSTHOG_HOST`  | `https://us.i.posthog.com` or `https://eu.i.posthog.com`      |
+
+The build never fails over a missing key — that is how forks build — so the
+workflow writes a warning to the run summary when it builds without one.
 
 To report from a local build, copy `website/.env.example` to
 `website/.env.local` and fill in the same values.
