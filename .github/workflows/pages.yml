@@ -40,7 +40,14 @@ jobs:
       - name: Install opam dependencies
         run: opam install . --deps-only --with-test
 
+      # Analytics is wired in only when the repository carries a PostHog
+      # project key; without it the site builds with reporting switched off.
+      # The key is a public, write-only client key, so it is a repository
+      # variable rather than a secret.
       - name: Build site
+        env:
+          VITE_POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
         run: npm run docs:build
 
       - name: Configure Pages

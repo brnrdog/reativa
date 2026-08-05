@@ -9,3 +9,6 @@ website/dist/
 examples/jsoo/**/*.bundle.js
 playground/sandbox/
 *.install
+.env
+.env.local
+.env.*.local

@@ -438,6 +438,37 @@ For the demo development loop, run `npm run demo:watch` in one terminal and
 `npm run demo:serve` in another. The server injects a small reload client and
 refreshes the browser when rebuilt demo files change.
 
+## Analytics
+
+The published documentation site reports usage to [PostHog]. Nothing is
+reported unless the build is handed a project key, so clones, forks and
+`npm run docs:dev` are silent by default — without `VITE_POSTHOG_KEY` the
+PostHog chunk is not even emitted into the site.
+
+The GitHub Pages workflow reads two repository variables (Settings → Secrets
+and variables → Actions → Variables). The PostHog project API key is a public,
+write-only client key meant to ship in the bundle, which is why it is a
+variable rather than a secret:
+
+| Variable        | Value                                                        |
+| --------------- | ------------------------------------------------------------ |
+| `POSTHOG_KEY`   | Project API key, from PostHog → Settings → Project            |
+| `POSTHOG_HOST`  | `https://us.i.posthog.com` or `https://eu.i.posthog.com`      |
+
+To report from a local build, copy `website/.env.example` to
+`website/.env.local` and fill in the same values.
+
+What is collected is one pageview per document load plus named events —
+`docs_code_copied`, `docs_syntax_changed`, `docs_section_viewed`,
+`playground_compiled`, `playground_run_failed`, `playground_read_only` and a
+few others, defined at their call sites in `website/src/main.js` and
+`website/playground/playground.js`. Autocapture, session recording and person
+profiles are off: visitors stay anonymous, Do Not Track is honoured, and the
+playground never reports the program in the editor — only which backend ran,
+how large its output was and whether it built.
+
+[PostHog]: https://posthog.com
+
 ## License
 
 MIT © Bernardo Gurgel
