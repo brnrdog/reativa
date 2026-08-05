@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 112" width="420" height="112" role="img" aria-label="reativa">
+  <title>reativa</title>
+  <!-- Dark-background variant of the lockup: paper-white ink, brighter accent. -->
+  <g transform="translate(8 24) scale(2.6667)">
+    <g fill="#f5f3ee" opacity="0.32">
+      <circle cx="5" cy="12" r="1.7" />
+      <circle cx="5" cy="19" r="1.7" />
+      <circle cx="12" cy="19" r="1.7" />
+      <circle cx="19" cy="5" r="1.7" />
+      <circle cx="12" cy="5" r="1.7" />
+      <circle cx="19" cy="12" r="1.7" />
+    </g>
+    <g fill="#a79bd6">
+      <circle cx="5" cy="5" r="2.2" />
+      <circle cx="12" cy="12" r="2.2" />
+      <circle cx="19" cy="19" r="2.2" />
+    </g>
+  </g>
+  <text
+    x="88"
+    y="66"
+    fill="#f5f3ee"
+    font-family="'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    font-size="48"
+    font-weight="700"
+    letter-spacing="-1.4"
+  >reativa</text>
+  <text
+    x="90"
+    y="92"
+    fill="#a29d92"
+    font-family="'JetBrains Mono', 'SFMono-Regular', Consolas, monospace"
+    font-size="14"
+    letter-spacing="0.6"
+  >signals for OCaml + Melange</text>
+</svg>

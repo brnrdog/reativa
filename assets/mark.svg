@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="reativa">
+  <title>reativa</title>
+  <!-- The lattice mark: a 3x3 signal graph where the tracked diagonal is lit
+       and the untracked nodes stay dim. Lavender reads on both light and dark
+       backgrounds, so this file is theme-agnostic. -->
+  <g fill="#8578b8" opacity="0.32">
+    <circle cx="5" cy="12" r="1.7" />
+    <circle cx="5" cy="19" r="1.7" />
+    <circle cx="12" cy="19" r="1.7" />
+    <circle cx="19" cy="5" r="1.7" />
+    <circle cx="12" cy="5" r="1.7" />
+    <circle cx="19" cy="12" r="1.7" />
+  </g>
+  <g fill="#8578b8">
+    <circle cx="5" cy="5" r="2.2" />
+    <circle cx="12" cy="12" r="2.2" />
+    <circle cx="19" cy="19" r="2.2" />
+  </g>
+</svg>

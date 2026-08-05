@@ -1,4 +1,9 @@
-# reativa
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="reativa" width="340">
+  </picture>
+</p>
 
 UI library for building reactive user interfaces for the web with **OCaml** or
 **ReasonML**, compiling to JavaScript through **Melange** or **js_of_ocaml**.
