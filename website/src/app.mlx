@@ -1194,6 +1194,7 @@ let () =
             <a href="#examples">("Examples")</a>
             <a href="#start">("Get started")</a>
             <a href="#api">("API")</a>
+            <a href="playground/">("Playground")</a>
           </nav>
           <div className="syntax-toggle" aria_label="Code syntax">
             <button
