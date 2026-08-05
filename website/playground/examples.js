@@ -2,6 +2,10 @@
 // opens Reativa, builds a view and mounts it into the preview frame's #app.
 // The preview frame ships a small stylesheet (see preview.html) so these read
 // as finished UI without any CSS of their own.
+//
+// They compile on either backend: the bare children here are strings and ints,
+// which every backend guarantees, rather than options or booleans (which only
+// Melange can tell apart at runtime — use View.Maybe / View.Show for those).
 
 export const EXAMPLES = [
   {

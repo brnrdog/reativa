@@ -282,6 +282,27 @@
           var blob = new Blob([data.js], { type: "text/javascript" });
           var url = URL.createObjectURL(blob);
 
+          // js_of_ocaml links one self-contained script that expects to run at
+          // top level; Melange's bundle is an ES module. Same source, two
+          // shapes, so the frame runs whichever the compile step reported.
+          if (data.format === "script") {
+            var script = document.createElement("script");
+            script.src = url;
+            script.onload = function () {
+              URL.revokeObjectURL(url);
+              post({ type: "mounted" });
+            };
+            script.onerror = function () {
+              URL.revokeObjectURL(url);
+              post({
+                type: "runtime-error",
+                text: "The compiled script could not be loaded.",
+              });
+            };
+            document.body.appendChild(script);
+            return;
+          }
+
           import(url)
             .then(function () {
               post({ type: "mounted" });

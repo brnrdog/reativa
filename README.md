@@ -386,8 +386,8 @@ for the one place where the two backends genuinely differ (`View.child`).
 
 ## Playground
 
-Write a component, compile it with Melange and watch it mount — without setting
-up a project:
+Write a component, compile it and watch it mount — without setting up a
+project:
 
 ```sh
 opam install . --deps-only --with-test
@@ -397,14 +397,26 @@ npm run playground
 ```
 
 The dev server opens the playground at `/reativa/playground/`. Each run writes
-the editor buffer to a scratch dune project, builds it with Melange, bundles the
-emitted modules and imports the result into the preview frame; when the build
-fails, the compiler's own message comes back in place of the preview. Programs
-are complete `.mlx` modules that end in `View.mount_by_id "app"`, and the preview
-frame ships a small stylesheet (`.card`, `.row`, `.list`, `.value`, `.muted`,
-plus the usual form controls) so short examples look finished. Press
-<kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run, and use *Copy link* to
-share a program — the source travels in the URL fragment.
+the editor buffer to a scratch dune project and builds it with the backend
+picked in the toolbar — the same source, compiled both ways, which is the point
+of [Backends](#backends) made touchable: Melange emits ES modules that are
+bundled and imported into the preview frame, js_of_ocaml links one
+self-contained script the frame runs as a plain `<script>`. The status line
+reports which backend ran and how large its output was (dev profile,
+unminified — CI's release-profile table is still the number that counts). When
+the build fails, the compiler's own message comes back in place of the preview.
+
+The js_of_ocaml option needs its package, exactly as an application would:
+
+```sh
+opam install reativa-jsoo js_of_ocaml
+```
+
+Programs are complete `.mlx` modules that end in `View.mount_by_id "app"`, and
+the preview frame ships a small stylesheet (`.card`, `.row`, `.list`, `.value`,
+`.muted`, plus the usual form controls) so short examples look finished. Press
+<kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run, and use *Share* to copy
+a link — the program and the backend travel in the URL fragment.
 
 Compiling needs the OCaml toolchain, so the playground published with the docs
 site is read-only: it shows the examples but cannot run edits.

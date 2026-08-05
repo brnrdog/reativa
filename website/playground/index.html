@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Write reativa components in OCaml, compile them with Melange and see them run — a local playground for the reativa UI library."
+      content="Write reativa components in OCaml, compile them through Melange or js_of_ocaml and see them run — a local playground for the reativa UI library."
     />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#FBFAF7" media="(prefers-color-scheme: light)" />
@@ -67,8 +67,9 @@
       <div class="pg-intro">
         <h1>Playground</h1>
         <p>
-          Write a complete <code>.mlx</code> program, compile it with Melange and
-          watch it mount into the preview. Everything runs on your machine —
+          Write a complete <code>.mlx</code> program, compile it and watch it
+          mount into the preview. Switch the backend to build the same source
+          through Melange or js_of_ocaml. Everything runs on your machine —
           <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run.
         </p>
       </div>
@@ -85,13 +86,10 @@
       <div class="pg-grid">
         <section class="pg-pane pg-editor-pane" aria-label="Editor">
           <div class="pg-bar">
-            <label class="pg-select">
-              <span class="pg-bar-label">Example</span>
-              <select id="pg-examples"></select>
-            </label>
-            <span class="pg-file">playground.mlx</span>
+            <select id="pg-examples" class="pg-picker" aria-label="Example"></select>
+            <div class="pg-seg" id="pg-backends" role="group" aria-label="Backend"></div>
             <div class="pg-bar-actions">
-              <button class="pg-btn ghost" id="pg-share" type="button">Copy link</button>
+              <button class="pg-btn ghost" id="pg-share" type="button">Share</button>
               <button class="pg-btn ghost" id="pg-reset" type="button">Reset</button>
               <button class="pg-btn primary" id="pg-run" type="button">
                 Run <span class="pg-kbd">⌘⏎</span>
@@ -153,8 +151,11 @@
 
       <p class="pg-note">
         The program is compiled by the dev server: your buffer is written to a
-        scratch dune project, built with Melange and bundled, then imported into
-        the preview frame. Ambient styles in the frame cover
+        scratch dune project and built with the selected backend — Melange emits
+        ES modules that are bundled and imported, js_of_ocaml links one
+        self-contained script that the frame runs as-is. The reported size is
+        the JavaScript that run produced, unminified, in the dev profile.
+        Ambient styles in the frame cover
         <code>.card</code>, <code>.row</code>, <code>.list</code>,
         <code>.value</code>, <code>.muted</code> and the usual form controls.
       </p>

@@ -85,8 +85,9 @@
 
 .pg-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   flex: none;
   min-height: 52px;
   padding: 8px 12px;
@@ -94,21 +95,7 @@
   background: var(--surface-2);
 }
 
-.pg-bar-label {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pg-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pg-select select {
+.pg-picker {
   height: 32px;
   padding: 0 8px;
   border: 1px solid var(--line-strong);
@@ -119,21 +106,37 @@
   font-size: 13px;
 }
 
-.pg-file {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--faint);
+.pg-seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.pg-seg-opt {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
+}
+
+.pg-seg-opt.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 
 .pg-bar-actions {
   display: flex;
-  flex: none;
+  flex: 1;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .pg-btn {
@@ -454,11 +457,7 @@
     height: 62vh;
   }
 
-  .pg-bar {
-    flex-wrap: wrap;
-  }
-
-  .pg-file {
-    display: none;
+  .pg-bar-actions {
+    flex: none;
   }
 }

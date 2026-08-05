@@ -1,10 +1,12 @@
 // Playground editor.
 //
 // The editor is a textarea with a highlighted <pre> layered underneath it (the
-// same highlighter the docs page uses). Running a program posts the buffer to
-// the dev server, which builds it with Melange and returns a bundled ES module;
-// the preview frame is reloaded and imports it. When the compile endpoint is
-// missing — the published site is static — the page falls back to read-only.
+// same highlighter the docs page uses). Running a program posts the buffer and
+// the chosen backend to the dev server, which builds it and returns the
+// JavaScript that run produced; the preview frame is reloaded and either
+// imports it (Melange) or runs it as a script (js_of_ocaml). When the compile
+// endpoint is missing — the published site is static — the page falls back to
+// read-only.
 
 import { highlightOCaml } from "../src/highlight.js";
 import { EXAMPLES, DEFAULT_EXAMPLE } from "./examples.js";
@@ -12,11 +14,20 @@ import { EXAMPLES, DEFAULT_EXAMPLE } from "./examples.js";
 const COMPILE_URL = "/__playground/compile";
 const STATUS_URL = "/__playground/status";
 const STORAGE_KEY = "reativa-playground-code";
+const BACKEND_KEY = "reativa-playground-backend";
+
+// Mirrors the server's table; the live list replaces it once the status probe
+// answers, so the static site still shows what the backends are.
+const FALLBACK_BACKENDS = [
+  { id: "melange", label: "Melange" },
+  { id: "jsoo", label: "js_of_ocaml" },
+];
 
 const source = document.getElementById("pg-source");
 const highlight = document.getElementById("pg-highlight");
 const gutter = document.getElementById("pg-gutter");
 const examplesSelect = document.getElementById("pg-examples");
+const backendsEl = document.getElementById("pg-backends");
 const runButton = document.getElementById("pg-run");
 const resetButton = document.getElementById("pg-reset");
 const shareButton = document.getElementById("pg-share");
@@ -35,9 +46,12 @@ const consoleTab = document.getElementById("pg-tab-console");
 const themeButton = document.getElementById("pg-theme");
 
 let compileAvailable = true;
+let backends = FALLBACK_BACKENDS;
+let backend = FALLBACK_BACKENDS[0].id;
 let running = false;
 let pendingBundle = null;
 let pendingRunId = null;
+let lastResult = null;
 let logs = [];
 
 // ---------------------------------------------------------------------------
@@ -78,6 +92,58 @@ function initialCode() {
     /* private mode — fall through to the default example */
   }
   return DEFAULT_EXAMPLE.code;
+}
+
+function initialBackend() {
+  const match = /(?:^|[#&])backend=([a-z_]+)/.exec(window.location.hash);
+  if (match && FALLBACK_BACKENDS.some((item) => item.id === match[1])) {
+    return match[1];
+  }
+  try {
+    const stored = localStorage.getItem(BACKEND_KEY);
+    if (stored && FALLBACK_BACKENDS.some((item) => item.id === stored)) return stored;
+  } catch (error) {
+    /* private mode — fall through to the default backend */
+  }
+  return FALLBACK_BACKENDS[0].id;
+}
+
+// ---------------------------------------------------------------------------
+// Backend picker
+// ---------------------------------------------------------------------------
+
+function backendLabel(id) {
+  const found = backends.find((item) => item.id === id);
+  return found ? found.label : id;
+}
+
+function paintBackends() {
+  backendsEl.replaceChildren(
+    ...backends.map((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = item.id === backend ? "pg-seg-opt is-active" : "pg-seg-opt";
+      // Nothing to compile with on the static site, so the picker only reports
+      // which backends exist.
+      button.disabled = !compileAvailable;
+      button.textContent = item.label;
+      button.setAttribute("aria-pressed", String(item.id === backend));
+      button.addEventListener("click", () => selectBackend(item.id));
+      return button;
+    }),
+  );
+}
+
+function selectBackend(id) {
+  if (id === backend) return;
+  backend = id;
+  try {
+    localStorage.setItem(BACKEND_KEY, id);
+  } catch (error) {
+    /* the choice just won't survive a reload */
+  }
+  paintBackends();
+  if (compileAvailable) run();
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +326,7 @@ async function run() {
     const response = await fetch(COMPILE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: source.value }),
+      body: JSON.stringify({ code: source.value, backend }),
     });
     result = await response.json();
   } catch (error) {
@@ -291,11 +357,18 @@ async function run() {
     return;
   }
 
-  pendingBundle = result.js;
+  pendingBundle = { js: result.js, format: result.format };
   pendingRunId = String(Date.now());
-  setStatus("Running");
+  lastResult = result;
+  setStatus(`Running · ${backendLabel(result.backend || backend)}`);
   showTab("preview");
   reloadFrame(pendingRunId);
+}
+
+function formatSize(bytes) {
+  if (!bytes) return "";
+  const kb = bytes / 1024;
+  return kb >= 1000 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} KB`;
 }
 
 function currentTheme() {
@@ -309,7 +382,12 @@ window.addEventListener("message", (event) => {
 
   if (data.type === "ready") {
     if (pendingBundle && data.runId === pendingRunId) {
-      postToFrame({ type: "run", js: pendingBundle, theme: currentTheme() });
+      postToFrame({
+        type: "run",
+        js: pendingBundle.js,
+        format: pendingBundle.format,
+        theme: currentTheme(),
+      });
       pendingBundle = null;
       pendingRunId = null;
     } else {
@@ -331,7 +409,11 @@ window.addEventListener("message", (event) => {
   }
 
   if (data.type === "mounted") {
-    setStatus("Mounted", "ok");
+    const size = lastResult ? ` · ${formatSize(lastResult.bytes)}` : "";
+    setStatus(`Mounted · ${backendLabel(backend)}${size}`, "ok");
+    statusEl.title = lastResult
+      ? "Size of the JavaScript this run produced — dev profile, unminified."
+      : "";
   }
 });
 
@@ -342,6 +424,7 @@ window.addEventListener("message", (event) => {
 function setOffline() {
   compileAvailable = false;
   offlineEl.hidden = false;
+  paintBackends();
   runButton.disabled = true;
   runButton.title = "Run the playground locally: npm run playground";
 }
@@ -352,6 +435,11 @@ async function probeCompiler() {
     if (!response.ok) throw new Error("unavailable");
     const payload = await response.json();
     if (!payload || !payload.ok) throw new Error("unavailable");
+    if (Array.isArray(payload.backends) && payload.backends.length) {
+      backends = payload.backends;
+      if (!backends.some((item) => item.id === backend)) backend = backends[0].id;
+      paintBackends();
+    }
   } catch (error) {
     setOffline();
     setStatus("Read-only");
@@ -381,7 +469,7 @@ resetButton.addEventListener("click", () => {
 
 shareButton.addEventListener("click", async () => {
   const url = new URL(window.location.href);
-  url.hash = "code=" + encodeCode(source.value);
+  url.hash = "backend=" + backend + "&code=" + encodeCode(source.value);
   window.history.replaceState(null, "", url.toString());
   try {
     await navigator.clipboard.writeText(url.toString());
@@ -390,7 +478,7 @@ shareButton.addEventListener("click", async () => {
     shareButton.textContent = "Link in URL";
   }
   setTimeout(() => {
-    shareButton.textContent = "Copy link";
+    shareButton.textContent = "Share";
   }, 1600);
 });
 
@@ -423,6 +511,9 @@ themeButton.textContent = currentTheme() === "dark" ? "☀" : "☾";
 // The run shortcut is ⌘⏎ on macOS and Ctrl+⏎ everywhere else.
 const isApple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 document.querySelector(".pg-kbd").textContent = isApple ? "⌘⏎" : "Ctrl+⏎";
+
+backend = initialBackend();
+paintBackends();
 
 setCode(initialCode());
 showTab("preview");
