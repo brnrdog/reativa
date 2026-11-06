@@ -12,16 +12,11 @@ let run_with_disposer ?name fn =
     cleanup := fn ()
   in
   let node = Core.make_effect_node ~id ~name ~run:run_with_cleanup in
-  (* Initial run under tracking to establish dependencies. *)
-  let prev = !Scheduler.current_target in
-  Scheduler.current_target := Some node;
-  (try
-     run_with_cleanup ();
-     Core.clear_dirty node;
-     Scheduler.current_target := prev
-   with e ->
-     Scheduler.current_target := prev;
-     raise e);
+  (* Initial run under tracking to establish dependencies. [with_tracking]
+     also restores the dependency cursor, which a node created inside this run
+     moves. *)
+  Scheduler.with_tracking node run_with_cleanup;
+  Core.clear_dirty node;
   node.level <- Scheduler.compute_level node;
   let disposed = ref false in
   let dispose () =

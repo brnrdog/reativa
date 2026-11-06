@@ -182,6 +182,52 @@ let test_computed_equals () =
   check_eq "changed computed re-runs effect" !runs (base + 1);
   d.dispose ()
 
+(* ----- nodes created during another node's first run ----- *)
+
+let test_nested_creation () =
+  print_endline "Nodes created during a first run";
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let outer_runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      ignore (Signal.get other);
+      Effect.run (fun () -> ignore (Signal.get count); None);
+      ignore (Signal.get count);
+      incr outer_runs;
+      None)
+  in
+  Signal.set count 1;
+  Signal.set count 2;
+  check_eq "outer effect keeps its dependency" !outer_runs 3;
+  d.dispose ();
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let outer_runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      ignore (Signal.get other);
+      let c = Computed.make (fun () -> Signal.get count + 1) in
+      ignore (Signal.peek c);
+      ignore (Signal.get count);
+      incr outer_runs;
+      None)
+  in
+  Signal.set count 1;
+  Signal.set count 2;
+  check_eq "outer effect keeps its dependency (computed)" !outer_runs 3;
+  d.dispose ();
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let c =
+    Computed.make (fun () ->
+      ignore (Signal.get other);
+      Effect.run (fun () -> ignore (Signal.get count); None);
+      Signal.get count)
+  in
+  Signal.set count 5;
+  check_eq "computed keeps its dependency" (Signal.peek c) 5
+
 let () =
   test_signal ();
   test_effect ();
@@ -189,5 +235,6 @@ let () =
   test_computed ();
   test_diamond ();
   test_computed_equals ();
+  test_nested_creation ();
   Printf.printf "\n%d/%d checks passed\n" (!total - !failures) !total;
   if !failures > 0 then exit 1
