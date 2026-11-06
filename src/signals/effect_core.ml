@@ -50,16 +50,11 @@ let make ?name ?target ~owned fn =
     (match target with Some (el, what) -> !Trace.hooks.bound node el what | None -> ());
     !Trace.hooks.ran node
   end;
-  (* Initial run under tracking to establish dependencies. *)
-  let prev = !Scheduler.current_target in
-  Scheduler.current_target := Some node;
-  (try
-     run_with_cleanup ();
-     Core.clear_dirty node;
-     Scheduler.current_target := prev
-   with e ->
-     Scheduler.current_target := prev;
-     raise e);
+  (* Initial run under tracking to establish dependencies. [with_tracking]
+     also restores the dependency cursor, which a node created inside this run
+     moves. *)
+  Scheduler.with_tracking node run_with_cleanup;
+  Core.clear_dirty node;
   node.level <- Scheduler.compute_level node;
   { dispose }
 

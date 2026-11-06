@@ -4,19 +4,15 @@
    refreshes the value when a dependency has changed (see
    {!Scheduler.ensure_computed_fresh}). *)
 
-(* First computation, tracked so the computed links to what it reads. The
-   previous tracking target is restored even if [compute] raises, so reads
-   made after a failed [make] still count for the enclosing effect. *)
+(* Initial computation under tracking to establish dependencies.
+   [with_tracking] also restores the dependency cursor, which a node created
+   inside [compute] moves, and restores the tracking target when [compute]
+   raises, so reads made after a failed [make] still count for the enclosing
+   effect. *)
 let initial_run node compute =
-  let prev = !Scheduler.current_target in
-  Scheduler.current_target := Some node;
-  match compute () with
-  | value ->
-    Scheduler.current_target := prev;
-    value
-  | exception e ->
-    Scheduler.current_target := prev;
-    raise e
+  let value = ref None in
+  Scheduler.with_tracking node (fun () -> value := Some (compute ()));
+  match !value with Some v -> v | None -> assert false
 
 let make_without_equals ?name compute =
   let id = Id.make () in
