@@ -1,0 +1,2 @@
+; npm's node_modules holds no dune projects; skip it.
+(dirs :standard \ node_modules)

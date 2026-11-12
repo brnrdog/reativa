@@ -1,0 +1,21 @@
+{
+  "name": "reativa-benchmarks",
+  "private": true,
+  "type": "module",
+  "description": "Keyed-list benchmark comparing Reativa (Melange and js_of_ocaml) against xote and SolidJS",
+  "scripts": {
+    "build": "node build.mjs",
+    "bench": "node driver.mjs",
+    "all": "node build.mjs && node driver.mjs",
+    "dom-ops": "node dom-ops.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0",
+    "rescript": "^12.0.0",
+    "rescript-signals": "^3.2.0",
+    "solid-js": "^1.9.15",
+    "vite": "^8.3.4",
+    "vite-plugin-solid": "^2.11.14",
+    "xote": "7.2.0"
+  }
+}
