@@ -139,7 +139,7 @@ let collect_reactive_names structure =
           | Some body ->
               let reads =
                 match body.pexp_desc with
-                | Pexp_function (_, _, Pfunction_cases cases) ->
+                | Pexp_function (_, _, Pfunction_cases (cases, _, _)) ->
                     List.exists (fun c -> reads_signal c.pc_rhs) cases
                 | _ -> reads_signal body
               in
