@@ -266,7 +266,7 @@ function generate() {
   push("  let create tag : element = fun ?class_ ?className");
   push(`      ${labels.map((l) => `?${l}`).join(" ")}`);
   push(`      ${EVENTS.map(([l]) => `?${l}`).join(" ")}`);
-  push("      ?(attrs = []) ?(children = []) () ->");
+  push("      ?ref ?(attrs = []) ?(children = []) () ->");
   push("    let class_ = match className with Some _ -> className | None -> class_ in");
   push("    let acc = push_string \"class\" class_ [] in");
   for (const [label, attr, kind] of ATTRIBUTES) {
@@ -277,6 +277,7 @@ function generate() {
   for (const [label, event] of EVENTS) {
     push(`    let events = push_event ${JSON.stringify(event)} ${label} events in`);
   }
+  push("    let acc = match ref with Some r -> Attr_ref r :: acc | None -> acc in");
   push("    element ~attrs:(List.rev_append acc attrs) ~events:(List.rev events) tag children");
   push("");
   for (const tag of ELEMENTS) push(`  let ${tag} = create ${JSON.stringify(tag)}`);
@@ -293,6 +294,7 @@ function elementType(indent) {
   arg("?className:string value");
   for (const [label, , kind] of ATTRIBUTES) arg(`?${label}:${type[kind]}`);
   for (const [label] of EVENTS) arg(`?${label}:(Dom.event -> unit)`);
+  arg("?ref:Ref.t");
   arg("?attrs:attr list");
   arg("?children:t list");
   arg("unit");

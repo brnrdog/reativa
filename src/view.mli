@@ -19,6 +19,34 @@ val map_value : ('a -> 'b) -> 'a value -> 'b value
 (** A function reading the current value (tracked when it is reactive). *)
 val value_getter : 'a value -> unit -> 'a
 
+(** An element reference, for imperative access to a DOM node (focus,
+    measurement, a third-party widget). Pass it as the [ref] prop of an mlx
+    element, or as [Attr.ref_]. *)
+module Ref : sig
+  type t
+
+  val make : unit -> t
+
+  (** Calls [f] with the element as soon as it is created. *)
+  val from_callback : (Dom.t -> unit) -> t
+
+  (** The element, once created and until its owner is disposed. *)
+  val current : t -> Dom.t option
+end
+
+(** {2 Lifecycle} *)
+
+(** Run [f] once the insertion that is under way — the mount, region pass or
+    list pass that is rendering the current component — has finished, so its
+    nodes are in place. [f] runs untracked under the current owner, and not
+    at all if that owner was disposed first. Outside any insertion it runs
+    right away. *)
+val on_mount : (unit -> unit) -> unit
+
+(** Run [f] when the current owner (the component, row or region being
+    rendered) is disposed. *)
+val on_cleanup : (unit -> unit) -> unit
+
 (** {2 Leaves and structure} *)
 
 val empty : t
@@ -43,6 +71,38 @@ val tracked : (unit -> t) -> t
 (** Runtime coercion of a bare JSX child: a string, int, float, view, or a
     thunk of one of those (which becomes a tracked region). *)
 val child : 'a -> t
+
+(** {2 Boundaries, portals and suspense} *)
+
+(** [error_boundary ~fallback child] renders [child]; an exception raised
+    while rendering it, or later by an effect below it, replaces it with
+    [fallback err reset]. [reset ()] renders [child] again. Errors raised by
+    the fallback itself go to the next boundary up. *)
+val error_boundary : fallback:(exn -> (unit -> unit) -> t) -> t -> t
+
+module ErrorBoundary : sig
+  val component : fallback:(exn -> (unit -> unit) -> t) -> children:t list -> unit -> t
+  val createElement : unit -> children:t list -> fallback:(exn -> (unit -> unit) -> t) -> t
+end
+
+(** Render [child] into [target] (default: <body>), owned by this point of
+    the tree: it is removed with it, and sees its context. *)
+val portal : ?target:Dom.t -> t -> t
+
+module Portal : sig
+  val component : ?target:Dom.t -> children:t list -> unit -> t
+  val createElement : ?target:Dom.t -> unit -> children:t list -> t
+end
+
+(** Show [fallback] while any {!Reativa.Resource} created below is loading;
+    the child renders meanwhile, out of the document, and moves into place
+    when nothing is pending. *)
+val suspense : fallback:t -> t -> t
+
+module Suspense : sig
+  val component : fallback:t -> children:t list -> unit -> t
+  val createElement : unit -> children:t list -> fallback:t -> t
+end
 
 (** {2 Control flow} *)
 
@@ -121,6 +181,9 @@ module Attr : sig
 
   (** [data "id" v] is the attribute [data-id]. *)
   val data : string -> string value -> attr
+
+  (** Fill a {!Ref.t} with the element. *)
+  val ref_ : Ref.t -> attr
 end
 
 module On : sig
@@ -321,6 +384,7 @@ module Mlx : sig
     ?onPause:(Dom.event -> unit) ->
     ?onEnded:(Dom.event -> unit) ->
     ?onTimeUpdate:(Dom.event -> unit) ->
+    ?ref:Ref.t ->
     ?attrs:attr list ->
     ?children:t list ->
     unit ->

@@ -45,6 +45,8 @@ external next_sibling : t -> t option = "nextSibling"
 
 external is_same_node : t -> t -> bool = "isSameNode" [@@mel.send]
 
+external body : unit -> t = "getBody" [@@mel.module "./reativa_runtime.js"]
+
 external create_fragment : unit -> t = "createDocumentFragment"
   [@@mel.scope "document"]
 

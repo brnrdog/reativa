@@ -17,3 +17,17 @@ export function getWindow() {
 export function getUndefined() {
   return undefined;
 }
+
+export function getBody() {
+  return document.body;
+}
+
+// Promise rejections: Melange represents an OCaml exception as an object
+// carrying its constructor under MEL_EXN_ID (RE_EXN_ID in older releases).
+export function isOcamlExn(reason) {
+  return reason != null && typeof reason === "object" && ("MEL_EXN_ID" in reason || "RE_EXN_ID" in reason);
+}
+
+export function describeReason(reason) {
+  return reason instanceof Error ? reason.message : String(reason);
+}

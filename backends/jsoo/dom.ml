@@ -81,6 +81,8 @@ let next_sibling (node : t) : t option =
 let is_same_node (a : t) (b : t) : bool =
   Js.to_bool (Js.Unsafe.meth_call a "isSameNode" [| Js.Unsafe.inject b |] : bool Js.t)
 
+let body () : t = Js.Unsafe.get (document ()) "body"
+
 let create_fragment () : t = Js.Unsafe.meth_call (document ()) "createDocumentFragment" [||]
 
 let parent_node (node : t) : t option =
