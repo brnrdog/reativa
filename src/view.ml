@@ -20,6 +20,13 @@
    the Effects (and DOM nodes) it created last time are disposed first — no
    leaks, even with nested dynamic regions. *)
 
+(* An element reference: filled with the element when it is created, cleared
+   when the element's owner is disposed. *)
+type element_ref = {
+  mutable current : Dom.t option;
+  on_set : (Dom.t -> unit) option;
+}
+
 type attr =
   | Attr_static of string * string
   | Attr_reactive of string * (unit -> string)
@@ -29,6 +36,7 @@ type attr =
   | Attr_toggle of string * (unit -> bool)
   (* Set while [Some], removed while [None]. *)
   | Attr_optional of string * (unit -> string option)
+  | Attr_ref of element_ref
 
 type handler = string * (Dom.event -> unit)
 
@@ -51,6 +59,21 @@ type t =
   (* A component body, run when the view is inserted: under its own owner and
      untracked (see {!component}). *)
   | Component of (unit -> t)
+  (* [child], or [fallback] once [child] raised; see {!error_boundary}. *)
+  | Boundary of {
+      child : t;
+      fallback : exn -> (unit -> unit) -> t;
+    }
+  (* [child] rendered into another container; see {!portal}. *)
+  | Portal of {
+      target : Dom.t option;
+      child : t;
+    }
+  (* [fallback] while a resource below is pending; see {!suspense}. *)
+  | Suspense of {
+      child : t;
+      fallback : t;
+    }
   | Keyed :
       {
         items : unit -> 'item list;
@@ -128,6 +151,11 @@ let apply_attr el = function
   | Attr_bool_static (name, v) -> toggle_attribute el name v
   | Attr_bool_reactive ("checked", f) -> leaf_bool (Dom.set_checked el) f
   | Attr_bool_reactive (name, f) | Attr_toggle (name, f) -> leaf_bool (toggle_attribute el name) f
+  | Attr_ref r ->
+    r.current <- Some el;
+    (match r.on_set with Some f -> f el | None -> ());
+    Owner.on_cleanup (fun () ->
+      match r.current with Some e when e == el -> r.current <- None | _ -> ())
   | Attr_optional (name, f) ->
     let last = ref None and first = ref true in
     ignore
@@ -171,6 +199,48 @@ let with_svg svg f =
   | exception e ->
     in_svg := prev;
     raise e
+
+(* ----- on_mount -----
+
+   [on_mount] callbacks wait until the insertion that created them is
+   finished — the outermost [mount], region pass or list pass — so the nodes
+   they look for are in place. [insertion] wraps each of those entry points;
+   the callbacks run in registration order when the outermost one returns,
+   each under the owner it was registered in, untracked, and only if that
+   owner is still alive. *)
+
+let mount_queue : (unit -> unit) list ref = ref []
+let insertion_depth = ref 0
+
+let flush_mount_queue () =
+  while !mount_queue <> [] do
+    let queued = List.rev !mount_queue in
+    mount_queue := [];
+    List.iter (fun f -> f ()) queued
+  done
+
+let insertion f =
+  incr insertion_depth;
+  match f () with
+  | result ->
+    decr insertion_depth;
+    if !insertion_depth = 0 then flush_mount_queue ();
+    result
+  | exception e ->
+    decr insertion_depth;
+    if !insertion_depth = 0 then mount_queue := [];
+    raise e
+
+let on_mount f =
+  let owner = Owner.active () in
+  let run () =
+    match owner with
+    | Some o when Owner.is_disposed o -> ()
+    | _ -> Owner.run owner (fun () -> Signal.untrack f)
+  in
+  if !insertion_depth = 0 then run () else mount_queue := run :: !mount_queue
+
+let on_cleanup f = Owner.on_cleanup f
 
 (* ----- keyed lists -----
 
@@ -370,7 +440,7 @@ let keyed_region ~make ~reuse parent before acc items key =
   let svg = !in_svg in
   Effect_core.run (fun () ->
     let items = items () in
-    with_svg svg (fun () -> reconcile ~make ~reuse anchor parent state items key);
+    insertion (fun () -> with_svg svg (fun () -> reconcile ~make ~reuse anchor parent state items key));
     None)
 
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
@@ -414,6 +484,9 @@ let rec insert parent before view (acc : Dom.t list ref) =
     keyed_region parent before acc items key
       ~make:(fun into item k -> build_row into (fun () -> render item) k item None)
       ~reuse:(fun row item -> row.value == item)
+  | Boundary { child; fallback } -> boundary_region parent before acc child fallback
+  | Portal { target; child } -> portal_region parent before acc target child
+  | Suspense { child; fallback } -> suspense_region parent before acc child fallback
 
 (* Build an element and its subtree.
 
@@ -473,9 +546,138 @@ and dynamic_region parent before acc f =
      | _ ->
        clear ();
        let local = ref [] in
-       with_svg svg (fun () -> insert (parent_of anchor parent) (Some anchor) view local);
+       insertion (fun () ->
+         with_svg svg (fun () -> insert (parent_of anchor parent) (Some anchor) view local));
        region := !local;
        (match (view, !local) with Text _, [ node ] -> text_node := Some node | _ -> ()));
+    None)
+
+(* An error boundary. The child renders under an owner whose parent carries
+   the error handler, so an exception raised while rendering the child, or
+   later by any effect below it, replaces the child with [fallback err reset];
+   [reset ()] renders the child again. The fallback renders outside the
+   boundary: its own errors go to the next boundary up. *)
+and boundary_region parent before acc child fallback =
+  let anchor = Dom.create_comment "" in
+  place parent before anchor;
+  acc := anchor :: !acc;
+  let outer = Owner.active () in
+  let boundary = Owner.make_child () in
+  let region = ref [] and pass = ref None and rendering = ref false in
+  let svg = !in_svg in
+  let clear () =
+    List.iter Dom.remove !region;
+    region := [];
+    match !pass with
+    | Some o ->
+      pass := None;
+      Owner.dispose o
+    | None -> ()
+  in
+  Owner.add_cleanup boundary clear;
+  let rec render ~handled view_of =
+    clear ();
+    let o = Owner.make ~parent:(if handled then Some boundary else outer) () in
+    pass := Some o;
+    let local = ref [] in
+    rendering := handled;
+    match
+      insertion (fun () ->
+        Owner.run_in o (fun () ->
+          with_svg svg (fun () -> insert (parent_of anchor parent) (Some anchor) (view_of ()) local)))
+    with
+    | () ->
+      rendering := false;
+      region := !local
+    | exception e ->
+      rendering := false;
+      region := !local;
+      if handled then failed e else raise e
+  and failed e = render ~handled:false (fun () -> fallback e reset)
+  and reset () = render ~handled:true (fun () -> child) in
+  (* While the child is being rendered, an effect's error unwinds that render
+     (re-raised here, caught above) instead of swapping regions mid-insert. *)
+  Owner.set_error_handler boundary (fun e -> if !rendering then raise e else failed e);
+  Owner.run_in boundary (fun () -> reset ())
+
+(* A portal: [child] is appended to [target] (default: <body>) but owned here,
+   so it is disposed and its nodes removed with this point of the tree, and
+   context lookups inside it see this point's providers. *)
+and portal_region parent before acc target child =
+  let anchor = Dom.create_comment "portal" in
+  place parent before anchor;
+  acc := anchor :: !acc;
+  let target = match target with Some t -> t | None -> Dom.body () in
+  let owner = Owner.make_child () in
+  let nodes = ref [] in
+  Owner.add_cleanup owner (fun () ->
+    List.iter Dom.remove !nodes;
+    nodes := []);
+  Owner.run_in owner (fun () -> with_svg false (fun () -> insert target None child nodes))
+
+(* Suspense. The child renders right away, between two comment markers in a
+   detached fragment, under an owner that provides a pending counter
+   ({!Suspense_scope}). While the counter is above zero the fallback is shown
+   and the child's nodes wait in the fragment; when it drops to zero the
+   fallback goes and the child's nodes move into place, effects and all. *)
+and suspense_region parent before acc child fallback =
+  let anchor = Dom.create_comment "" in
+  place parent before anchor;
+  acc := anchor :: !acc;
+  let svg = !in_svg in
+  let counter = Signal.make 0 in
+  let owner = Owner.make_child () in
+  Owner.provide owner Suspense_scope.key (Some counter);
+  let holder = Dom.create_fragment () in
+  let start_marker = Dom.create_comment "" and end_marker = Dom.create_comment "" in
+  Dom.append_child holder start_marker;
+  Owner.run_in owner (fun () -> with_svg svg (fun () -> insert holder None child (ref [])));
+  Dom.append_child holder end_marker;
+  (* The child's nodes, markers included, in document order. *)
+  let child_nodes () =
+    let rec walk node acc =
+      let acc = node :: acc in
+      if node == end_marker then List.rev acc
+      else match Dom.next_sibling node with Some next -> walk next acc | None -> List.rev acc
+    in
+    walk start_marker []
+  in
+  let in_holder () =
+    match Dom.parent_node start_marker with Some p -> Dom.is_same_node p holder | None -> true
+  in
+  let fallback_nodes = ref [] and fallback_owner = ref None in
+  let hide_fallback () =
+    List.iter Dom.remove !fallback_nodes;
+    fallback_nodes := [];
+    match !fallback_owner with
+    | Some o ->
+      fallback_owner := None;
+      Owner.dispose o
+    | None -> ()
+  in
+  Owner.on_cleanup (fun () ->
+    hide_fallback ();
+    List.iter Dom.remove (child_nodes ()));
+  Effect_core.run (fun () ->
+    let pending = Signal.get counter > 0 in
+    let p = parent_of anchor parent in
+    Signal.untrack (fun () ->
+      if pending then begin
+        if not (in_holder ()) then List.iter (Dom.append_child holder) (child_nodes ());
+        if Option.is_none !fallback_owner then begin
+          let o = Owner.make () in
+          fallback_owner := Some o;
+          let local = ref [] in
+          insertion (fun () ->
+            Owner.run_in o (fun () -> with_svg svg (fun () -> insert p (Some anchor) fallback local)));
+          fallback_nodes := !local
+        end
+      end
+      else begin
+        hide_fallback ();
+        if in_holder () then
+          insertion (fun () -> List.iter (fun node -> Dom.insert_before p node anchor) (child_nodes ()))
+      end);
     None)
 
 let () = insert_ref := insert
@@ -509,6 +711,37 @@ let fragment views = Fragment views
    are disposed with it, and untracked, so its signal reads never subscribe
    the region around it. The mlx ppx wraps every component tag in this. *)
 let component body = Component body
+
+(* ----- refs, boundaries, portals, suspense ----- *)
+
+module Ref = struct
+  type t = element_ref
+
+  let make () = { current = None; on_set = None }
+  let from_callback f = { current = None; on_set = Some f }
+  let current r = r.current
+end
+
+let error_boundary ~fallback child = Boundary { child; fallback }
+
+module ErrorBoundary = struct
+  let component ~fallback ~children () = error_boundary ~fallback (Fragment children)
+  let createElement () ~children ~fallback = component ~fallback ~children ()
+end
+
+let portal ?target child = Portal { target; child }
+
+module Portal = struct
+  let component ?target ~children () = portal ?target (Fragment children)
+  let createElement ?target () ~children = component ?target ~children ()
+end
+
+let suspense ~fallback child = Suspense { child; fallback }
+
+module Suspense = struct
+  let component ~fallback ~children () = suspense ~fallback (Fragment children)
+  let createElement () ~children ~fallback = component ~fallback ~children ()
+end
 
 let element ?(attrs = []) ?(events = []) tag children =
   Element { tag; attrs; events; children }
@@ -662,6 +895,9 @@ module Attr = struct
 
   (* A [data-*] attribute: [data "id" v] sets [data-id]. *)
   let data name v = make ("data-" ^ name) v
+
+  (* Fill [r] with the element. *)
+  let ref_ r = Attr_ref r
 end
 
 (* ----- event helpers ----- *)
@@ -888,6 +1124,7 @@ module Mlx = struct
     ?onPause:(Dom.event -> unit) ->
     ?onEnded:(Dom.event -> unit) ->
     ?onTimeUpdate:(Dom.event -> unit) ->
+    ?ref:Ref.t ->
     ?attrs:attr list ->
     ?children:t list ->
     unit ->
@@ -897,7 +1134,7 @@ module Mlx = struct
   let create tag : element = fun ?class_ ?className
       ?id ?title ?lang ?dir ?role ?style ?tabIndex ?hidden ?draggable ?contentEditable ?spellcheck ?translate ?slot ?aria_label ?aria_labelledby ?aria_describedby ?aria_hidden ?aria_expanded ?aria_controls ?aria_current ?aria_pressed ?aria_selected ?aria_checked ?aria_disabled ?aria_live ?aria_haspopup ?aria_invalid ?href ?target ?rel ?download ?hreflang ?src ?srcSet ?sizes ?alt ?width ?height ?loading ?decoding ?crossOrigin ?poster ?preload ?controls ?autoplay ?loop ?muted ?playsInline ?name ?type_ ?value ?placeholder ?for_ ?htmlFor ?form ?action ?method_ ?enctype ?accept ?acceptCharset ?autocomplete ?pattern ?min ?max ?step ?minLength ?maxLength ?size ?rows ?cols ?wrap ?list ?inputMode ?enterKeyHint ?label_ ?disabled ?required ?readOnly ?multiple ?autofocus ?noValidate ?checked ?selected ?colSpan ?rowSpan ?headers ?scope ?start ?reversed ?open_ ?dateTime ?cite ?viewBox ?xmlns ?d ?fill ?fill_rule ?fill_opacity ?stroke ?stroke_width ?stroke_linecap ?stroke_linejoin ?stroke_dasharray ?stroke_dashoffset ?opacity ?transform ?cx ?cy ?r ?rx ?ry ?x ?y ?x1 ?y1 ?x2 ?y2 ?points ?offset ?stop_color ?preserveAspectRatio
       ?onClick ?onDblClick ?onContextMenu ?onInput ?onChange ?onSubmit ?onReset ?onInvalid ?onKeyDown ?onKeyUp ?onFocus ?onBlur ?onFocusIn ?onFocusOut ?onMouseDown ?onMouseUp ?onMouseEnter ?onMouseLeave ?onMouseMove ?onMouseOver ?onMouseOut ?onPointerDown ?onPointerUp ?onPointerMove ?onPointerEnter ?onPointerLeave ?onPointerOver ?onPointerOut ?onPointerCancel ?onTouchStart ?onTouchMove ?onTouchEnd ?onTouchCancel ?onWheel ?onScroll ?onDragStart ?onDrag ?onDragEnd ?onDragEnter ?onDragOver ?onDragLeave ?onDrop ?onCopy ?onCut ?onPaste ?onLoad ?onError ?onToggle ?onClose ?onAnimationStart ?onAnimationEnd ?onTransitionEnd ?onPlay ?onPause ?onEnded ?onTimeUpdate
-      ?(attrs = []) ?(children = []) () ->
+      ?ref ?(attrs = []) ?(children = []) () ->
     let class_ = match className with Some _ -> className | None -> class_ in
     let acc = push_string "class" class_ [] in
     let acc = push_string "id" id acc in
@@ -1078,6 +1315,7 @@ module Mlx = struct
     let events = push_event "pause" onPause events in
     let events = push_event "ended" onEnded events in
     let events = push_event "timeupdate" onTimeUpdate events in
+    let acc = match ref with Some r -> Attr_ref r :: acc | None -> acc in
     element ~attrs:(List.rev_append acc attrs) ~events:(List.rev events) tag children
 
   let a = create "a"
@@ -1182,7 +1420,7 @@ end
 let mount_disposable container view =
   let root = Owner.make ~parent:None () in
   let nodes = ref [] in
-  Owner.run_in root (fun () -> insert container None view nodes);
+  insertion (fun () -> Owner.run_in root (fun () -> insert container None view nodes));
   fun () ->
     Owner.dispose root;
     List.iter (fun node -> Dom.remove_child container node) !nodes;
