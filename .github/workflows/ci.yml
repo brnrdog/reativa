@@ -185,4 +185,6 @@ jobs:
         run: |
           cp -r test/consumer "$RUNNER_TEMP/consumer"
           cd "$RUNNER_TEMP/consumer"
-          opam exec -- dune build
+          # setup-ocaml's switch is local to the checkout; name it explicitly
+          # since this runs outside it.
+          opam exec --switch="$GITHUB_WORKSPACE" -- dune build
