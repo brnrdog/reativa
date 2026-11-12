@@ -48,3 +48,7 @@ val print : string -> unit
 
 (* Hand the totals to test/dom/run.mjs, which sets the exit code. *)
 val report : failed:int -> total:int -> unit
+
+(* A pending promise and the functions that settle it: [resolve v], or
+   [reject message] with a JS Error. *)
+val deferred : unit -> 'a Reativa.Promise.t * ('a -> unit) * (string -> unit)

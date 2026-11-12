@@ -51,6 +51,7 @@ val insert_before : t -> t -> t -> unit
 val remove_child : t -> t -> unit
 val next_sibling : t -> t option
 val is_same_node : t -> t -> bool
+val body : unit -> t
 val create_fragment : unit -> t
 val parent_node : t -> t option
 val first_child : t -> t option
@@ -87,6 +88,9 @@ val dynamic : (unit -> 'a) -> 'a value
 val signal : 'a Reativa__.Signal.t -> 'a value
 val map_value : ('a -> 'b) -> 'a value -> 'b value
 val value_getter : 'a value -> unit -> 'a
+module Ref = Reativa.View.Ref
+val on_mount : (unit -> unit) -> unit
+val on_cleanup : (unit -> unit) -> unit
 val empty : t
 val text : string value -> t
 val int : int value -> t
@@ -100,6 +104,12 @@ val component : (unit -> t) -> t
 val dyn : (unit -> t) -> t
 val tracked : (unit -> t) -> t
 val child : 'a -> t
+val error_boundary : fallback:(exn -> (unit -> unit) -> t) -> t -> t
+module ErrorBoundary = Reativa.View.ErrorBoundary
+val portal : ?target:Reativa__.Dom.t -> t -> t
+module Portal = Reativa.View.Portal
+val suspense : fallback:t -> t -> t
+module Suspense = Reativa.View.Suspense
 val show : ?fallback:t -> (unit -> bool) -> t -> t
 val maybe : ?fallback:t -> (unit -> 'a option) -> ('a -> t) -> t
 val for_ : (unit -> 'a list) -> ('a -> t) -> t
@@ -166,4 +176,30 @@ val createElement : ?fallback:(location -> Reativa__.View.t) -> unit -> children
 module Route = Reativa.Router.Route
 module Link = Reativa.Router.Link
 module Redirect = Reativa.Router.Redirect
+end
+module Context : sig
+type 'a t = 'a Reativa.Context.t
+val make : 'a -> 'a t
+val use : 'a t -> 'a
+val provide : 'a t -> 'a -> unit
+val provider : 'a t -> 'a -> Reativa__.View.t -> Reativa__.View.t
+module Provider = Reativa.Context.Provider
+end
+module Resource : sig
+type 'a state = 'a Reativa.Resource.state = Loading of 'a option | Ready of 'a | Failed of exn
+type 'a t = 'a Reativa.Resource.t
+val make : (unit -> 'a Reativa__.Promise.t) -> 'a t
+val state : 'a t -> 'a state
+val peek : 'a t -> 'a state
+val refetch : 'a t -> unit
+val mutate : 'a t -> 'a -> unit
+val value : 'a state -> 'a option
+val is_loading : 'a state -> bool
+val error : 'a state -> exn option
+end
+module Promise : sig
+type 'a t = 'a Reativa.Promise.t exception Rejected of string
+val resolve : 'a -> 'a t
+val reject : exn -> 'a t
+val on_settled : 'a t -> ok:('a -> unit) -> error:(exn -> unit) -> unit
 end 

@@ -66,3 +66,15 @@ external print : string -> unit = "log" [@@mel.scope "console"]
 
 external report_ : int -> int -> unit = "__reativaReport"
 let report ~failed ~total = report_ failed total
+
+(* An OCaml triple is a JS array under Melange. *)
+let make_deferred : unit -> Obj.t =
+  [%mel.raw
+    {| function () {
+         let resolve, reject;
+         const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; });
+         return [promise, (v) => resolve(v), (m) => reject(new Error(m))];
+       } |}]
+
+let deferred () : 'a Reativa.Promise.t * ('a -> unit) * (string -> unit) =
+  Obj.magic (make_deferred ())

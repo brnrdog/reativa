@@ -25,5 +25,5 @@
  (name reativa)
  (public_name reativa)
  (modes melange native byte)
- (virtual_modules dom history)
+ (virtual_modules dom history promise)
  (default_implementation reativa.melange_backend))

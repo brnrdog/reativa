@@ -10,6 +10,6 @@
 (melange.emit
  (target output)
  (alias dom-tests)
- (modules harness test_view test_ownership test_attributes test_keyed main)
+ (modules harness test_view test_ownership test_attributes test_keyed test_features main)
  (libraries reativa reativa_probe_melange)
  (module_systems es6))

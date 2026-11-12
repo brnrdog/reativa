@@ -70,3 +70,17 @@ let report ~failed ~total =
   ignore
     (Js.Unsafe.fun_call (global "__reativaReport")
        [| Js.Unsafe.inject failed; Js.Unsafe.inject total |])
+
+let deferred () : 'a Reativa.Promise.t * ('a -> unit) * (string -> unit) =
+  let make =
+    Js.Unsafe.pure_js_expr
+      {| (function () {
+           let resolve, reject;
+           const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; });
+           return { promise, resolve: (v) => resolve(v), reject: (m) => reject(new Error(m)) };
+         }) |}
+  in
+  let d = Js.Unsafe.fun_call make [||] in
+  ( Obj.magic (Js.Unsafe.get d "promise"),
+    (fun v -> ignore (Js.Unsafe.fun_call (Js.Unsafe.get d "resolve") [| Js.Unsafe.inject v |])),
+    fun m -> ignore (Js.Unsafe.fun_call (Js.Unsafe.get d "reject") [| str m |]) )

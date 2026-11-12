@@ -10,3 +10,6 @@ module Dom = struct include Reativa.Dom end
 module View = struct include Reativa.View end
 module Router_match = struct include Reativa.Router_match end
 module Router = struct include Reativa.Router end
+module Context = struct include Reativa.Context end
+module Resource = struct include Reativa.Resource end
+module Promise = struct include Reativa.Promise end
