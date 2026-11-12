@@ -7,8 +7,10 @@ let print structure = Ppxlib.Pprintast.string_of_structure structure
 
 let failures = ref 0
 
+(* The element path (no templates), so these cases show the inference rules
+   on their own. Template compilation has its own cases, at the end. *)
 let check name input expected =
-  let actual = print (Reativa_mlx_ppx.rewrite (parse input)) in
+  let actual = print (Reativa_mlx_ppx.rewrite_without_templates (parse input)) in
   let expected = print (parse expected) in
   if String.equal actual expected then
     Printf.printf "ok - %s\n" name
@@ -203,6 +205,59 @@ let () =
          ((Router.createElement ()
              ~children:[home_route; View.text (static "About")])
           [@JSX]) |};
+
+  (* ----- templates ----- *)
+  check_generated "an element tree compiles to a hoisted template with holes"
+    {| let v =
+         ((div ~className:"card" ~title:(Signal.get t) ~onClick:go
+             ~children:["Hi "; ((b ~children:[name] ()) [@JSX]); ((hr ()) [@JSX])] ())
+          [@JSX]) |}
+    ~has:
+      [ {|let __reativa_template_0 = Reativa.View.Template.make "<div class=\"card\">Hi <b><!----></b><hr></div>"|};
+        "Reativa.View.template __reativa_template_0";
+        {|Reativa.View.Template.string_prop [0] "title" (Reativa.View.dynamic (fun () -> Signal.get t))|};
+        {|Reativa.View.Template.event [0] "click" go|};
+        "Reativa.View.Template.child [0; 1; 0] (View.child name)" ]
+    ~lacks:[ "Mlx" ];
+
+  check_generated "literal props render statically, value and checked stay holes"
+    {| let v = ((input ~type_:"checkbox" ~tabIndex:2 ~required:true ~disabled:false ~value:"v" ~checked:true ()) [@JSX]) |}
+    ~has:
+      [ {|"<input type=\"checkbox\" tabindex=\"2\" required>"|};
+        {|Reativa.View.Template.string_prop [0] "value" (Reativa.View.static "v")|};
+        {|Reativa.View.Template.bool_prop [0] "checked" (Reativa.View.static true)|} ]
+    ~lacks:[ "disabled" ];
+
+  check_generated "identical skeletons share one binding"
+    {| let a = ((p ~children:["x"] ()) [@JSX])
+       let b = ((p ~children:["x"] ()) [@JSX]) |}
+    ~has:[ "let a = Reativa.View.template __reativa_template_0 []"; "let b = Reativa.View.template __reativa_template_0 []" ]
+    ~lacks:[ "__reativa_template_1" ];
+
+  check_generated "text is escaped"
+    {| let v = ((p ~title:"a"b" ~children:["1 < 2 & 3"] ()) [@JSX]) |}
+    ~has:[ {|<p title=\"a&quot;b\">1 &lt; 2 &amp; 3</p>|} ]
+    ~lacks:[];
+
+  check_generated "an unknown prop keeps the element on the View.Mlx path"
+    {| let v = ((div ~notAProp:1 ()) [@JSX]) |}
+    ~has:[ "div ~notAProp:1" ]
+    ~lacks:[ "Reativa.View.template" ];
+
+  check_generated "markup the parser would rewrite stays on the View.Mlx path"
+    {| let v = ((p ~children:[((div ()) [@JSX])] ()) [@JSX]) |}
+    ~has:[ "p ~children:" ]
+    ~lacks:[ "Template.make \"<p><div>" ];
+
+  check_generated "a component or computed child is a child hole"
+    {| let v = ((ul ~children:[((Item.createElement ~children:[] ()) [@JSX]); Signal.get n] ()) [@JSX]) |}
+    ~has:[ "<ul><!----><!----></ul>"; "Reativa.View.Template.child [0; 0]"; "Reativa.View.Template.child [0; 1] (View.child (fun () -> Signal.get n))" ]
+    ~lacks:[];
+
+  check_generated "children inside svg are marked"
+    {| let v = ((svg ~children:[shape] ()) [@JSX]) |}
+    ~has:[ "Reativa.View.Template.child ~svg:true [0; 0] (View.child shape)" ]
+    ~lacks:[];
 
   if !failures > 0 then begin
     Printf.printf "%d failure(s)\n" !failures;

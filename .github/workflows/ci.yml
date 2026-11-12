@@ -79,6 +79,8 @@ jobs:
         run: |
           opam exec -- dune build @test/dom/dom-tests
           node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js
+          opam exec -- dune build @test/dom_mlx/dom-mlx-tests
+          node test/dom/run.mjs _build/default/test/dom_mlx/output/test/dom_mlx/main.js
 
       - name: Bundle the demo and check its size
         run: |
@@ -130,8 +132,9 @@ jobs:
 
       - name: DOM tests on js_of_ocaml (jsdom)
         run: |
-          REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js
+          REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js test/dom_mlx/jsoo/main.bc.js
           node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js
+          node test/dom/run.mjs _build/default/test/dom_mlx/jsoo/main.bc.js
 
       - name: Type-check the mlx inference fixture on js_of_ocaml
         run: |

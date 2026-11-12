@@ -108,6 +108,7 @@ and hole =
   | Hole_text of int list * string value
   (* The node at the path is a placeholder comment; the view replaces it. *)
   | Hole_child of int list * bool * t
+  | Hole_attrs of int list * attr list
 
 (* Ownership. Every Effect created while building a subtree registers with
    the current {!Owner}: a [Dynamic] region's effect owns its current pass and
@@ -653,7 +654,7 @@ and insert_template parent before acc tpl holes =
     | hole :: rest ->
       let path =
         match hole with
-        | Hole_attr (p, _) | Hole_event (p, _) | Hole_text (p, _) | Hole_child (p, _, _) -> p
+        | Hole_attr (p, _) | Hole_event (p, _) | Hole_text (p, _) | Hole_child (p, _, _) | Hole_attrs (p, _) -> p
       in
       resolve fragment path :: locate rest
   in
@@ -662,6 +663,7 @@ and insert_template parent before acc tpl holes =
     | hole :: holes, node :: nodes ->
       (match hole with
        | Hole_attr (_, a) -> apply_attr node a
+       | Hole_attrs (_, l) -> apply_attrs node l
        | Hole_event (_, (name, handler)) -> Dom.add_event_listener node name handler
        | Hole_text (_, Static s) -> Dom.set_text_content node s
        | Hole_text (_, Reactive f) -> leaf_string (Dom.set_text_content node) f
@@ -855,6 +857,24 @@ module Template = struct
   let event path name handler = Hole_event (path, (name, handler))
   let text path v = Hole_text (path, v)
   let child ?(svg = false) path (view : view) = Hole_child (path, svg, view)
+  let attrs path l = Hole_attrs (path, l)
+
+  (* Typed props, one per kind of the mlx prop table, so generated code is
+     checked like View.Mlx.create. *)
+  let string_prop path name = function
+    | Static v -> Hole_attr (path, Attr_static (name, v))
+    | Reactive f -> Hole_attr (path, Attr_reactive (name, f))
+
+  let int_prop path name v = string_prop path name (map_value string_of_int v)
+
+  let toggle_prop path name = function
+    | Static b -> Hole_attr (path, Attr_bool_static (name, b))
+    | Reactive f -> Hole_attr (path, Attr_toggle (name, f))
+
+  let bool_prop path name = function
+    | Static b -> Hole_attr (path, Attr_bool_static (name, b))
+    | Reactive f -> Hole_attr (path, Attr_bool_reactive (name, f))
+
   let instance tpl holes = Template (tpl, holes)
 end
 

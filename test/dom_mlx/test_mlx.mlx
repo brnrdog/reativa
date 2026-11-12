@@ -1,0 +1,97 @@
+(* The same kind of checks as test/dom, written in mlx: the ppx compiles these
+   element trees to templates, so this suite checks the generated templates at
+   run time, on both backends. *)
+
+open Reativa
+open Reativa.View.Mlx
+open Harness
+
+module Badge = struct
+  let component ~label = <span className="badge">(label)</span>
+end
+
+let register () =
+  suite "mlx templates: markup";
+  test "a static tree renders as written" (fun () ->
+    let c = mount <section id="s" className="box"><h1>("Title")</h1><p>("a & b")<br />("c")</p></section> in
+    equal_string "markup" ~expected:{|<section id="s" class="box"><h1>Title</h1><p>a &amp; b<br>c</p></section>|} (html c));
+  test "literal toggles and ints" (fun () ->
+    let c = mount <input type_="text" tabIndex=3 required=true disabled=false /> in
+    equal_string "markup" ~expected:{|<input type="text" tabindex="3" required="">|} (html c));
+
+  suite "mlx templates: holes";
+  test "reactive attributes and text update in place" (fun () ->
+    let on = Signal.make false and n = Signal.make 1 in
+    let c =
+      mount
+        <div className="row" title=(if Signal.get on then "on" else "off")>
+          ("n = ") (Signal.get n)
+        </div>
+    in
+    let div = Option.get (Probe.query c "div") in
+    equal_string "title" ~expected:"off" (Option.value ~default:"" (Probe.attribute div "title"));
+    equal_string "text" ~expected:"n = 1" (Probe.text_content div);
+    Signal.set on true;
+    Signal.set n 2;
+    equal_string "title updated" ~expected:"on" (Option.value ~default:"" (Probe.attribute div "title"));
+    equal_string "text updated" ~expected:"n = 2" (Probe.text_content div));
+  test "events, refs and value/checked properties" (fun () ->
+    let clicks = ref 0 and field = View.Ref.make () and checked = Signal.make true in
+    let c =
+      mount
+        <form>
+          <input ref=field value="typed" />
+          <input type_="checkbox" checked=(Signal.get checked) />
+          <button onClick=(fun _ -> incr clicks)>("go")</button>
+        </form>
+    in
+    Probe.click (Option.get (Probe.query c "button"));
+    equal_int "click" ~expected:1 !clicks;
+    check "ref filled" (View.Ref.current field <> None);
+    equal_string "value property" ~expected:"typed" (Probe.string_property (Option.get (View.Ref.current field)) "value");
+    let box = Option.get (Probe.query c "input[type=checkbox]") in
+    equal_bool "checked" ~expected:true (Probe.bool_property box "checked");
+    Signal.set checked false;
+    equal_bool "unchecked" ~expected:false (Probe.bool_property box "checked"));
+  test "components, lists and regions as children" (fun () ->
+    let items = Signal.make [ 1; 2 ] and show = Signal.make true in
+    let c =
+      mount
+        <ul className="list">
+          <li><Badge label="first" /></li>
+          <View.ForEach
+            items=(View.signal items)
+            key=string_of_int
+            render=(fun i -> <li>(string_of_int i)</li>)
+          />
+          (if Signal.get show then <li>("shown")</li> else View.empty)
+        </ul>
+    in
+    equal_int "four items" ~expected:4 (List.length (Probe.query_all c "li"));
+    Signal.set items [ 2; 3; 4 ];
+    Signal.set show false;
+    equal_string "texts" ~expected:"first,2,3,4"
+      (String.concat "," (List.map Probe.text_content (Probe.query_all c "li"))));
+  test "an SVG tree is created in the SVG namespace" (fun () ->
+    let r = Signal.make "2" in
+    let c = mount <svg viewBox="0 0 4 4"><circle cx="2" cy="2" r=(Signal.get r) /></svg> in
+    let circle = Option.get (Probe.query c "circle") in
+    equal_string "namespace" ~expected:"http://www.w3.org/2000/svg" (Probe.string_property circle "namespaceURI");
+    Signal.set r "1";
+    equal_string "radius" ~expected:"1" (Option.value ~default:"" (Probe.attribute circle "r")));
+  test "a table row, as in a keyed list" (fun () ->
+    let rows = Signal.make [ 1; 2 ] in
+    let c =
+      mount
+        <table>
+          <tbody>
+            (View.for_with_key (fun () -> Signal.get rows) ~key:string_of_int (fun row ->
+              <tr className="r"><td>(string_of_int (Signal.peek row))</td><td>("x")</td></tr>))
+          </tbody>
+        </table>
+    in
+    equal_int "two rows" ~expected:2 (List.length (Probe.query_all c "tr"));
+    equal_string "cells" ~expected:"1x2x" (Probe.text_content (Option.get (Probe.query c "tbody"))));
+  test "markup the parser would restructure still renders as written" (fun () ->
+    let c = mount <p><div>("block in p")</div></p> in
+    equal_string "markup" ~expected:"<p><div>block in p</div></p>" (html c))

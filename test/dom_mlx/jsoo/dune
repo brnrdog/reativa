@@ -1,0 +1,14 @@
+(copy_files# ../test_mlx.mlx)
+
+(copy_files# ../main.ml)
+
+(copy_files# ../../dom/harness.ml)
+
+(executable
+ (name main)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries reativa reativa-jsoo reativa_probe_jsoo)
+ (preprocess
+  (pps reativa.mlx_ppx)))

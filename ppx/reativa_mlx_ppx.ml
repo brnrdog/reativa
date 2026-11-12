@@ -222,7 +222,9 @@ let is_view_application expr =
   match expr.pexp_desc with
   | Pexp_apply (callee, _) ->
       (match callee.pexp_desc with
-       | Pexp_ident { txt = Longident.Ldot (Longident.Lident "View", _); _ } ->
+       | Pexp_ident { txt = Longident.Ldot (Longident.Lident "View", _); _ }
+       | Pexp_ident
+           { txt = Longident.Ldot (Longident.Ldot (Longident.Lident "Reativa", "View"), _); _ } ->
            true
        | _ -> false)
   | _ -> false
@@ -481,11 +483,316 @@ let append_create_element_if_component ~loc structure =
   else
     structure @ [ create_element_item ~loc structure ]
 
+(* ----- templates -----
+
+   An element tree whose structure is known at compile time is compiled to a
+   template: its static parts (tags, literal attributes, literal text) become
+   an HTML string parsed once at run time and cloned per instance, and every
+   dynamic part becomes a typed "hole" filled after cloning (see
+   [View.Template]). The skeleton is hoisted to the top of the file, one
+   binding per distinct HTML string.
+
+   An element is left to the [View.Mlx] path — and becomes a child hole of its
+   parent's template, if any — whenever compiling it could change what the
+   user wrote: an unknown prop (so the type error stays), or markup the HTML
+   parser would restructure (text inside table sections, a <tr> directly in a
+   <table>, a block element inside a <p>, an <a> inside an <a>, ...). *)
+
+let templates_enabled = ref true
+
+let attribute_table =
+  let t = Hashtbl.create 128 in
+  List.iter (fun (label, name, kind) -> Hashtbl.replace t label (name, kind)) Mlx_prop_table.attributes;
+  t
+
+let event_table =
+  let t = Hashtbl.create 64 in
+  List.iter (fun (label, event) -> Hashtbl.replace t label event) Mlx_prop_table.events;
+  t
+
+let element_table =
+  let t = Hashtbl.create 128 in
+  List.iter (fun tag -> Hashtbl.replace t tag ()) Mlx_prop_table.elements;
+  t
+
+let void_elements = [ "area"; "br"; "col"; "embed"; "hr"; "img"; "input"; "source"; "track"; "wbr" ]
+let table_sections = [ "table"; "thead"; "tbody"; "tfoot"; "tr" ]
+
+(* Never compiled: their content model makes the parser rewrite what it
+   reads (select keeps only options; textarea and iframe hold raw text). *)
+let opaque_elements = [ "select"; "option"; "optgroup"; "textarea"; "iframe"; "colgroup"; "col" ]
+
+(* Elements that close an open <p> when they start. *)
+let closes_p =
+  [ "address"; "article"; "aside"; "blockquote"; "details"; "dialog"; "div"; "dl"; "fieldset";
+    "figcaption"; "figure"; "footer"; "form"; "h1"; "h2"; "h3"; "h4"; "h5"; "h6"; "header";
+    "hr"; "main"; "menu"; "nav"; "ol"; "p"; "pre"; "section"; "table"; "ul" ]
+
+(* Elements the parser closes when the same element starts inside them. *)
+let no_self_nesting = [ "a"; "button"; "form"; "li"; "dt"; "dd"; "p"; "h1"; "h2"; "h3"; "h4"; "h5"; "h6" ]
+
+exception Not_templatable
+
+let escape_text s =
+  let b = Buffer.create (String.length s) in
+  String.iter
+    (function
+      | '&' -> Buffer.add_string b "&amp;"
+      | '<' -> Buffer.add_string b "&lt;"
+      | '>' -> Buffer.add_string b "&gt;"
+      | c -> Buffer.add_char b c)
+    s;
+  Buffer.contents b
+
+let escape_attribute s =
+  let b = Buffer.create (String.length s) in
+  String.iter
+    (function
+      | '&' -> Buffer.add_string b "&amp;"
+      | '"' -> Buffer.add_string b "&quot;"
+      | '<' -> Buffer.add_string b "&lt;"
+      | '>' -> Buffer.add_string b "&gt;"
+      | c -> Buffer.add_char b c)
+    s;
+  Buffer.contents b
+
+type tnode =
+  | Ttext of string
+  | Telement of string * string list * tnode list
+  | Tplaceholder
+
+let rec render_node b = function
+  | Ttext s -> Buffer.add_string b (escape_text s)
+  | Tplaceholder -> Buffer.add_string b "<!---->"
+  | Telement (tag, attrs, children) ->
+      Buffer.add_char b '<';
+      Buffer.add_string b tag;
+      List.iter
+        (fun a ->
+          Buffer.add_char b ' ';
+          Buffer.add_string b a)
+        attrs;
+      Buffer.add_char b '>';
+      if not (List.mem tag void_elements) then begin
+        List.iter (render_node b) children;
+        Buffer.add_string b "</";
+        Buffer.add_string b tag;
+        Buffer.add_char b '>'
+      end
+
+(* Skeletons found in the current file, hoisted by [rewrite]. *)
+let hoisted : (string * string) list ref = ref []
+let hoisted_by_html : (string, string) Hashtbl.t = Hashtbl.create 16
+
+let hoist html =
+  match Hashtbl.find_opt hoisted_by_html html with
+  | Some name -> name
+  | None ->
+      let name = Printf.sprintf "__reativa_template_%d" (List.length !hoisted) in
+      hoisted := (name, html) :: !hoisted;
+      Hashtbl.replace hoisted_by_html html name;
+      name
+
+let element_parts expr =
+  match expr.pexp_desc with
+  | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Longident.Lident tag; _ }; _ }, args)
+    when has_jsx_attribute expr.pexp_attributes
+         && String.length tag > 0
+         && (match tag.[0] with 'a' .. 'z' -> true | _ -> false) ->
+      Some (tag, args)
+  | _ -> None
+
+let rec list_items expr =
+  match expr.pexp_desc with
+  | Pexp_construct ({ txt = Longident.Lident "[]"; _ }, None) -> Some []
+  | Pexp_construct ({ txt = Longident.Lident "::"; _ }, Some { pexp_desc = Pexp_tuple [ hd; tl ]; _ }) -> (
+      match list_items tl with Some rest -> Some (hd :: rest) | None -> None)
+  | _ -> None
+
+let is_unit expr =
+  match expr.pexp_desc with
+  | Pexp_construct ({ txt = Longident.Lident "()"; _ }, None) -> true
+  | _ -> false
+
+let reativa_ident ~loc path =
+  Builder.pexp_ident ~loc (located ~loc (Longident.parse ("Reativa.View." ^ path)))
+
+(* [static]/[dynamic] wrapping, as [wrap_value], but fully qualified so the
+   generated holes do not depend on what the file opened. *)
+let wrap_value_qualified expr =
+  let loc = { expr.pexp_loc with loc_ghost = true } in
+  let call name arg = Builder.pexp_apply ~loc (reativa_ident ~loc name) [ (Nolabel, arg) ] in
+  if is_value_wrapper expr then expr
+  else if is_thunk expr then call "dynamic" expr
+  else if reads_signal expr then call "dynamic" (thunk expr)
+  else call "static" expr
+
+(* The attribute text for a literal prop value, if it is one. *)
+let static_attribute name kind expr =
+  if String.equal name "value" then None
+  else
+    match (kind, expr.pexp_desc) with
+    | Mlx_prop_table.String, Pexp_constant (Pconst_string (s, _, _)) ->
+        Some [ Printf.sprintf "%s=\"%s\"" name (escape_attribute s) ]
+    | Mlx_prop_table.Int, Pexp_constant (Pconst_integer (s, None)) -> (
+        match int_of_string_opt s with
+        | Some n -> Some [ Printf.sprintf "%s=\"%d\"" name n ]
+        | None -> None)
+    | Mlx_prop_table.Toggle, Pexp_construct ({ txt = Longident.Lident "true"; _ }, None) -> Some [ name ]
+    | Mlx_prop_table.Toggle, Pexp_construct ({ txt = Longident.Lident "false"; _ }, None) -> Some []
+    | _ -> None
+
+(* Compile [expr] (an element) to a template instance, or raise
+   [Not_templatable]. [map] rewrites the expressions that go into holes. *)
+let compile_template ~map ~infer_child expr =
+  let loc = { expr.pexp_loc with loc_ghost = true } in
+  let holes = ref [] in
+  let add_hole e = holes := e :: !holes in
+  let path_expr path = Builder.elist ~loc (List.map (Builder.eint ~loc) path) in
+  let apply name args = Builder.pexp_apply ~loc (reativa_ident ~loc ("Template." ^ name)) args in
+  let str s = Builder.estring ~loc s in
+  let rec element ~ancestors ~svg ~path (tag, args) =
+    if not (Hashtbl.mem element_table tag) then raise Not_templatable;
+    if List.mem tag opaque_elements then raise Not_templatable;
+    if List.mem tag no_self_nesting && List.mem tag ancestors then raise Not_templatable;
+    (match ancestors with
+     | "p" :: _ when List.mem tag closes_p -> raise Not_templatable
+     | "table" :: _ when String.equal tag "tr" -> raise Not_templatable
+     | _ -> ());
+    let svg = svg || String.equal tag "svg" in
+    let has_class_name = List.exists (function Labelled "className", _ -> true | _ -> false) args in
+    let statics = ref [] and children = ref None in
+    let p = path_expr path in
+    List.iter
+      (fun (label, arg) ->
+        match label with
+        | Nolabel -> if not (is_unit arg) then raise Not_templatable
+        | Labelled "children" -> children := Some arg
+        | Labelled "attrs" -> add_hole (apply "attrs" [ (Nolabel, p); (Nolabel, map arg) ])
+        | Labelled "ref" ->
+            let attr = Builder.pexp_apply ~loc (reativa_ident ~loc "Attr.ref_") [ (Nolabel, map arg) ] in
+            add_hole (apply "attr" [ (Nolabel, p); (Nolabel, attr) ])
+        | Labelled "class_" when has_class_name -> ()
+        | Labelled l when is_event_label l -> (
+            match Hashtbl.find_opt event_table l with
+            | Some event -> add_hole (apply "event" [ (Nolabel, p); (Nolabel, str event); (Nolabel, map arg) ])
+            | None -> raise Not_templatable)
+        | Labelled l -> (
+            match Hashtbl.find_opt attribute_table l with
+            | None -> raise Not_templatable
+            | Some (name, kind) -> (
+                match static_attribute name kind arg with
+                | Some rendered -> statics := List.rev_append rendered !statics
+                | None ->
+                    let fn =
+                      match kind with
+                      | Mlx_prop_table.String -> "string_prop"
+                      | Mlx_prop_table.Int -> "int_prop"
+                      | Mlx_prop_table.Toggle -> "toggle_prop"
+                      | Mlx_prop_table.Property -> "bool_prop"
+                    in
+                    add_hole
+                      (apply fn [ (Nolabel, p); (Nolabel, str name); (Nolabel, wrap_value_qualified (map arg)) ])))
+        | Optional _ -> raise Not_templatable)
+      args;
+    let child_nodes =
+      match !children with
+      | None -> []
+      | Some list_expr -> (
+          match list_items list_expr with
+          | Some [] -> []
+          | Some items ->
+              if List.mem tag void_elements then raise Not_templatable;
+              compile_children ~parent:tag ~ancestors:(tag :: ancestors)
+                ~svg:(svg && not (String.equal tag "foreignObject")) ~path items
+          | None ->
+              if List.mem tag void_elements then raise Not_templatable;
+              (* A list built at run time: one hole for all of it. *)
+              let view =
+                Builder.pexp_apply ~loc (reativa_ident ~loc "fragment") [ (Nolabel, map list_expr) ]
+              in
+              add_hole (child_hole ~svg (path @ [ 0 ]) view);
+              [ Tplaceholder ])
+    in
+    Telement (tag, List.rev !statics, child_nodes)
+  and child_hole ~svg path view =
+    let svg_arg =
+      if svg then [ (Labelled "svg", Builder.pexp_construct ~loc (located ~loc (Longident.Lident "true")) None) ]
+      else []
+    in
+    apply "child" (svg_arg @ [ (Nolabel, path_expr path); (Nolabel, view) ])
+  and compile_children ~parent ~ancestors ~svg ~path items =
+    let index = ref 0 and nodes = ref [] and text = Buffer.create 16 in
+    let flush () =
+      if Buffer.length text > 0 then begin
+        nodes := Ttext (Buffer.contents text) :: !nodes;
+        incr index;
+        Buffer.clear text
+      end
+    in
+    let placeholder view =
+      flush ();
+      add_hole (child_hole ~svg (path @ [ !index ]) view);
+      nodes := Tplaceholder :: !nodes;
+      incr index
+    in
+    List.iter
+      (fun item ->
+        let literal_text =
+          match item.pexp_desc with
+          | Pexp_constant (Pconst_string (s, _, _)) -> Some s
+          | Pexp_constant (Pconst_integer (s, None)) -> Option.map string_of_int (int_of_string_opt s)
+          | _ -> None
+        in
+        match literal_text with
+        | Some s ->
+            (* The parser moves text out of table sections. *)
+            if List.mem parent table_sections && String.length s > 0 then raise Not_templatable;
+            Buffer.add_string text s
+        | None -> (
+            match element_parts item with
+            | Some parts -> (
+                flush ();
+                let saved = !holes in
+                match element ~ancestors ~svg ~path:(path @ [ !index ]) parts with
+                | node ->
+                    nodes := node :: !nodes;
+                    incr index
+                | exception Not_templatable ->
+                    holes := saved;
+                    placeholder (map item))
+            | None -> placeholder (infer_child (map item))))
+      items;
+    flush ();
+    List.rev !nodes
+  in
+  match element_parts expr with
+  | None -> raise Not_templatable
+  | Some parts ->
+      let root = element ~ancestors:[] ~svg:false ~path:[ 0 ] parts in
+      let b = Buffer.create 64 in
+      render_node b root;
+      let name = hoist (Buffer.contents b) in
+      Builder.pexp_apply ~loc (reativa_ident ~loc "template")
+        [ (Nolabel, Builder.evar ~loc name); (Nolabel, Builder.elist ~loc (List.rev !holes)) ]
+
 let mapper =
-  object
+  object (self)
     inherit Ast_traverse.map as super
 
     method! expression expr =
+      let templated =
+        if !templates_enabled && Option.is_some (element_parts expr) then
+          match
+            compile_template ~map:self#expression ~infer_child:(infer_child ~element:true) expr
+          with
+          | compiled -> Some compiled
+          | exception Not_templatable -> None
+        else None
+      in
+      match templated with
+      | Some compiled -> compiled
+      | None ->
       let expr = super#expression expr in
       let expr = infer_view_value_call expr in
       match expr.pexp_desc with
@@ -506,8 +813,43 @@ let mapper =
       | _ -> expr
   end
 
+let hoisted_bindings () =
+  List.rev_map
+    (fun (name, html) ->
+      let loc = Location.none in
+      let binding =
+        Builder.value_binding ~loc
+          ~pat:(Builder.ppat_var ~loc (located ~loc name))
+          ~expr:(Builder.pexp_apply ~loc (reativa_ident ~loc "Template.make") [ (Nolabel, Builder.estring ~loc html) ])
+      in
+      (* A file with an interface does not export these; never warn about them. *)
+      let silence =
+        Builder.attribute ~loc ~name:(located ~loc "ocaml.warning")
+          ~payload:(PStr [ Builder.pstr_eval ~loc (Builder.estring ~loc "-32") [] ])
+      in
+      Builder.pstr_value ~loc Nonrecursive [ { binding with pvb_attributes = [ silence ] } ])
+    !hoisted
+
 let rewrite structure =
   collect_reactive_names structure;
-  mapper#structure structure
+  hoisted := [];
+  Hashtbl.reset hoisted_by_html;
+  let structure = mapper#structure structure in
+  hoisted_bindings () @ structure
+
+(* For tests of the element path: rewrite without compiling templates. *)
+let rewrite_without_templates structure =
+  templates_enabled := false;
+  match rewrite structure with
+  | result ->
+      templates_enabled := true;
+      result
+  | exception e ->
+      templates_enabled := true;
+      raise e
+
+let () =
+  Driver.add_arg "-no-templates" (Arg.Clear templates_enabled)
+    ~doc:" compile mlx elements with View.Mlx instead of templates"
 
 let () = Driver.register_transformation "reativa_mlx_ppx" ~impl:rewrite
