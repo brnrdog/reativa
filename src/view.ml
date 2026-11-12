@@ -74,6 +74,11 @@ type 'item keyed_block = {
    those Effects live for the lifetime of the page. *)
 type register = (unit -> unit) -> unit
 
+(* Tail-recursive [List.map]. Lists here can hold every row of a long list,
+   and js_of_ocaml runs on the browser's stack, which [List.map] (not
+   tail-recursive before OCaml 5.1) overflows at around ten thousand items. *)
+let map_list f l = List.rev (List.fold_left (fun acc x -> f x :: acc) [] l)
+
 let place parent before node =
   match before with
   | Some ref_node -> Dom.insert_before parent node ref_node
@@ -165,7 +170,7 @@ let rec reconcile_keyed :
     }
   in
   let keyed_items =
-    List.map
+    map_list
       (fun item ->
         let item_key = key item in
         if Hashtbl.mem seen_keys item_key then
@@ -175,7 +180,7 @@ let rec reconcile_keyed :
       items
   in
   let next_blocks =
-    List.map
+    map_list
       (fun (item_key, item) ->
         match Hashtbl.find_opt old_by_key item_key with
         | Some block ->
@@ -186,7 +191,7 @@ let rec reconcile_keyed :
       keyed_items
   in
   Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
-  ignore (List.fold_right (move_block_before parent) next_blocks anchor);
+  ignore (List.fold_left (fun before block -> move_block_before parent block before) anchor (List.rev next_blocks));
   blocks := next_blocks;
 
 and reconcile_keyed_raw :
@@ -215,7 +220,7 @@ and reconcile_keyed_raw :
     }
   in
   let keyed_items =
-    List.map
+    map_list
       (fun item ->
         let item_key = key item in
         if Hashtbl.mem seen_keys item_key then
@@ -225,7 +230,7 @@ and reconcile_keyed_raw :
       items
   in
   let next_blocks =
-    List.map
+    map_list
       (fun (item_key, item) ->
         match Hashtbl.find_opt old_by_key item_key with
         | Some block when item == Signal.peek block.item ->
@@ -245,7 +250,7 @@ and reconcile_keyed_raw :
       keyed_items
   in
   Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
-  ignore (List.fold_right (move_block_before parent) next_blocks anchor);
+  ignore (List.fold_left (fun before block -> move_block_before parent block before) anchor (List.rev next_blocks));
   blocks := next_blocks;
 
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
@@ -430,7 +435,7 @@ let maybe ?(fallback = Empty) get f =
 
 (* Map a (reactive) list to a view. The whole list re-renders when [items]
    changes. *)
-let for_ items f = Dynamic (fun () -> Fragment (List.map f (items ())))
+let for_ items f = Dynamic (fun () -> Fragment (map_list f (items ())))
 
 (* Map a reactive list by stable string key. Existing keyed rows keep their DOM
    nodes and effects; each row receives a signal that is updated with the latest
