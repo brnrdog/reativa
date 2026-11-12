@@ -9,4 +9,5 @@ let () =
   Test_features.register ();
   Test_templates.register ();
   Test_devtools.register ();
+  Test_panel.register ();
   Harness.run ()

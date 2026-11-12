@@ -25,6 +25,9 @@ type entry = {
   mutable last_seq : int;  (* last write, recompute or run *)
   mutable last_value : string;
   mutable target : (Obj.t * string) option;
+  (* Created while muted (tooling such as the devtools panel): left out of
+     snapshots, leaks and element lookups. *)
+  hidden : bool;
 }
 
 let entries : (int, entry) Hashtbl.t = Hashtbl.create 256
@@ -66,7 +69,9 @@ let entry_of (node : Core.node) =
   match Hashtbl.find_opt entries node.id with
   | Some e -> e
   | None ->
-    let e = { node; kind = kind_of node; is_disposed = false; last_seq = 0; last_value = ""; target = None } in
+    let e =
+      { node; kind = kind_of node; is_disposed = false; last_seq = 0; last_value = ""; target = None; hidden = !muted > 0 }
+    in
     Hashtbl.replace entries node.id e;
     e
 
@@ -156,7 +161,7 @@ let info_of e =
 let inspect id = Option.map info_of (Hashtbl.find_opt entries id)
 
 let snapshot () =
-  Hashtbl.fold (fun _ e acc -> if e.is_disposed then acc else info_of e :: acc) entries []
+  Hashtbl.fold (fun _ e acc -> if e.is_disposed || e.hidden then acc else info_of e :: acc) entries []
   |> List.sort (fun a b -> compare a.id b.id)
 
 let value id = Option.map (fun e -> e.last_value) (Hashtbl.find_opt entries id)
@@ -238,7 +243,7 @@ let effects_writing (el : Dom.t) =
   Hashtbl.fold
     (fun _ e acc ->
       match e.target with
-      | Some (target, what) when (not e.is_disposed) && writes_to (Obj.obj target) what el ->
+      | Some (target, what) when (not e.is_disposed) && (not e.hidden) && writes_to (Obj.obj target) what el ->
         (e.node.id, what) :: acc
       | _ -> acc)
     entries []
@@ -264,7 +269,8 @@ let writers_of el =
 let leaks () =
   Hashtbl.fold
     (fun _ e acc ->
-      if e.kind = Effect && (not e.is_disposed) && Option.is_none e.node.first_dep then info_of e :: acc else acc)
+      if e.kind = Effect && (not e.is_disposed) && (not e.hidden) && Option.is_none e.node.first_dep then info_of e :: acc
+      else acc)
     entries []
   |> List.sort (fun a b -> compare a.id b.id)
 

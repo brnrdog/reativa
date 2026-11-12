@@ -1,0 +1,7 @@
+; reativa.devtools: the in-page devtools panel, kept out of the core library so
+; an app pays for it only when it links it.
+(library
+ (name reativa_devtools)
+ (public_name reativa.devtools)
+ (modes melange native byte)
+ (libraries reativa))
