@@ -87,7 +87,7 @@ jobs:
       - name: Bundle the Melange benchmark app
         run: |
           npm --prefix benchmarks ci
-          REATIVA_SKIP_DUNE=1 node benchmarks/build.mjs --apps reativa
+          node benchmarks/build.mjs --apps reativa
           test -s benchmarks/dist/reativa/index.html
 
       - name: Bundle the demo and check its size
