@@ -6,4 +6,5 @@ let () =
   Test_ownership.register ();
   Test_attributes.register ();
   Test_keyed.register ();
+  Test_features.register ();
   Harness.run ()

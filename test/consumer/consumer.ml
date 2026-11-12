@@ -49,4 +49,27 @@ let app =
       ]
     ()
 
-let () = View.mount_by_id "app" app
+(* 2.0 additions: lifecycle, refs, context, boundaries, portals, resources. *)
+let color = Context.make "black"
+let field = View.Ref.make ()
+let greeting = Resource.make (fun () -> Promise.resolve "hello")
+
+let extras =
+  View.fragment
+    [
+      View.component (fun () ->
+        View.on_mount (fun () -> ignore (View.Ref.current field));
+        View.on_cleanup (fun () -> ());
+        View.Mlx.input ~ref:field ());
+      Context.provider color "red" (View.component (fun () -> View.text (View.static (Context.use color))));
+      View.error_boundary
+        ~fallback:(fun e reset ->
+          View.Mlx.button ~onClick:(fun _ -> reset ()) ~children:[ View.text (View.static (Printexc.to_string e)) ] ())
+        (View.component (fun () -> failwith "boom"));
+      View.portal (View.Mlx.aside ());
+      View.suspense ~fallback:(View.text (View.static "…"))
+        (View.dyn (fun () ->
+           View.text (View.static (Option.value ~default:"" (Resource.value (Resource.state greeting))))));
+    ]
+
+let () = View.mount_by_id "app" (View.fragment [ app; extras ])
