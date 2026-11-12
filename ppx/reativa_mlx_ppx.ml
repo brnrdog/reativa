@@ -113,9 +113,21 @@ let inferred_value_labels =
     "value";
   ]
 
-let should_infer_label = function
+(* An [onXxx] prop is an event handler: a function, never a value. *)
+let is_event_label label =
+  String.length label > 2
+  && String.equal (String.sub label 0 2) "on"
+  && match label.[2] with 'A' .. 'Z' -> true | _ -> false
+
+(* On an HTML/SVG element every prop is a value except event handlers and the
+   [attrs]/[ref] escape hatches, so new props in View.Mlx need no change here.
+   On a component tag only the built-in components' value props are wrapped:
+   other props keep whatever type the component declares. *)
+let should_infer_label ~element = function
   | Labelled label | Optional label ->
-      List.exists (String.equal label) inferred_value_labels
+      if element then
+        not (is_event_label label || List.mem label [ "children"; "attrs"; "ref"; "key" ])
+      else List.exists (String.equal label) inferred_value_labels
   | Nolabel -> false
 
 let view_value_call ~loc name arg =
@@ -190,7 +202,7 @@ let infer_jsx_arg ~element (label, expr) =
   match label with
   | Labelled "children" | Optional "children" ->
       (label, map_list_literal (infer_child ~element) expr)
-  | _ when should_infer_label label -> (label, wrap_value expr)
+  | _ when should_infer_label ~element label -> (label, wrap_value expr)
   | _ -> (label, expr)
 
 let is_view_value_constructor expr =

@@ -84,6 +84,13 @@ let () =
     ~has:[ "let createElement ~x () = component ~x" ]
     ~lacks:[ "View.component" ];
 
+  check "any element prop is inferred, handlers and escape hatches are not"
+    {| let v = ((img ~src:url ~alt:(Signal.get label) ~onLoad:loaded ~attrs:extra ()) [@JSX]) |}
+    {| let v =
+         ((img ~src:(static url) ~alt:(dynamic (fun () -> Signal.get label))
+             ~onLoad:loaded ~attrs:extra ())
+          [@JSX]) |};
+
   check "plain attribute values stay static"
     {| let v = ((div ~className:"box" ()) [@JSX]) |}
     {| let v = ((div ~className:(static "box") ()) [@JSX]) |};

@@ -25,6 +25,10 @@ type event
 (* ----- creating nodes ----- *)
 
 val create_element : string -> t
+
+(* [create_element_ns namespace tag]: an element in another namespace, e.g.
+   SVG's "http://www.w3.org/2000/svg". *)
+val create_element_ns : string -> string -> t
 val create_text_node : string -> t
 
 (* Comment nodes are invisible; the View layer uses them as stable anchors that

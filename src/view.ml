@@ -27,6 +27,8 @@ type attr =
   | Attr_bool_reactive of string * (unit -> bool)
   (* Toggle an attribute's presence (e.g. [disabled]) from a boolean signal. *)
   | Attr_toggle of string * (unit -> bool)
+  (* Set while [Some], removed while [None]. *)
+  | Attr_optional of string * (unit -> string option)
 
 type handler = string * (Dom.event -> unit)
 
@@ -99,11 +101,36 @@ let apply_attr el = function
     if v then Dom.set_attribute el name "" else Dom.remove_attribute el name
   | Attr_bool_reactive ("checked", f) ->
     ignore (Effect.leaf (fun () -> Dom.set_checked el (f ()); None))
+  | Attr_optional (name, f) ->
+    ignore
+      (Effect.leaf (fun () ->
+         (match f () with
+          | Some v -> if name = "value" then Dom.set_value el v else Dom.set_attribute el name v
+          | None -> Dom.remove_attribute el name);
+         None))
   | Attr_bool_reactive (name, f) | Attr_toggle (name, f) ->
     ignore
       (Effect.leaf (fun () ->
          if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
          None))
+
+(* SVG. Elements created while [in_svg] holds go in the SVG namespace: an
+   <svg> element sets it for its children, a <foreignObject> clears it again.
+   Regions that re-render later (a [Dynamic] pass, a keyed row) capture the
+   flag when they are created and restore it for each re-run. *)
+let svg_namespace = "http://www.w3.org/2000/svg"
+let in_svg = ref false
+
+let with_svg svg f =
+  let prev = !in_svg in
+  in_svg := svg;
+  match f () with
+  | result ->
+    in_svg := prev;
+    result
+  | exception e ->
+    in_svg := prev;
+    raise e
 
 (* [build_row] needs [insert], which is defined below it in the same
    recursive group as the reconcilers; this ref breaks the cycle. *)
@@ -255,13 +282,15 @@ and insert parent before view (acc : Dom.t list ref) =
     place parent before node;
     acc := node :: !acc
   | Element { tag; attrs; events; children } ->
-    let el = Dom.create_element tag in
+    let svg = !in_svg || tag = "svg" in
+    let el = if svg then Dom.create_element_ns svg_namespace tag else Dom.create_element tag in
     List.iter (apply_attr el) attrs;
     List.iter (fun (name, h) -> Dom.add_event_listener el name h) events;
     (* Children are inserted directly into [el]; their own top-level nodes are
        irrelevant to our caller, so they go into a throwaway accumulator. *)
     let child_acc = ref [] in
-    List.iter (fun c -> insert el None c child_acc) children;
+    with_svg (svg && tag <> "foreignObject") (fun () ->
+      List.iter (fun c -> insert el None c child_acc) children);
     place parent before el;
     acc := el :: !acc
   | Fragment views -> List.iter (fun v -> insert parent before v acc) views
@@ -278,9 +307,10 @@ and insert parent before view (acc : Dom.t list ref) =
       List.iter (fun node -> Dom.remove_child parent node) !region;
       region := []
     in
+    let svg = !in_svg in
     Effect.run (fun () ->
       let local = ref [] in
-      insert parent (Some anchor) (f ()) local;
+      with_svg svg (fun () -> insert parent (Some anchor) (f ()) local);
       region := !local;
       Some cleanup)
   | Component body ->
@@ -297,8 +327,9 @@ and insert parent before view (acc : Dom.t list ref) =
     Owner.on_cleanup (fun () ->
       List.iter (dispose_keyed_block parent) !blocks;
       blocks := []);
+    let svg = !in_svg in
     Effect.run (fun () ->
-      reconcile_keyed parent anchor (items ()) key render blocks;
+      with_svg svg (fun () -> reconcile_keyed parent anchor (items ()) key render blocks);
       None)
   | Keyed_raw { items; key; render } ->
     let anchor = Dom.create_comment "" in
@@ -308,8 +339,9 @@ and insert parent before view (acc : Dom.t list ref) =
     Owner.on_cleanup (fun () ->
       List.iter (dispose_keyed_block parent) !blocks;
       blocks := []);
+    let svg = !in_svg in
     Effect.run (fun () ->
-      reconcile_keyed_raw parent anchor (items ()) key render blocks;
+      with_svg svg (fun () -> reconcile_keyed_raw parent anchor (items ()) key render blocks);
       None)
 
 let () = insert_ref := insert
@@ -489,6 +521,13 @@ module Attr = struct
     | Reactive f -> Attr_bool_reactive (name, f)
 
   let checked v = bool_property "checked" v
+
+  (* An attribute that is present while [f ()] is [Some v] (with value [v])
+     and removed while it is [None]. *)
+  let optional name f = Attr_optional (name, f)
+
+  (* A [data-*] attribute: [data "id" v] sets [data-id]. *)
+  let data name v = make ("data-" ^ name) v
 end
 
 (* ----- event helpers ----- *)
@@ -502,91 +541,250 @@ module On = struct
   let submit handler : handler = ("submit", handler)
 end
 
+(* The targets of mlx's element lowering: [<input type_="text" />] becomes
+   [Mlx.input ~type_:(static "text") ()] once the ppx has wrapped the values.
+   [attrs] takes any further attributes (data-*, custom elements), appended
+   after the typed ones. *)
 module Mlx = struct
   let static = static
   let dynamic = dynamic
   let signal = signal
 
-  let push_attr name value attrs =
+  (* BEGIN GENERATED MLX PROPS *)
+  (* Generated by scripts/generate-mlx-props.mjs from its prop table; edit
+     the table, not this block. *)
+
+  let push_string name value attrs =
     match value with Some value -> Attr.make name value :: attrs | None -> attrs
+
+  let push_int name value attrs =
+    match value with
+    | Some value -> Attr.make name (map_value string_of_int value) :: attrs
+    | None -> attrs
 
   let push_toggle name value attrs =
     match value with
-    | Some (Static true) -> Attr.make name (static "") :: attrs
+    | Some (Static true) -> Attr_static (name, "") :: attrs
     | Some (Static false) | None -> attrs
     | Some (Reactive f) -> Attr.toggle name f :: attrs
 
-  let push_bool_property name value attrs =
+  let push_prop name value attrs =
     match value with Some value -> Attr.bool_property name value :: attrs | None -> attrs
 
   let push_event name handler events =
-    match handler with Some handler -> On.on name handler :: events | None -> events
+    match handler with Some handler -> (name, handler) :: events | None -> events
 
-  let attr_list
-      ?class_
-      ?className
-      ?id
-      ?type_
-      ?value
-      ?placeholder
-      ?href
-      ?aria_label
-      ?style
-      ?disabled
-      ?checked
-      () =
+  (* [className] wins over [class_] when both are given. *)
+  let create tag ?class_ ?className
+      ?id ?title ?lang ?dir ?role ?style ?tabIndex ?hidden ?draggable ?contentEditable ?spellcheck ?translate ?slot ?aria_label ?aria_labelledby ?aria_describedby ?aria_hidden ?aria_expanded ?aria_controls ?aria_current ?aria_pressed ?aria_selected ?aria_checked ?aria_disabled ?aria_live ?aria_haspopup ?aria_invalid ?href ?target ?rel ?download ?hreflang ?src ?srcSet ?sizes ?alt ?width ?height ?loading ?decoding ?crossOrigin ?poster ?preload ?controls ?autoplay ?loop ?muted ?playsInline ?name ?type_ ?value ?placeholder ?for_ ?htmlFor ?form ?action ?method_ ?enctype ?accept ?acceptCharset ?autocomplete ?pattern ?min ?max ?step ?minLength ?maxLength ?size ?rows ?cols ?wrap ?list ?inputMode ?enterKeyHint ?label_ ?disabled ?required ?readOnly ?multiple ?autofocus ?noValidate ?checked ?selected ?colSpan ?rowSpan ?headers ?scope ?start ?reversed ?open_ ?dateTime ?cite ?viewBox ?xmlns ?d ?fill ?fill_rule ?fill_opacity ?stroke ?stroke_width ?stroke_linecap ?stroke_linejoin ?stroke_dasharray ?stroke_dashoffset ?opacity ?transform ?cx ?cy ?r ?rx ?ry ?x ?y ?x1 ?y1 ?x2 ?y2 ?points ?offset ?stop_color ?preserveAspectRatio
+      ?onClick ?onDblClick ?onContextMenu ?onInput ?onChange ?onSubmit ?onReset ?onInvalid ?onKeyDown ?onKeyUp ?onFocus ?onBlur ?onFocusIn ?onFocusOut ?onMouseDown ?onMouseUp ?onMouseEnter ?onMouseLeave ?onMouseMove ?onMouseOver ?onMouseOut ?onPointerDown ?onPointerUp ?onPointerMove ?onPointerEnter ?onPointerLeave ?onPointerOver ?onPointerOut ?onPointerCancel ?onTouchStart ?onTouchMove ?onTouchEnd ?onTouchCancel ?onWheel ?onScroll ?onDragStart ?onDrag ?onDragEnd ?onDragEnter ?onDragOver ?onDragLeave ?onDrop ?onCopy ?onCut ?onPaste ?onLoad ?onError ?onToggle ?onClose ?onAnimationStart ?onAnimationEnd ?onTransitionEnd ?onPlay ?onPause ?onEnded ?onTimeUpdate
+      ?(attrs = []) ?(children = []) () =
     let class_ = match className with Some _ -> className | None -> class_ in
-    []
-    |> push_attr "class" class_
-    |> push_attr "id" id
-    |> push_attr "type" type_
-    |> push_attr "value" value
-    |> push_attr "placeholder" placeholder
-    |> push_attr "href" href
-    |> push_attr "aria-label" aria_label
-    |> push_attr "style" style
-    |> push_toggle "disabled" disabled
-    |> push_bool_property "checked" checked
-    |> List.rev
-
-  let event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () =
-    []
-    |> push_event "click" onClick
-    |> push_event "input" onInput
-    |> push_event "change" onChange
-    |> push_event "keydown" onKeyDown
-    |> push_event "submit" onSubmit
-    |> List.rev
-
-  let create tag ?class_ ?className ?id ?type_ ?value ?placeholder ?href ?aria_label ?style ?disabled ?checked ?onClick
-      ?onInput ?onChange ?onKeyDown ?onSubmit ?(children = []) () =
-    let attrs =
-      attr_list
-        ?class_
-        ?className
-        ?id
-        ?type_
-        ?value
-        ?placeholder
-        ?href
-        ?aria_label
-        ?style
-        ?disabled
-        ?checked
-        ()
-    in
-    let events = event_list ?onClick ?onInput ?onChange ?onKeyDown ?onSubmit () in
-    element ~attrs ~events tag children
+    let acc = push_string "class" class_ [] in
+    let acc = push_string "id" id acc in
+    let acc = push_string "title" title acc in
+    let acc = push_string "lang" lang acc in
+    let acc = push_string "dir" dir acc in
+    let acc = push_string "role" role acc in
+    let acc = push_string "style" style acc in
+    let acc = push_int "tabindex" tabIndex acc in
+    let acc = push_toggle "hidden" hidden acc in
+    let acc = push_string "draggable" draggable acc in
+    let acc = push_string "contenteditable" contentEditable acc in
+    let acc = push_string "spellcheck" spellcheck acc in
+    let acc = push_string "translate" translate acc in
+    let acc = push_string "slot" slot acc in
+    let acc = push_string "aria-label" aria_label acc in
+    let acc = push_string "aria-labelledby" aria_labelledby acc in
+    let acc = push_string "aria-describedby" aria_describedby acc in
+    let acc = push_string "aria-hidden" aria_hidden acc in
+    let acc = push_string "aria-expanded" aria_expanded acc in
+    let acc = push_string "aria-controls" aria_controls acc in
+    let acc = push_string "aria-current" aria_current acc in
+    let acc = push_string "aria-pressed" aria_pressed acc in
+    let acc = push_string "aria-selected" aria_selected acc in
+    let acc = push_string "aria-checked" aria_checked acc in
+    let acc = push_string "aria-disabled" aria_disabled acc in
+    let acc = push_string "aria-live" aria_live acc in
+    let acc = push_string "aria-haspopup" aria_haspopup acc in
+    let acc = push_string "aria-invalid" aria_invalid acc in
+    let acc = push_string "href" href acc in
+    let acc = push_string "target" target acc in
+    let acc = push_string "rel" rel acc in
+    let acc = push_string "download" download acc in
+    let acc = push_string "hreflang" hreflang acc in
+    let acc = push_string "src" src acc in
+    let acc = push_string "srcset" srcSet acc in
+    let acc = push_string "sizes" sizes acc in
+    let acc = push_string "alt" alt acc in
+    let acc = push_string "width" width acc in
+    let acc = push_string "height" height acc in
+    let acc = push_string "loading" loading acc in
+    let acc = push_string "decoding" decoding acc in
+    let acc = push_string "crossorigin" crossOrigin acc in
+    let acc = push_string "poster" poster acc in
+    let acc = push_string "preload" preload acc in
+    let acc = push_toggle "controls" controls acc in
+    let acc = push_toggle "autoplay" autoplay acc in
+    let acc = push_toggle "loop" loop acc in
+    let acc = push_toggle "muted" muted acc in
+    let acc = push_toggle "playsinline" playsInline acc in
+    let acc = push_string "name" name acc in
+    let acc = push_string "type" type_ acc in
+    let acc = push_string "value" value acc in
+    let acc = push_string "placeholder" placeholder acc in
+    let acc = push_string "for" for_ acc in
+    let acc = push_string "for" htmlFor acc in
+    let acc = push_string "form" form acc in
+    let acc = push_string "action" action acc in
+    let acc = push_string "method" method_ acc in
+    let acc = push_string "enctype" enctype acc in
+    let acc = push_string "accept" accept acc in
+    let acc = push_string "accept-charset" acceptCharset acc in
+    let acc = push_string "autocomplete" autocomplete acc in
+    let acc = push_string "pattern" pattern acc in
+    let acc = push_string "min" min acc in
+    let acc = push_string "max" max acc in
+    let acc = push_string "step" step acc in
+    let acc = push_int "minlength" minLength acc in
+    let acc = push_int "maxlength" maxLength acc in
+    let acc = push_int "size" size acc in
+    let acc = push_int "rows" rows acc in
+    let acc = push_int "cols" cols acc in
+    let acc = push_string "wrap" wrap acc in
+    let acc = push_string "list" list acc in
+    let acc = push_string "inputmode" inputMode acc in
+    let acc = push_string "enterkeyhint" enterKeyHint acc in
+    let acc = push_string "label" label_ acc in
+    let acc = push_toggle "disabled" disabled acc in
+    let acc = push_toggle "required" required acc in
+    let acc = push_toggle "readonly" readOnly acc in
+    let acc = push_toggle "multiple" multiple acc in
+    let acc = push_toggle "autofocus" autofocus acc in
+    let acc = push_toggle "novalidate" noValidate acc in
+    let acc = push_prop "checked" checked acc in
+    let acc = push_prop "selected" selected acc in
+    let acc = push_int "colspan" colSpan acc in
+    let acc = push_int "rowspan" rowSpan acc in
+    let acc = push_string "headers" headers acc in
+    let acc = push_string "scope" scope acc in
+    let acc = push_int "start" start acc in
+    let acc = push_toggle "reversed" reversed acc in
+    let acc = push_toggle "open" open_ acc in
+    let acc = push_string "datetime" dateTime acc in
+    let acc = push_string "cite" cite acc in
+    let acc = push_string "viewBox" viewBox acc in
+    let acc = push_string "xmlns" xmlns acc in
+    let acc = push_string "d" d acc in
+    let acc = push_string "fill" fill acc in
+    let acc = push_string "fill-rule" fill_rule acc in
+    let acc = push_string "fill-opacity" fill_opacity acc in
+    let acc = push_string "stroke" stroke acc in
+    let acc = push_string "stroke-width" stroke_width acc in
+    let acc = push_string "stroke-linecap" stroke_linecap acc in
+    let acc = push_string "stroke-linejoin" stroke_linejoin acc in
+    let acc = push_string "stroke-dasharray" stroke_dasharray acc in
+    let acc = push_string "stroke-dashoffset" stroke_dashoffset acc in
+    let acc = push_string "opacity" opacity acc in
+    let acc = push_string "transform" transform acc in
+    let acc = push_string "cx" cx acc in
+    let acc = push_string "cy" cy acc in
+    let acc = push_string "r" r acc in
+    let acc = push_string "rx" rx acc in
+    let acc = push_string "ry" ry acc in
+    let acc = push_string "x" x acc in
+    let acc = push_string "y" y acc in
+    let acc = push_string "x1" x1 acc in
+    let acc = push_string "y1" y1 acc in
+    let acc = push_string "x2" x2 acc in
+    let acc = push_string "y2" y2 acc in
+    let acc = push_string "points" points acc in
+    let acc = push_string "offset" offset acc in
+    let acc = push_string "stop-color" stop_color acc in
+    let acc = push_string "preserveAspectRatio" preserveAspectRatio acc in
+    let events = [] in
+    let events = push_event "click" onClick events in
+    let events = push_event "dblclick" onDblClick events in
+    let events = push_event "contextmenu" onContextMenu events in
+    let events = push_event "input" onInput events in
+    let events = push_event "change" onChange events in
+    let events = push_event "submit" onSubmit events in
+    let events = push_event "reset" onReset events in
+    let events = push_event "invalid" onInvalid events in
+    let events = push_event "keydown" onKeyDown events in
+    let events = push_event "keyup" onKeyUp events in
+    let events = push_event "focus" onFocus events in
+    let events = push_event "blur" onBlur events in
+    let events = push_event "focusin" onFocusIn events in
+    let events = push_event "focusout" onFocusOut events in
+    let events = push_event "mousedown" onMouseDown events in
+    let events = push_event "mouseup" onMouseUp events in
+    let events = push_event "mouseenter" onMouseEnter events in
+    let events = push_event "mouseleave" onMouseLeave events in
+    let events = push_event "mousemove" onMouseMove events in
+    let events = push_event "mouseover" onMouseOver events in
+    let events = push_event "mouseout" onMouseOut events in
+    let events = push_event "pointerdown" onPointerDown events in
+    let events = push_event "pointerup" onPointerUp events in
+    let events = push_event "pointermove" onPointerMove events in
+    let events = push_event "pointerenter" onPointerEnter events in
+    let events = push_event "pointerleave" onPointerLeave events in
+    let events = push_event "pointerover" onPointerOver events in
+    let events = push_event "pointerout" onPointerOut events in
+    let events = push_event "pointercancel" onPointerCancel events in
+    let events = push_event "touchstart" onTouchStart events in
+    let events = push_event "touchmove" onTouchMove events in
+    let events = push_event "touchend" onTouchEnd events in
+    let events = push_event "touchcancel" onTouchCancel events in
+    let events = push_event "wheel" onWheel events in
+    let events = push_event "scroll" onScroll events in
+    let events = push_event "dragstart" onDragStart events in
+    let events = push_event "drag" onDrag events in
+    let events = push_event "dragend" onDragEnd events in
+    let events = push_event "dragenter" onDragEnter events in
+    let events = push_event "dragover" onDragOver events in
+    let events = push_event "dragleave" onDragLeave events in
+    let events = push_event "drop" onDrop events in
+    let events = push_event "copy" onCopy events in
+    let events = push_event "cut" onCut events in
+    let events = push_event "paste" onPaste events in
+    let events = push_event "load" onLoad events in
+    let events = push_event "error" onError events in
+    let events = push_event "toggle" onToggle events in
+    let events = push_event "close" onClose events in
+    let events = push_event "animationstart" onAnimationStart events in
+    let events = push_event "animationend" onAnimationEnd events in
+    let events = push_event "transitionend" onTransitionEnd events in
+    let events = push_event "play" onPlay events in
+    let events = push_event "pause" onPause events in
+    let events = push_event "ended" onEnded events in
+    let events = push_event "timeupdate" onTimeUpdate events in
+    element ~attrs:(List.rev_append acc attrs) ~events:(List.rev events) tag children
 
   let a = create "a"
+  let abbr = create "abbr"
+  let address = create "address"
   let article = create "article"
   let aside = create "aside"
+  let audio = create "audio"
+  let blockquote = create "blockquote"
+  let br = create "br"
   let button = create "button"
+  let canvas = create "canvas"
+  let caption = create "caption"
   let code = create "code"
+  let col = create "col"
+  let colgroup = create "colgroup"
   let dd = create "dd"
+  let del = create "del"
+  let details = create "details"
+  let dfn = create "dfn"
+  let dialog = create "dialog"
   let div = create "div"
   let dl = create "dl"
   let dt = create "dt"
+  let em = create "em"
+  let fieldset = create "fieldset"
   let figcaption = create "figcaption"
   let figure = create "figure"
   let footer = create "footer"
@@ -594,19 +792,68 @@ module Mlx = struct
   let h1 = create "h1"
   let h2 = create "h2"
   let h3 = create "h3"
+  let h4 = create "h4"
+  let h5 = create "h5"
+  let h6 = create "h6"
   let header = create "header"
+  let hr = create "hr"
+  let iframe = create "iframe"
+  let img = create "img"
   let input = create "input"
+  let ins = create "ins"
+  let kbd = create "kbd"
   let label = create "label"
+  let legend = create "legend"
   let li = create "li"
   let main = create "main"
+  let mark = create "mark"
+  let menu = create "menu"
+  let meter = create "meter"
   let nav = create "nav"
   let ol = create "ol"
+  let optgroup = create "optgroup"
+  let option = create "option"
+  let output = create "output"
   let p = create "p"
+  let picture = create "picture"
   let pre = create "pre"
+  let progress = create "progress"
+  let samp = create "samp"
   let section = create "section"
+  let select = create "select"
+  let small = create "small"
+  let source = create "source"
   let span = create "span"
   let strong = create "strong"
+  let sub = create "sub"
+  let summary = create "summary"
+  let sup = create "sup"
+  let table = create "table"
+  let tbody = create "tbody"
+  let td = create "td"
+  let textarea = create "textarea"
+  let tfoot = create "tfoot"
+  let th = create "th"
+  let thead = create "thead"
+  let time = create "time"
+  let tr = create "tr"
   let ul = create "ul"
+  let video = create "video"
+  let wbr = create "wbr"
+  let svg = create "svg"
+  let g = create "g"
+  let path = create "path"
+  let circle = create "circle"
+  let rect = create "rect"
+  let line = create "line"
+  let polyline = create "polyline"
+  let polygon = create "polygon"
+  let ellipse = create "ellipse"
+  let defs = create "defs"
+  let symbol = create "symbol"
+  let use = create "use"
+  let stop = create "stop"
+  (* END GENERATED MLX PROPS *)
 end
 
 (* ----- mounting ----- *)
