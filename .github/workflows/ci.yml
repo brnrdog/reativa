@@ -136,6 +136,12 @@ jobs:
           node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js
           node test/dom/run.mjs _build/default/test/dom_mlx/jsoo/main.bc.js
 
+      - name: reativa-lens (CLI and MCP server) against a fixture app
+        run: |
+          npm --prefix lens ci
+          REATIVA_JSOO=enabled opam exec -- dune build lens/test/fixture/app.bc.js
+          node lens/test/run.mjs
+
       - name: Type-check the mlx inference fixture on js_of_ocaml
         run: |
           REATIVA_JSOO=enabled opam exec -- dune build --profile release \

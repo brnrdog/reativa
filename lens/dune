@@ -1,0 +1,2 @@
+; Only test/fixture holds OCaml; skip npm's node_modules.
+(dirs :standard \ node_modules)

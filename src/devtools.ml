@@ -227,11 +227,18 @@ let rec why id =
 
 (* ----- the DOM ----- *)
 
+(* An effect writes to [el] when its target is [el] or one of [el]'s own
+   text children (a reactive text leaf writes its text node). *)
+let writes_to (target : Dom.t) what (el : Dom.t) =
+  Dom.is_same_node target el
+  || String.equal what "text"
+     && match Dom.parent_node target with Some parent -> Dom.is_same_node parent el | None -> false
+
 let effects_writing (el : Dom.t) =
   Hashtbl.fold
     (fun _ e acc ->
       match e.target with
-      | Some (target, what) when (not e.is_disposed) && Dom.is_same_node (Obj.obj target) el ->
+      | Some (target, what) when (not e.is_disposed) && writes_to (Obj.obj target) what el ->
         (e.node.id, what) :: acc
       | _ -> acc)
     entries []
