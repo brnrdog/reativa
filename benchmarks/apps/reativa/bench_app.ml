@@ -41,27 +41,39 @@ let remove id = Signal.set rows (List.filter (fun r -> r.id <> id) (Signal.peek 
 let attr name value = View.Attr.make name (View.static value)
 let cls value = attr "class" value
 
+(* The row as the mlx ppx compiles it: the static markup is one template,
+   parsed once and cloned per row, and only the four dynamic parts are filled
+   in. Written out here (rather than in .mlx) so the app builds without the
+   mlx toolchain; the ppx emits the same View.template call for
+
+     <tr className=(if Signal.get selected = row.id then "danger" else "")>
+       <td className="col-md-1">(row.id)</td>
+       <td className="col-md-4">
+         <a className="lbl" onClick=(fun _ -> Signal.set selected row.id)>(Signal.get row.label)</a>
+       </td>
+       <td className="col-md-1">
+         <a className="remove" onClick=(fun _ -> remove row.id)>
+           <span className="glyphicon glyphicon-remove" aria_hidden="true" />
+         </a>
+       </td>
+       <td className="col-md-6" />
+     </tr> *)
+let row_template =
+  View.Template.make
+    ({|<tr><td class="col-md-1"> </td><td class="col-md-4"><a class="lbl"> </a></td>|}
+    ^ {|<td class="col-md-1"><a class="remove"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td>|}
+    ^ {|<td class="col-md-6"></td></tr>|})
+
 let render_row (row_signal : row Signal.t) =
   let row = Signal.peek row_signal in
-  View.element "tr"
-    ~attrs:[ View.Attr.class_reactive (fun () -> if Signal.get selected = row.id then "danger" else "") ]
+  View.template row_template
     [
-      View.element "td" ~attrs:[ cls "col-md-1" ] [ View.int (View.static row.id) ];
-      View.element "td" ~attrs:[ cls "col-md-4" ]
-        [
-          View.element "a"
-            ~attrs:[ cls "lbl" ]
-            ~events:[ View.On.click (fun _ -> Signal.set selected row.id) ]
-            [ View.text (View.signal row.label) ];
-        ];
-      View.element "td" ~attrs:[ cls "col-md-1" ]
-        [
-          View.element "a"
-            ~attrs:[ cls "remove" ]
-            ~events:[ View.On.click (fun _ -> remove row.id) ]
-            [ View.element "span" ~attrs:[ cls "glyphicon glyphicon-remove"; attr "aria-hidden" "true" ] [] ];
-        ];
-      View.element "td" ~attrs:[ cls "col-md-6" ] [];
+      View.Template.attr [ 0 ]
+        (View.Attr.class_reactive (fun () -> if Signal.get selected = row.id then "danger" else ""));
+      View.Template.text [ 0; 0; 0 ] (View.static (string_of_int row.id));
+      View.Template.event [ 0; 1; 0 ] "click" (fun _ -> Signal.set selected row.id);
+      View.Template.text [ 0; 1; 0; 0 ] (View.signal row.label);
+      View.Template.event [ 0; 2; 0 ] "click" (fun _ -> remove row.id);
     ]
 
 let button id label handler =

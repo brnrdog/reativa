@@ -117,6 +117,30 @@ let register () =
     equal_int "insertBefore calls" ~expected:9 (Probe.ops "insertBefore");
     equal_string "order" ~expected:"9,8,7,6,5,4,3,2,1,0" (strs (row_texts c)));
 
+  test "clearing a list that owns its parent empties it in one write" (fun () ->
+    let items = Signal.make thousand in
+    let c = mount (keyed_list items) in
+    Probe.reset_ops ();
+    Signal.set items [];
+    equal_int "one textContent write" ~expected:1 (Probe.ops "textContent");
+    equal_int "no per-row removal" ~expected:0 (Probe.ops "remove" + Probe.ops "removeChild");
+    equal_string "only the anchor is left" ~expected:"<ul><!----></ul>" (html c);
+    Signal.set items [ 1; 2 ];
+    equal_string "and the list still works" ~expected:"1,2" (strs (row_texts c)));
+  test "clearing a list that shares its parent keeps the siblings" (fun () ->
+    let items = Signal.make [ 1; 2; 3 ] in
+    let c =
+      mount
+        (View.ul
+           [
+             View.li [ View.text (View.static "first") ];
+             View.for_with_key (fun () -> Signal.get items) ~key:string_of_int (fun item ->
+               View.li [ View.int (View.signal item) ]);
+           ])
+    in
+    Signal.set items [];
+    equal_string "sibling kept" ~expected:"<ul><li>first</li><!----></ul>" (html c));
+
   suite "Leaves: skip equal writes";
   test "a class that does not change is not rewritten" (fun () ->
     let selected = Signal.make 0 in

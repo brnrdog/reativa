@@ -58,6 +58,20 @@ external first_child : t -> t option = "firstChild"
 
 external remove : t -> unit = "remove" [@@mel.send]
 
+(* Deep clone. *)
+external clone_node_ : t -> bool -> t = "cloneNode" [@@mel.send]
+let clone_node node = clone_node_ node true
+
+external first_child_unsafe : t -> t = "firstChild" [@@mel.get]
+external next_sibling_unsafe : t -> t = "nextSibling" [@@mel.get]
+
+(* Walking siblings is cheaper than indexing the live childNodes list. *)
+let child_at node i =
+  let rec walk n i = if i = 0 then n else walk (next_sibling_unsafe n) (i - 1) in
+  walk (first_child_unsafe node) i
+
+external template_content : string -> t = "templateContent" [@@mel.module "./reativa_runtime.js"]
+
 (* ----- attributes & content ----- *)
 
 external set_attribute : t -> string -> string -> unit = "setAttribute"

@@ -93,6 +93,17 @@ let first_child (node : t) : t option =
 
 let remove (node : t) : unit = ignore (Js.Unsafe.meth_call node "remove" [||])
 
+let clone_node (node : t) : t = Js.Unsafe.meth_call node "cloneNode" [| Js.Unsafe.inject Js._true |]
+(* Walking siblings is cheaper than indexing the live childNodes list. *)
+let child_at (node : t) (i : int) : t =
+  let rec walk (n : t) i = if i = 0 then n else walk (Js.Unsafe.get n "nextSibling") (i - 1) in
+  walk (Js.Unsafe.get node "firstChild") i
+
+let template_content (html : string) : t =
+  let template = create_element "template" in
+  Js.Unsafe.set template "innerHTML" (Js.string html);
+  Js.Unsafe.get template "content"
+
 (* ----- attributes & content ----- *)
 
 let set_attribute (el : t) (name : string) (v : string) : unit =

@@ -56,6 +56,9 @@ val create_fragment : unit -> t
 val parent_node : t -> t option
 val first_child : t -> t option
 val remove : t -> unit
+val clone_node : t -> t
+val child_at : t -> int -> t
+val template_content : string -> t
 val set_attribute : t -> string -> string -> unit
 val remove_attribute : t -> string -> unit
 val set_text_content : t -> string -> unit
@@ -104,6 +107,9 @@ val component : (unit -> t) -> t
 val dyn : (unit -> t) -> t
 val tracked : (unit -> t) -> t
 val child : 'a -> t
+type view = t
+module Template = Reativa.View.Template
+val template : Template.t -> Template.hole list -> t
 val error_boundary : fallback:(exn -> (unit -> unit) -> t) -> t -> t
 module ErrorBoundary = Reativa.View.ErrorBoundary
 val portal : ?target:Reativa__.Dom.t -> t -> t
