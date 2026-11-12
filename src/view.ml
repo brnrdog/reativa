@@ -46,6 +46,9 @@ type t =
     }
   | Fragment of t list
   | Dynamic of (unit -> t)
+  (* A component body, run when the view is inserted: under its own owner and
+     untracked (see {!component}). *)
+  | Component of (unit -> t)
   | Keyed :
       {
         items : unit -> 'item list;
@@ -65,14 +68,14 @@ type 'item keyed_block = {
   key : string;
   item : 'item Signal.t;
   nodes : Dom.t list;
-  disposers : (unit -> unit) list;
+  (* Owns the row's effects; disposed when the row is dropped. *)
+  owner : Owner.t;
 }
 
-(* A [register] sink collects the disposers of every Effect created while
-   building a subtree, so the nearest enclosing [Dynamic] can dispose them all
-   before it re-renders. At the top level (see {!mount}) it simply drops them —
-   those Effects live for the lifetime of the page. *)
-type register = (unit -> unit) -> unit
+(* Ownership. Every Effect created while building a subtree registers with
+   the current {!Owner}: a [Dynamic] region's effect owns its current pass and
+   resets it before re-rendering, a keyed row owns its row, a component owns
+   its body, and {!mount} provides the root. *)
 
 (* Tail-recursive [List.map]. Lists here can hold every row of a long list,
    and js_of_ocaml runs on the browser's stack, which [List.map] (not
@@ -84,44 +87,44 @@ let place parent before node =
   | Some ref_node -> Dom.insert_before parent node ref_node
   | None -> Dom.append_child parent node
 
-let apply_attr ~(register : register) el = function
+let apply_attr el = function
   | Attr_static ("value", v) -> Dom.set_value el v
   | Attr_static (name, v) -> Dom.set_attribute el name v
   | Attr_reactive (name, f) ->
-    let d =
-      Effect.run_with_disposer (fun () ->
-        if name = "value" then Dom.set_value el (f ()) else Dom.set_attribute el name (f ());
-        None)
-    in
-    register d.dispose
+    if name = "value" then
+      ignore (Effect.leaf (fun () -> Dom.set_value el (f ()); None))
+    else ignore (Effect.leaf (fun () -> Dom.set_attribute el name (f ()); None))
   | Attr_bool_static ("checked", v) -> Dom.set_checked el v
   | Attr_bool_static (name, v) ->
     if v then Dom.set_attribute el name "" else Dom.remove_attribute el name
   | Attr_bool_reactive ("checked", f) ->
-    let d =
-      Effect.run_with_disposer (fun () ->
-        Dom.set_checked el (f ());
-        None)
-    in
-    register d.dispose
-  | Attr_bool_reactive (name, f) ->
-    let d =
-      Effect.run_with_disposer (fun () ->
-        if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
-        None)
-    in
-    register d.dispose
-  | Attr_toggle (name, f) ->
-    let d =
-      Effect.run_with_disposer (fun () ->
-        if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
-        None)
-    in
-    register d.dispose
+    ignore (Effect.leaf (fun () -> Dom.set_checked el (f ()); None))
+  | Attr_bool_reactive (name, f) | Attr_toggle (name, f) ->
+    ignore
+      (Effect.leaf (fun () ->
+         if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
+         None))
+
+(* [build_row] needs [insert], which is defined below it in the same
+   recursive group as the reconcilers; this ref breaks the cycle. *)
+let insert_ref : (Dom.t -> Dom.t option -> t -> Dom.t list ref -> unit) ref =
+  ref (fun _ _ _ _ -> ())
 
 let dispose_keyed_block parent block =
-  List.iter (fun dispose -> dispose ()) block.disposers;
+  Owner.dispose block.owner;
   List.iter (fun node -> Dom.remove_child parent node) block.nodes
+
+(* Build one keyed row under a fresh owner. The owner's parent is the current
+   one (the list's reconciling effect), for context lookups; it is not
+   registered there — the list disposes its rows itself. Rows render
+   untracked, so a read in a row's render function never subscribes the whole
+   list. *)
+let build_row parent before view_of key item_signal =
+  let owner = Owner.make () in
+  let local_nodes = ref [] in
+  Owner.run_in owner (fun () ->
+    Signal.untrack (fun () -> insert_ref.contents parent before (view_of ()) local_nodes));
+  { key; item = item_signal; nodes = List.rev !local_nodes; owner }
 
 let node_is_followed_by node next =
   match Dom.next_sibling node with
@@ -158,16 +161,7 @@ let rec reconcile_keyed :
   let seen_keys = Hashtbl.create (List.length items) in
   let create_block item item_key =
     let item_signal = Signal.make item in
-    let local_nodes = ref [] in
-    let local_disposers = ref [] in
-    let block_register dispose = local_disposers := dispose :: !local_disposers in
-    insert ~register:block_register parent (Some anchor) (render item_signal) local_nodes;
-    {
-      key = item_key;
-      item = item_signal;
-      nodes = List.rev !local_nodes;
-      disposers = !local_disposers;
-    }
+    build_row parent (Some anchor) (fun () -> render item_signal) item_key item_signal
   in
   let keyed_items =
     map_list
@@ -208,16 +202,7 @@ and reconcile_keyed_raw :
   List.iter (fun block -> Hashtbl.replace old_by_key block.key block) !blocks;
   let seen_keys = Hashtbl.create (List.length items) in
   let create_block ?(before = anchor) item item_key =
-    let local_nodes = ref [] in
-    let local_disposers = ref [] in
-    let block_register dispose = local_disposers := dispose :: !local_disposers in
-    insert ~register:block_register parent (Some before) (render item) local_nodes;
-    {
-      key = item_key;
-      item = Signal.make item;
-      nodes = List.rev !local_nodes;
-      disposers = !local_disposers;
-    }
+    build_row parent (Some before) (fun () -> render item) item_key (Signal.make item)
   in
   let keyed_items =
     map_list
@@ -255,8 +240,9 @@ and reconcile_keyed_raw :
 
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
    or appended when [before] is [None]). Top-level nodes are pushed onto [acc]
-   so a [Dynamic] region can later remove exactly what it inserted. *)
-and insert ~(register : register) parent before view (acc : Dom.t list ref) =
+   so a [Dynamic] region can later remove exactly what it inserted. Effects
+   created here register with the current owner. *)
+and insert parent before view (acc : Dom.t list ref) =
   match view with
   | Empty -> ()
   | Text s ->
@@ -265,84 +251,68 @@ and insert ~(register : register) parent before view (acc : Dom.t list ref) =
     acc := node :: !acc
   | Reactive_text f ->
     let node = Dom.create_text_node "" in
-    let d =
-      Effect.run_with_disposer (fun () ->
-        Dom.set_text_content node (f ());
-        None)
-    in
-    register d.dispose;
+    ignore (Effect.leaf (fun () -> Dom.set_text_content node (f ()); None));
     place parent before node;
     acc := node :: !acc
   | Element { tag; attrs; events; children } ->
     let el = Dom.create_element tag in
-    List.iter (apply_attr ~register el) attrs;
+    List.iter (apply_attr el) attrs;
     List.iter (fun (name, h) -> Dom.add_event_listener el name h) events;
     (* Children are inserted directly into [el]; their own top-level nodes are
        irrelevant to our caller, so they go into a throwaway accumulator. *)
     let child_acc = ref [] in
-    List.iter (fun c -> insert ~register el None c child_acc) children;
+    List.iter (fun c -> insert el None c child_acc) children;
     place parent before el;
     acc := el :: !acc
-  | Fragment views -> List.iter (fun v -> insert ~register parent before v acc) views
+  | Fragment views -> List.iter (fun v -> insert parent before v acc) views
   | Dynamic f ->
     (* The anchor stays put; the region's nodes live just before it and are
-       swapped out wholesale whenever a dependency of [f] changes. *)
+       swapped out wholesale whenever a dependency of [f] changes. The effect
+       owns each pass: before a re-run it disposes everything the previous
+       pass created, then the cleanup below removes the previous nodes. *)
     let anchor = Dom.create_comment "" in
     place parent before anchor;
     acc := anchor :: !acc;
     let region : Dom.t list ref = ref [] in
-    let child_disposers : (unit -> unit) list ref = ref [] in
     let cleanup () =
-      List.iter (fun dispose -> dispose ()) !child_disposers;
-      child_disposers := [];
       List.iter (fun node -> Dom.remove_child parent node) !region;
       region := []
     in
-    let child_register dispose = child_disposers := dispose :: !child_disposers in
-    let d =
-      Effect.run_with_disposer (fun () ->
-        let local = ref [] in
-        insert ~register:child_register parent (Some anchor) (f ()) local;
-        region := !local;
-        (* Returned as the Effect's cleanup: runs before each re-render and on
-           dispose, tearing down the previous render's nodes and Effects. *)
-        Some cleanup)
-    in
-    register d.dispose
+    Effect.run (fun () ->
+      let local = ref [] in
+      insert parent (Some anchor) (f ()) local;
+      region := !local;
+      Some cleanup)
+  | Component body ->
+    (* Runs now, at insertion: under its own owner (disposed with the current
+       one) and untracked, so reads in the body never subscribe the region
+       that inserted it. *)
+    let owner = Owner.make_child () in
+    Owner.run_in owner (fun () -> insert parent before (Signal.untrack body) acc)
   | Keyed { items; key; render } ->
     let anchor = Dom.create_comment "" in
     place parent before anchor;
     acc := anchor :: !acc;
     let blocks = ref [] in
-    let cleanup () =
+    Owner.on_cleanup (fun () ->
       List.iter (dispose_keyed_block parent) !blocks;
-      blocks := []
-    in
-    let d =
-      Effect.run_with_disposer (fun () ->
-        reconcile_keyed parent anchor (items ()) key render blocks;
-        None)
-    in
-    register (fun () ->
-      d.dispose ();
-      cleanup ())
+      blocks := []);
+    Effect.run (fun () ->
+      reconcile_keyed parent anchor (items ()) key render blocks;
+      None)
   | Keyed_raw { items; key; render } ->
     let anchor = Dom.create_comment "" in
     place parent before anchor;
     acc := anchor :: !acc;
     let blocks = ref [] in
-    let cleanup () =
+    Owner.on_cleanup (fun () ->
       List.iter (dispose_keyed_block parent) !blocks;
-      blocks := []
-    in
-    let d =
-      Effect.run_with_disposer (fun () ->
-        reconcile_keyed_raw parent anchor (items ()) key render blocks;
-        None)
-    in
-    register (fun () ->
-      d.dispose ();
-      cleanup ())
+      blocks := []);
+    Effect.run (fun () ->
+      reconcile_keyed_raw parent anchor (items ()) key render blocks;
+      None)
+
+let () = insert_ref := insert
 
 (* ----- public constructors ----- *)
 
@@ -367,6 +337,12 @@ let dyn_text f = text (dynamic f)
 let dyn_int f = int (dynamic f)
 let dyn_float f = float (dynamic f)
 let fragment views = Fragment views
+
+(* A component: [body] runs when the view is mounted, not when this value is
+   built — under its own owner, so effects, computeds and cleanups it creates
+   are disposed with it, and untracked, so its signal reads never subscribe
+   the region around it. The mlx ppx wraps every component tag in this. *)
+let component body = Component body
 
 let element ?(attrs = []) ?(events = []) tag children =
   Element { tag; attrs; events; children }
@@ -635,10 +611,21 @@ end
 
 (* ----- mounting ----- *)
 
-(* Render [view] into [container]. Top-level Effects are intentionally not
-   tracked for disposal: a mounted app lives as long as the page. *)
+(* Render [view] into [container] under a fresh root owner. Returns a function
+   that disposes everything the view created and removes its nodes. *)
+let mount_disposable container view =
+  let root = Owner.make ~parent:None () in
+  let nodes = ref [] in
+  Owner.run_in root (fun () -> insert container None view nodes);
+  fun () ->
+    Owner.dispose root;
+    List.iter (fun node -> Dom.remove_child container node) !nodes;
+    nodes := []
+
+(* Render [view] into [container]; it lives as long as the page. *)
 let mount container view =
-  insert ~register:(fun _ -> ()) container None view (ref [])
+  let (_dispose : unit -> unit) = mount_disposable container view in
+  ()
 
 (* Mount into the element with the given [id]; a no-op if it isn't found. *)
 let mount_by_id id view =

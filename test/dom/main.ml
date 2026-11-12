@@ -3,4 +3,5 @@
 
 let () =
   Test_view.register ();
+  Test_ownership.register ();
   Harness.run ()
