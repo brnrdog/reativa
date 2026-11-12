@@ -101,6 +101,18 @@ module Template : sig
   (** The node at the path is a comment; the view replaces it. [svg] when the
       comment sits inside an <svg>. *)
   val child : ?svg:bool -> int list -> view -> hole
+
+  val attrs : int list -> attr list -> hole
+
+  (** Props by kind, as the mlx prop table declares them: [string_prop path
+      "title" v] sets the attribute; [int_prop] writes an int; [toggle_prop]
+      makes an attribute present or absent; [bool_prop] sets a DOM property
+      ([checked]). *)
+  val string_prop : int list -> string -> string value -> hole
+
+  val int_prop : int list -> string -> int value -> hole
+  val toggle_prop : int list -> string -> bool value -> hole
+  val bool_prop : int list -> string -> bool value -> hole
 end
 
 (** An instance of a template with its holes filled. *)
