@@ -25,6 +25,11 @@ let flag_dirty = 1
 let flag_pending = 2
 let flag_running = 4
 
+(* Set once an effect is disposed. A disposed effect may still sit in the
+   scheduler's queue (it was notified before something disposed it in the
+   same flush); the scheduler skips it rather than running it. *)
+let flag_disposed = 8
+
 (* Global tracking version: bumped once per compute/effect run so that
    dependencies tracked during the current run can be told apart from stale
    ones left over from a previous run. *)
@@ -148,6 +153,8 @@ let clear_dirty n = n.flags <- n.flags land lnot flag_dirty
 let is_pending n = n.flags land flag_pending <> 0
 let set_pending n = n.flags <- n.flags lor flag_pending
 let clear_pending n = n.flags <- n.flags land lnot flag_pending
+let is_disposed n = n.flags land flag_disposed <> 0
+let set_disposed n = n.flags <- n.flags lor flag_disposed
 
 (* ----- link construction ----- *)
 
@@ -182,8 +189,15 @@ let link_to_deps target link =
    | None -> target.first_dep <- Some link);
   target.last_dep <- Some link
 
-(* Remove [link] from its source's subscriber list. *)
-let unlink_from_subs link =
+(* Remove [link] from its source's subscriber list.
+
+   When that was a computed's last subscriber, the computed lets go of its own
+   sources too ([detach]): nothing observes it any more, so keeping it linked
+   would only keep it (and whatever it captured) reachable from every signal
+   it read. It is marked dirty with a version no write can match, so the next
+   read recomputes it and links it again. This cascades through chains of
+   computeds. *)
+let rec unlink_from_subs link =
   let source = link.source in
   (match link.prev_sub with
    | Some prev -> prev.next_sub <- link.next_sub
@@ -194,7 +208,29 @@ let unlink_from_subs link =
   link.prev_sub <- None;
   link.next_sub <- None;
   if is_computed link.target && source.computed_subscriber_count > 0 then
-    source.computed_subscriber_count <- source.computed_subscriber_count - 1
+    source.computed_subscriber_count <- source.computed_subscriber_count - 1;
+  match source.first_sub with
+  | None when is_computed source -> detach source
+  | _ -> ()
+
+and detach node =
+  clear_deps node;
+  set_dirty node;
+  node.last_global_version <- -1
+
+(* Unlink all dependencies of [node] (used on dispose). *)
+and clear_deps node =
+  let rec loop = function
+    | None -> ()
+    | Some l ->
+      let next = l.next_dep in
+      unlink_from_subs l;
+      loop next
+  in
+  let first = node.first_dep in
+  node.first_dep <- None;
+  node.last_dep <- None;
+  loop first
 
 (* Remove [link] from its target's dependency list. *)
 let unlink_from_deps link =
@@ -208,15 +244,3 @@ let unlink_from_deps link =
   link.prev_dep <- None;
   link.next_dep <- None
 
-(* Unlink all dependencies of [node] (used on dispose). *)
-let clear_deps node =
-  let rec loop = function
-    | None -> ()
-    | Some l ->
-      let next = l.next_dep in
-      unlink_from_subs l;
-      loop next
-  in
-  loop node.first_dep;
-  node.first_dep <- None;
-  node.last_dep <- None

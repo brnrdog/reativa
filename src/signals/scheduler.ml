@@ -173,12 +173,14 @@ let retrack_computed node =
   if old_level = 0 then node.level <- compute_level node
 
 let retrack_effect node =
-  let old_level = node.level in
   clear_pending node;
-  with_tracking node (fun () ->
-    match node.run with Some f -> f () | None -> ());
-  clear_dirty node;
-  if old_level = 0 then node.level <- compute_level node
+  (* Disposed after it was queued: dequeue it without running. *)
+  if not (is_disposed node) then begin
+    let old_level = node.level in
+    with_tracking node (fun () -> match node.run with Some f -> f () | None -> ());
+    clear_dirty node;
+    if old_level = 0 then node.level <- compute_level node
+  end
 
 (* ----- flush ----- *)
 
