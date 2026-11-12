@@ -52,10 +52,25 @@ let longident_is_signal_get = function
 
 exception Signal_read_found
 
-(* Detect eager signal reads: any mention of [Signal.get] outside a nested
-   [fun]. Reads inside a lambda only happen when that lambda is called, so they
-   are not eager reads of the surrounding expression — thunking the outer
-   expression would not track them (and event handlers must not be thunked). *)
+(* Names in the current file that read a signal when applied: aliases of
+   [Signal.get] ([let get = Signal.get]) and local helpers whose body reads
+   one ([let label () = "Hi " ^ Signal.get name]), found by
+   [collect_reactive_names] before the file is rewritten. Calling one is an
+   eager read just like [Signal.get] itself: without this, [<p>(label ())</p>]
+   would render once and never update. Shadowing is ignored, so a name can be
+   over-approximated, which only costs an extra tracked region. *)
+let reactive_names : (string, unit) Hashtbl.t = Hashtbl.create 16
+
+let is_reactive_call callee =
+  match callee.pexp_desc with
+  | Pexp_ident { txt = Longident.Lident name; _ } -> Hashtbl.mem reactive_names name
+  | _ -> false
+
+(* Detect eager signal reads: any mention of [Signal.get], or a call to a name
+   in [reactive_names], outside a nested [fun]. Reads inside a lambda only
+   happen when that lambda is called, so they are not eager reads of the
+   surrounding expression — thunking the outer expression would not track them
+   (and event handlers must not be thunked). *)
 let signal_read_iter =
   object
     inherit Ast_traverse.iter as super
@@ -64,6 +79,7 @@ let signal_read_iter =
       match expr.pexp_desc with
       | Pexp_ident { txt; _ } when longident_is_signal_get txt ->
           raise Signal_read_found
+      | Pexp_apply (callee, _) when is_reactive_call callee -> raise Signal_read_found
       | Pexp_function _ -> ()
       | _ -> super#expression expr
   end
@@ -72,6 +88,70 @@ let reads_signal expr =
   match signal_read_iter#expression expr with
   | () -> false
   | exception Signal_read_found -> true
+
+(* The body of a function, past the parameters of its own [fun] only: a
+   helper that returns a callback ([let h () = fun _ -> Signal.get s]) does
+   not read when [h ()] is evaluated, only when the callback runs. *)
+let rec function_body expr =
+  match expr.pexp_desc with
+  | Pexp_function (_, _, Pfunction_body body) -> Some body
+  | Pexp_function (_, _, Pfunction_cases _) -> Some expr
+  | Pexp_constraint (e, _) | Pexp_coerce (e, _, _) | Pexp_newtype (_, e) -> function_body e
+  | _ -> None
+
+let is_signal_get_alias expr =
+  match expr.pexp_desc with
+  | Pexp_ident { txt; _ } -> longident_is_signal_get txt
+  | _ -> false
+
+(* Every [let name = ...] in the file, at any depth. *)
+let collect_bindings structure =
+  let acc = ref [] in
+  let iter =
+    object
+      inherit Ast_traverse.iter as super
+
+      method! value_binding vb =
+        (match vb.pvb_pat.ppat_desc with
+         | Ppat_var { txt; _ } -> acc := (txt, vb.pvb_expr) :: !acc
+         | _ -> ());
+        super#value_binding vb
+    end
+  in
+  iter#structure structure;
+  !acc
+
+(* Fill [reactive_names] for [structure]: aliases first, then helpers, to a
+   fixpoint so a helper calling a helper counts too. For a [function] with
+   cases, any case reading a signal makes it reactive. *)
+let collect_reactive_names structure =
+  Hashtbl.reset reactive_names;
+  let bindings = collect_bindings structure in
+  List.iter
+    (fun (name, expr) -> if is_signal_get_alias expr then Hashtbl.replace reactive_names name ())
+    bindings;
+  let rec fixpoint () =
+    let changed = ref false in
+    List.iter
+      (fun (name, expr) ->
+        if not (Hashtbl.mem reactive_names name) then
+          match function_body expr with
+          | Some body ->
+              let reads =
+                match body.pexp_desc with
+                | Pexp_function (_, _, Pfunction_cases cases) ->
+                    List.exists (fun c -> reads_signal c.pc_rhs) cases
+                | _ -> reads_signal body
+              in
+              if reads then begin
+                Hashtbl.replace reactive_names name ();
+                changed := true
+              end
+          | None -> ())
+      bindings;
+    if !changed then fixpoint ()
+  in
+  fixpoint ()
 
 let wrap_call ~loc name arg =
   Builder.pexp_apply ~loc (Builder.evar ~loc name) [ (Nolabel, arg) ]
@@ -426,5 +506,8 @@ let mapper =
       | _ -> expr
   end
 
-let () =
-  Driver.register_transformation "reativa_mlx_ppx" ~impl:mapper#structure
+let rewrite structure =
+  collect_reactive_names structure;
+  mapper#structure structure
+
+let () = Driver.register_transformation "reativa_mlx_ppx" ~impl:rewrite
