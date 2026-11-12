@@ -77,6 +77,8 @@ wrapMethod(window.Node.prototype, "insertBefore");
 wrapMethod(window.Node.prototype, "appendChild");
 wrapMethod(window.Node.prototype, "removeChild");
 wrapMethod(window.Node.prototype, "cloneNode");
+wrapMethod(window.Element.prototype, "remove");
+wrapMethod(window.CharacterData.prototype, "remove");
 wrapMethod(window.Element.prototype, "setAttribute");
 wrapMethod(window.Element.prototype, "removeAttribute");
 wrapMethod(window.Document.prototype, "createElement");

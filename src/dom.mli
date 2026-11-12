@@ -50,6 +50,16 @@ val remove_child : t -> t -> unit
 val next_sibling : t -> t option
 val is_same_node : t -> t -> bool
 
+(* A detached DocumentFragment: nodes appended to it are moved into place, all
+   at once, when it is inserted. *)
+val create_fragment : unit -> t
+
+val parent_node : t -> t option
+val first_child : t -> t option
+
+(* Detach [node] from its parent, if it has one. *)
+val remove : t -> unit
+
 (* ----- attributes & content ----- *)
 
 val set_attribute : t -> string -> string -> unit
