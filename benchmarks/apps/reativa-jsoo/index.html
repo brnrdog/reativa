@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Benchmark — Reativa (js_of_ocaml)</title>
+    <link rel="stylesheet" href="./assets/bench.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- bench_app.bc.js from benchmarks/apps/reativa/jsoo, minified by build.mjs. -->
+    <script src="./assets/bench_app.js"></script>
+    <script>
+      /* Startup marker read by the benchmark driver. */
+      window.__BENCH_READY_AT__ = performance.now();
+      window.__BENCH_READY__ = true;
+    </script>
+  </body>
+</html>

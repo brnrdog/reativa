@@ -1,0 +1,9 @@
+; The Reativa benchmark app, compiled with Melange. benchmarks/build.mjs
+; bundles the emitted modules with Vite; jsoo/ builds the same sources with
+; js_of_ocaml.
+(melange.emit
+ (target output)
+ (alias bench)
+ (modules bench_data bench_app)
+ (libraries reativa)
+ (module_systems es6))
