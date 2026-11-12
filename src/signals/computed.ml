@@ -4,6 +4,20 @@
    refreshes the value when a dependency has changed (see
    {!Scheduler.ensure_computed_fresh}). *)
 
+(* First computation, tracked so the computed links to what it reads. The
+   previous tracking target is restored even if [compute] raises, so reads
+   made after a failed [make] still count for the enclosing effect. *)
+let initial_run node compute =
+  let prev = !Scheduler.current_target in
+  Scheduler.current_target := Some node;
+  match compute () with
+  | value ->
+    Scheduler.current_target := prev;
+    value
+  | exception e ->
+    Scheduler.current_target := prev;
+    raise e
+
 let make_without_equals ?name compute =
   let id = Id.make () in
   let signal_ref : 'a Signal.t ref = ref (Obj.magic ()) in
@@ -16,10 +30,7 @@ let make_without_equals ?name compute =
   let node = Core.make_computed_node ~id ~name ~defer_effects_until_recompute:false in
   node.compute <- Some recompute;
   (* Initial computation under tracking to establish dependencies. *)
-  let prev = !Scheduler.current_target in
-  Scheduler.current_target := Some node;
-  let initial_value = compute () in
-  Scheduler.current_target := prev;
+  let initial_value = initial_run node compute in
   let signal : 'a Signal.t =
     { value = initial_value; equals = Signal.never_equals; name; node }
   in
@@ -43,10 +54,7 @@ let make_with_equals ?name compute equals =
   in
   let node = Core.make_computed_node ~id ~name ~defer_effects_until_recompute:true in
   node.compute <- Some recompute;
-  let prev = !Scheduler.current_target in
-  Scheduler.current_target := Some node;
-  let initial_value = compute () in
-  Scheduler.current_target := prev;
+  let initial_value = initial_run node compute in
   let signal : 'a Signal.t = { value = initial_value; equals; name; node } in
   signal_ref := signal;
   node.last_global_version <- !Core.global_version;
