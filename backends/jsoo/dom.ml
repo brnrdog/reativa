@@ -38,6 +38,12 @@ let document () : Js.Unsafe.any = Js.Unsafe.get Js.Unsafe.global "document"
 let create_element (tag : string) : t =
   Js.Unsafe.meth_call (document ()) "createElement" [| Js.Unsafe.inject (Js.string tag) |]
 
+(* [create_element_ns namespace tag], for SVG and MathML elements. *)
+let create_element_ns (ns : string) (tag : string) : t =
+  Js.Unsafe.meth_call (document ())
+    "createElementNS"
+    [| Js.Unsafe.inject (Js.string ns); Js.Unsafe.inject (Js.string tag) |]
+
 let create_text_node (s : string) : t =
   Js.Unsafe.meth_call (document ()) "createTextNode" [| Js.Unsafe.inject (Js.string s) |]
 

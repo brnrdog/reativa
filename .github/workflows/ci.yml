@@ -67,6 +67,9 @@ jobs:
       - name: Install npm dependencies (jsdom)
         run: npm ci
 
+      - name: Generated View.Mlx props are up to date
+        run: node scripts/generate-mlx-props.mjs --check
+
       - name: DOM tests on Melange (jsdom)
         run: |
           opam exec -- dune build @test/dom/dom-tests

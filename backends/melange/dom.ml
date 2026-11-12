@@ -15,6 +15,10 @@ type event
 external create_element : string -> t = "createElement"
   [@@mel.scope "document"]
 
+(* [create_element_ns namespace tag], for SVG and MathML elements. *)
+external create_element_ns : string -> string -> t = "createElementNS"
+  [@@mel.scope "document"]
+
 external create_text_node : string -> t = "createTextNode"
   [@@mel.scope "document"]
 
