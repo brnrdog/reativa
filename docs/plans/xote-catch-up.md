@@ -1,6 +1,6 @@
 # Plan: catch reativa up with xote 7.x
 
-Status: proposal · Baseline: reativa 1.2.0, xote 7.2.0
+Status: accepted (decisions settled 2026-11-12) · Baseline: reativa 1.2.0, xote 7.2.0
 
 reativa started from xote's model around the 7.0 line: signals derived from
 rescript-signals, a DOM-building `View`, Show/Maybe/ForEach, keyed lists and
@@ -72,21 +72,29 @@ tree relies on them.
   does not.
 
 **A1 notes.** Wrap component calls so their bodies run under a fresh owner
-and inside `Signal.untrack`. In mlx, this means the ppx's lowering for
-uppercase component modules (`createElement`) goes through a
-`View.component` thunk instead of calling the function eagerly. This is the
-analogue of xote's `LazyComponent`.
+and inside `Signal.untrack`. In mlx, the ppx's lowering for *every*
+uppercase component module (`createElement`) goes through a
+`View.component` thunk instead of calling the function eagerly. There is no
+opt-in: all components become lazy (decision 2). This is the analogue of
+xote's `LazyComponent`. Because this changes when every component body runs,
+it is a breaking change and ships as 2.0.0 (see Sequencing). The built-in
+`Show`, `Maybe`, `ForEach`, `Route`, `Link` and `Redirect` components go
+through the same path, so they need tests that pin their behaviour before the
+switch.
 
 **A3 notes.** Port the 7.2 *fixed* semantics, not the first version: lookups
 walk the owner chain, and an effect or boundary only sees providers above it
 in its own subtree (`cf2cec7`).
 
-**A6 notes.** There is no shared promise type across backends. Define
-`Resource` over a minimal backend-provided `Async` interface (Melange:
-`Js.Promise`; jsoo: `Promise` via `Js_of_ocaml`), or over a callback-style
-fetcher `(('a, exn) result -> unit) -> unit` that both backends can satisfy.
-Decide this before starting. Dependencies are tracked before the first await,
-the same as xote.
+**A6 notes.** `Resource` uses each backend's own promise module (decision 1).
+Add a `Promise` virtual module next to `Dom` and `History`: `src/promise.mli`
+declares an abstract `'a t` with `then_`, `catch` and `resolve`, and each
+backend implements it (Melange: `Js.Promise`; jsoo: `Promise` through
+`Js_of_ocaml`). `Resource.make : (unit -> 'a Promise.t) -> 'a t` then reads
+the same on both backends, and user code passes the promises its backend
+already returns, with no adapter. Dependencies are tracked before the first
+await, the same as xote. A fetch that resolves after its resource has been
+refetched or disposed is ignored, and the tests check this.
 
 **A7 notes.** Keep the instrumentation behind a flag that dead-code
 elimination can remove, and that adds nothing to a production Melange bundle
@@ -124,14 +132,28 @@ Every item is measured against the benchmark from T1 before it lands.
 | P3 | Update reactive text in place: a `child` thunk or tracked region that returns a scalar updates its text node's `data` and no longer rebuilds the region | 7.2 `19ceee2` | Medium. No allocation on each text update | — |
 | P4 | State owned per region, lazy owner allocation, flat disposer arrays, stack-based disposal | 7.1 `89a120b`, `046e51f`; 7.2 `9622940` | High for memory and clear times (xote heap at 10k rows: 40 → 15 MB) | A1 |
 | P5 | Keyed reconciler rewrite: `Hashtbl` reused across passes, per-pass stamps instead of a `seen_keys` table, no move for in-order updates (append, remove, create from empty), new rows batched into a `DocumentFragment`, arrays instead of lists on the hot path | 7.2 `9622940` | High on create, append and clear | P1 |
-| P6 | Clone repeated shapes: record a static skeleton of a row's first tree, then `cloneNode` it and walk the shape to attach effects and handlers | 7.2 `9622940` | High. About 10× fewer DOM calls per row | P4, P5 |
 | P7 | Lower mlx props straight to an attribute and event list at compile time, so `Mlx.create` stops probing every optional argument | 7.2 `d956450` | Low to medium. Cheaper per element, and attributes render in source order | A8 (prop table) |
+| P6 | Compile-time templates: the mlx ppx emits each element tree's static skeleton once, and the runtime `cloneNode`s it and fills the dynamic holes | 7.2 `9622940` (same goal, compile-time approach) | High. About 10× fewer DOM calls per row, with no recording at runtime | P4, P5, P7 |
 
-P6 has an OCaml-specific option worth prototyping: the mlx ppx can see the
-static skeleton of an element tree at compile time, so it could emit the
-template directly (Solid-style). That avoids recording skeletons at runtime.
-Start with xote's runtime approach, because it also covers trees that aren't
-written in mlx. Revisit the ppx version once the benchmark exists.
+P6 uses ppx-generated templates, not xote's runtime shape recording
+(decision 3). The ppx already sees the whole static structure of an mlx tree.
+For each tree with at least one element in it, it emits:
+- a skeleton, built once per program, either as an HTML string parsed through
+  a `<template>` element or as a builder function. Measure both under the
+  benchmark and on both backends.
+- a list of holes, each a child-index path from the root to an element that
+  needs a reactive attribute, an event handler, a ref or a dynamic child.
+- a `View.Template { skeleton; holes }` node that `insert` renders with one
+  `clone_node` and one walk over the holes.
+
+P6 comes after P7 because both change the same ppx lowering, and P7's
+compile-time prop table decides which attributes are static (and so belong
+in the skeleton). Two consequences to plan for:
+- Trees built by hand with `View.element` or `View.div` get no cloning. That
+  is acceptable: mlx is the documented way to write views. Note it in the
+  docs.
+- `Dom` gains `clone_node`, `first_child` and `child_at`, implemented by both
+  backends.
 
 Check that every perf change works on both backends. js_of_ocaml lists,
 closures and `Hashtbl` cost differently than in Melange, so the benchmark
@@ -144,12 +166,12 @@ should run both.
 | # | Item | xote counterpart | Why |
 |---|------|------------------|-----|
 | T1 | Keyed-list benchmark: the same app in reativa (Melange and jsoo), xote and SolidJS. Measures latency, startup, memory, payload and DOM-op counts. A `benchmark`-labelled CI workflow posts a main-vs-PR comment, with runs interleaved in one browser | `benchmarks/`, `benchmark.yml`, `scripts/benchmark-report.mjs` | Track B needs it before anything lands |
-| T2 | DOM test harness. reativa has no view tests today, only signals, router and ppx. Add a fake `Dom` backend (the virtual-module split already allows this) so view, owner, keyed-list and lifecycle tests run natively under `dune test`. Add a small jsdom smoke suite that runs the same scenarios on the Melange and jsoo outputs | `tests/*_test.res` + jsdom `setup.mjs` | Track A can't be done safely without it. Port xote's Ownership, Lifecycle, Context, ErrorBoundary, Portal, Resource and KeyedList tests as specifications |
+| T2 | DOM test harness on jsdom (decision 4: no fake DOM). reativa has no view tests today, only signals, router and ppx. Write the view tests once in OCaml under `test/dom/`, compile them for both backends (a `melange.emit` target, and a jsoo executable behind `REATIVA_JSOO`), and run each output with Node after a jsdom `setup.mjs` installs `window` and `document`. A small assertion module prints TAP-style results and exits non-zero on failure, so the tests need no JS test framework. `dune test` keeps the native signals, router and ppx suites. `npm run test:dom` runs both DOM suites, and CI runs it in the Melange and jsoo jobs | `tests/*_test.res` + jsdom `tests/setup.mjs` | Track A can't be done safely without it. Port xote's Ownership, Lifecycle, Context, ErrorBoundary, Portal, Resource and KeyedList tests as specifications. Running the same tests on both backends also catches representation differences (see `Dom.classify`) |
 | T3 | Public API guardrails: an exported-surface snapshot per module, and a consumer test that builds an out-of-tree project against the installed opam package | `test:exports`, `scripts/consumer-boundary-test.mjs` | Keeps the `.mli` boundary from A8 honest |
 | T4 | `AGENTS.md` as the single source of truth (architecture, reactivity model, patterns, pitfalls), a one-line `CLAUDE.md` pointer, and both shipped in the opam package | xote `AGENTS.md`, 7.1 `450e210` | Agents and contributors work from the same reference |
 | T5 | Docs site: one page registry that drives routes, sidebar and search; a human and an agent layer per page; Markdown copies and `/llms.txt`; "New in 1.x" badges | 7.2 `1524427` | Same docs model as xote. Agent pages follow xote's fixed outline |
 | T6 | `reativa-lens`: a CLI and MCP server over the devtools runtime (render headlessly, `--act`, `--why`) | `lens/` | Comes after A7. Can run on the jsoo or Melange output under jsdom |
-| T7 | Release channels: an `rc` prerelease branch in `.releaserc.json`, so phases ship as `1.3.0-rc.N` the way 7.2 went through betas | xote `314ad34` | Lets large features ship early without blocking the main branch |
+| T7 | Release channels: an `rc` prerelease branch in `.releaserc.json`, so phases ship as `2.0.0-rc.N` the way 7.2 went through betas | xote `314ad34` | Lets large features ship early without blocking the main branch |
 | T8 | Repo hygiene: `.gitattributes` (linguist rules for `_build`, benchmarks and the website; LF for `*.sh`), Dependabot for npm and GitHub Actions | xote `.gitattributes`, dependabot PRs | Small and independent |
 
 ---
@@ -157,33 +179,36 @@ should run both.
 ## Sequencing
 
 ```
-Phase 0 (tooling first)   T2 DOM harness · T1 benchmark · T8 hygiene · T4 AGENTS.md
-Phase 1 (foundation)      A0 signal fixes → A1 owner tree (built as P4) → A8 .mli files + T3 guardrails
+Phase 0 (tooling first)   T2 jsdom harness · T1 benchmark · T8 hygiene · T4 AGENTS.md
+Phase 1 (foundation)      A0 signal fixes → A1 owner tree + lazy components (built as P4) → A8 .mli files + T3 guardrails
 Phase 2 (quick perf)      P1 LIS · P2 skip-equal writes · P3 text in place        (parallel with phase 3)
-Phase 3 (7.2 features)    A2 lifecycle/refs → A3 Context → A4 ErrorBoundary → A5 Portal → A6 Resource/Suspense
-Phase 4 (deep perf)       P5 reconciler rewrite → P6 shape cloning → P7 compile-time props
+Phase 3 (7.2 features)    A2 lifecycle/refs → A3 Context → A4 ErrorBoundary → A5 Portal → Promise module → A6 Resource/Suspense
+Phase 4 (deep perf)       P5 reconciler rewrite → P7 compile-time props → P6 ppx templates
 Phase 5 (observability)   A7 devtools runtime → T6 lens → T5 docs layers for everything above
 ```
 
-Suggested releases, through the `rc` channel (T7):
-- **1.3.0**: phases 0–2 and A2/A3. Lifecycle, refs and Context, plus the
-  correctness fixes and quick perf wins.
-- **1.4.0**: A4–A6 and phase 4. Boundaries, Resource/Suspense and the
-  rendering rewrite.
-- **1.5.0**: devtools and lens.
+Releases, through the `rc` channel (T7):
+- **2.0.0**: phases 0–2 and A2/A3. This is a major release because A1 makes
+  every component lazy (decision 2): bodies run when the view is mounted,
+  under their own scope and untracked, not when the view is built. The
+  `.mli` files from A8 also narrow what users can reach. The release notes
+  carry a migration section: code that relied on a component body running
+  at construction time, or on reaching an internal module, has to change.
+  The release also includes lifecycle, refs, Context, the signal fixes and
+  the quick perf wins.
+- **2.1.0**: A4–A6 and phase 4. Boundaries, Resource/Suspense and the
+  rendering rewrite, including ppx templates.
+- **2.2.0**: devtools and lens.
 
-A1 changes when component bodies run: lazily, under their own scope. Code
-that relied on a component body running at construction time will notice.
-Call this out in the 1.3.0 notes. If it turns out to be observable in
-practice, ship it as a `feat!` and make it 2.0.0.
+## Decisions
 
-## Decisions needed before starting
+Settled on 2026-11-12:
 
-1. **Resource's async type** (A6): backend promise module or callback-style
-   fetcher.
-2. **Component laziness in mlx** (A1): change the ppx lowering for all
-   uppercase components, or only for components that opt in.
-3. **Template cloning** (P6): runtime skeleton recording as in xote, or
-   ppx-emitted templates.
-4. **Fake-DOM fidelity** (T2): how much of `Dom` the native fake needs to
-   model (comments, siblings, `cloneNode`) before jsdom is the better tool.
+1. **Resource's async type** (A6): each backend's own promise module, behind
+   a `Promise` virtual module.
+2. **Component laziness** (A1): applies to all components, with no opt-in.
+   Breaking, so the release is 2.0.0.
+3. **Template cloning** (P6): the mlx ppx generates the templates. There is
+   no runtime shape recording, and trees built by hand are not cloned.
+4. **DOM tests** (T2): no fake DOM. View tests compile for both backends and
+   run under jsdom in Node.
