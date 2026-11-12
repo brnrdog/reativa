@@ -170,4 +170,9 @@ let _badge_toned = ((Badge.createElement () ~children:[] ~label:"Old" ~tone:"war
    like any other and can be passed around before it is mounted. *)
 let _components : View.t list = [ _greeting_view; _card_view; _badge_default ]
 
+(* A local helper that reads a signal is an eager read too, so this child is
+   a tracked region and updates when [draft] changes. *)
+let shout () = String.uppercase_ascii (Signal.get draft)
+let _shouted = ((p ~children:[ shout () ] ()) [@JSX])
+
 let () = print_endline "mlx inference ok"

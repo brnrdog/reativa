@@ -8,7 +8,7 @@ let print structure = Ppxlib.Pprintast.string_of_structure structure
 let failures = ref 0
 
 let check name input expected =
-  let actual = print (Reativa_mlx_ppx.mapper#structure (parse input)) in
+  let actual = print (Reativa_mlx_ppx.rewrite (parse input)) in
   let expected = print (parse expected) in
   if String.equal actual expected then
     Printf.printf "ok - %s\n" name
@@ -26,7 +26,7 @@ let contains haystack needle =
 (* For generated code whose exact printing depends on the ppxlib version (how
    nested [fun]s are merged): check the parts that matter. *)
 let check_generated name input ~has ~lacks =
-  let actual = print (Reativa_mlx_ppx.mapper#structure (parse input)) in
+  let actual = print (Reativa_mlx_ppx.rewrite (parse input)) in
   let squash s = String.concat "" (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s))) in
   let actual_s = squash actual in
   let missing = List.filter (fun s -> not (contains actual_s (squash s))) has in
@@ -90,6 +90,32 @@ let () =
          ((img ~src:(static url) ~alt:(dynamic (fun () -> Signal.get label))
              ~onLoad:loaded ~attrs:extra ())
           [@JSX]) |};
+
+  check "a local helper that reads a signal is an eager read"
+    {| let label () = "Hi " ^ Signal.get name
+       let v = ((p ~children:[label ()] ()) [@JSX]) |}
+    {| let label () = "Hi " ^ Signal.get name
+       let v = ((p ~children:[View.child (fun () -> label ())] ()) [@JSX]) |};
+
+  check "helpers calling helpers count too"
+    {| let first () = Signal.get name
+       let greeting () = "Hi " ^ first ()
+       let v = ((p ~className:(greeting ()) ()) [@JSX]) |}
+    {| let first () = Signal.get name
+       let greeting () = "Hi " ^ first ()
+       let v = ((p ~className:(dynamic (fun () -> greeting ())) ()) [@JSX]) |};
+
+  check "an alias of Signal.get is an eager read"
+    {| let get = Signal.get
+       let v = ((p ~className:(get cls) ()) [@JSX]) |}
+    {| let get = Signal.get
+       let v = ((p ~className:(dynamic (fun () -> get cls)) ()) [@JSX]) |};
+
+  check "a helper that only reads inside a callback is not reactive"
+    {| let handler () = fun _ -> Signal.get name
+       let v = ((p ~className:(handler ()) ()) [@JSX]) |}
+    {| let handler () = fun _ -> Signal.get name
+       let v = ((p ~className:(static (handler ())) ()) [@JSX]) |};
 
   check "plain attribute values stay static"
     {| let v = ((div ~className:"box" ()) [@JSX]) |}
