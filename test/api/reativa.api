@@ -51,6 +51,10 @@ val insert_before : t -> t -> t -> unit
 val remove_child : t -> t -> unit
 val next_sibling : t -> t option
 val is_same_node : t -> t -> bool
+val create_fragment : unit -> t
+val parent_node : t -> t option
+val first_child : t -> t option
+val remove : t -> unit
 val set_attribute : t -> string -> string -> unit
 val remove_attribute : t -> string -> unit
 val set_text_content : t -> string -> unit
