@@ -254,6 +254,12 @@ let () =
     ~has:[ "<ul><!----><!----></ul>"; "Reativa.View.Template.child [0; 0]"; "Reativa.View.Template.child [0; 1] (View.child (fun () -> Signal.get n))" ]
     ~lacks:[];
 
+  check_generated "opens of View.Mlx never warn, since templates may leave them unused"
+    {| open Reativa.View.Mlx
+       let v = ((p ~children:["x"] ()) [@JSX]) |}
+    ~has:[ {|open Reativa.View.Mlx[@@ocaml.warning "-33"]|} ]
+    ~lacks:[];
+
   check_generated "children inside svg are marked"
     {| let v = ((svg ~children:[shape] ()) [@JSX]) |}
     ~has:[ "Reativa.View.Template.child ~svg:true [0; 0] (View.child shape)" ]
