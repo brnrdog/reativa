@@ -53,7 +53,7 @@ let register () =
     let c = mount (View.show (fun () -> Signal.get visible) comp) in
     equal_string "rendered" ~expected:"2<!---->" (html c);
     Signal.set visible false;
-    check "source released" (src.node.first_sub = None));
+    check "source released" (Signal.subscriber_count src = 0));
 
   suite "Ownership: keyed rows";
   test "a removed row disposes its effects" (fun () ->

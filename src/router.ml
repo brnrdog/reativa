@@ -18,8 +18,6 @@ type location = {
   state : state option;
 }
 
-let window () = History.window ()
-
 let state value = History.encode_state value
 let state_value encoded = History.decode_state encoded
 

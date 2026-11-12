@@ -29,6 +29,7 @@ type t = {
 }
 
 let current : t option ref = ref None
+let active () = !current
 
 let make ?(parent = !current) () =
   { parent; cleanups = []; contexts = []; error_handler = None; disposed = false }

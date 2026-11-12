@@ -88,7 +88,7 @@ let test_batch_untrack () =
     Signal.set b 2;
     Signal.set c 3);
   check_eq "batch coalesces to one re-run" !runs (after_initial + 1);
-  check "batched writes applied" (a.value = 1 && b.value = 2 && c.value = 3);
+  check "batched writes applied" (Signal.peek a = 1 && Signal.peek b = 2 && Signal.peek c = 3);
   d.dispose ();
   let r = Signal.batch (fun () -> 1 + 2 + 3) in
   check_eq "batch returns result" r 6;
@@ -219,9 +219,9 @@ let test_disposal () =
   let computes = ref 0 in
   let c = Computed.make (fun () -> incr computes; Signal.get src * 2) in
   let e = Effect.run_with_disposer (fun () -> ignore (Signal.get c); None) in
-  check "source has a subscriber while observed" (src.node.first_sub <> None);
+  check "source has a subscriber while observed" (Signal.subscriber_count src = 1);
   e.dispose ();
-  check "source is released once the computed is unobserved" (src.node.first_sub = None);
+  check "source is released once the computed is unobserved" (Signal.subscriber_count src = 0);
   Signal.set src 5;
   check_eq "a detached computed recomputes on read" (Signal.peek c) 10;
   let e2 = Effect.run_with_disposer (fun () -> ignore (Signal.get c); None) in
