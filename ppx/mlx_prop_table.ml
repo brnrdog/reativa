@@ -192,6 +192,7 @@ let events =
     ("onTimeUpdate", "timeupdate");
   ]
 
+(* Tags the ppx compiles to templates. *)
 let elements =
   [
     "a";
@@ -286,4 +287,28 @@ let elements =
     "symbol";
     "use";
     "stop";
+    "b";
+    "i";
+    "s";
+    "q";
+    "u";
+    "bdi";
+    "bdo";
+    "data";
+    "rp";
+    "rt";
+    "ruby";
+    "var";
+    "text";
+    "tspan";
+    "title";
+    "desc";
+    "clipPath";
+    "linearGradient";
+    "radialGradient";
+    "mask";
+    "pattern";
+    "marker";
+    "image";
+    "foreignObject";
   ]
