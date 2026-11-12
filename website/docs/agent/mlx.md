@@ -52,7 +52,7 @@ let app =
 
 ## Verify
 
-Compile with `-no-templates` to compare behaviour. reativa-lens shows which DOM nodes each interaction changes.
+Compile with `-no-templates` to compare behaviour. reativa-inspect shows which DOM nodes each interaction changes.
 
 ## Related
 

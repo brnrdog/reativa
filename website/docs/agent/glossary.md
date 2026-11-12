@@ -15,4 +15,4 @@ The terms every other page uses, with their exact meaning in reativa.
 - **Template**: an HTML skeleton parsed once and cloned per instance (`View.template`); what the ppx compiles mlx element trees to.
 - **Hole**: a dynamic part of a template (an attribute, event, text or child view), addressed by a child-index path.
 - **Backend**: Melange or js_of_ocaml; implements the `Dom`, `History` and `Promise` virtual modules.
-- **Devtools**: `Reativa.Devtools`, an opt-in record of what the graph does. **reativa-lens**: the CLI/MCP tool over it.
+- **Devtools**: `Reativa.Devtools`, an opt-in record of what the graph does. **reativa-inspect**: the CLI/MCP tool over it.

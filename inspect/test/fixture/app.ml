@@ -1,4 +1,4 @@
-(* A small app for the lens tests: a counter, a derived label, a toggle. *)
+(* A small app for the reativa-inspect tests: a counter, a derived label, a toggle. *)
 
 open Reativa
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// reativa-lens: drive a Reativa app headlessly and report what happened.
+// reativa-inspect: drive a Reativa app headlessly and report what happened.
 //
-//   reativa-lens run <bundle> [--act "<action>"]... [--why <selector>]... [--snapshot] [--json]
-//   reativa-lens mcp
+//   reativa-inspect run <bundle> [--act "<action>"]... [--why <selector>]... [--snapshot] [--json]
+//   reativa-inspect mcp
 //
 // <bundle> is the compiled app: a Melange ES module entry (output/.../app.js)
 // or a js_of_ocaml script (app.bc.js). The app must call
@@ -11,12 +11,12 @@
 //
 // Actions: click <selector> | type <selector> <text> | key <selector> <Key> | wait <ms>
 
-import { lens } from "../src/api.mjs";
+import { inspect } from "../src/api.mjs";
 import { serve } from "../src/mcp.mjs";
 
 const USAGE = `usage:
-  reativa-lens run <bundle> [--act "<action>"]... [--why <selector>]... [--snapshot] [--json] [--root <id>]
-  reativa-lens mcp
+  reativa-inspect run <bundle> [--act "<action>"]... [--why <selector>]... [--snapshot] [--json] [--root <id>]
+  reativa-inspect mcp
 
 actions: click <selector> | type <selector> <text> | key <selector> <Key> | wait <ms>`;
 
@@ -40,11 +40,11 @@ if (command === "mcp") {
     }
   }
   try {
-    const { report, text } = await lens(options);
+    const { report, text } = await inspect(options);
     console.log(json ? JSON.stringify(report, null, 2) : text);
     process.exit(report.errors.length ? 1 : 0);
   } catch (e) {
-    console.error(`reativa-lens: ${e.message}`);
+    console.error(`reativa-inspect: ${e.message}`);
     process.exit(1);
   }
 } else {

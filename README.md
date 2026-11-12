@@ -277,15 +277,15 @@ instance — with typed holes for the dynamic parts, and keyed lists move only
 the rows an update displaces. Creating a thousand rows costs about two
 thousand DOM calls, as in SolidJS; see [`benchmarks/`](benchmarks/).
 
-### Devtools and reativa-lens
+### Devtools and reativa-inspect
 
 `Reativa.Devtools` records writes, recomputes and effect runs and explains why
 a node changed (`Devtools.why`, `Devtools.writers_of`).
-[`reativa-lens`](lens/) drives a compiled app headlessly and reports what each
+[`reativa-inspect`](inspect/) drives a compiled app headlessly and reports what each
 interaction did — from a terminal, or as an MCP server for coding agents:
 
 ```
-$ reativa-lens run app.bc.js --act "click #inc" --why "#value"
+$ reativa-inspect run app.bc.js --act "click #inc" --why "#value"
 > click #inc
   1 write(s) (count=1), 1 recompute(s), 1 effect run(s), 0 created, 0 disposed
   DOM: p#value text
@@ -368,7 +368,7 @@ npm install
 |---|---|
 | `opam exec -- dune test` | native test suite (signals, router, ppx) |
 | `npm run test:dom` | DOM behaviour tests under jsdom, on both backends |
-| `npm run lens:test` | reativa-lens against a fixture app |
+| `npm run inspect:test` | reativa-inspect against a fixture app |
 | `scripts/check-api.sh` | check the public API against its snapshot |
 | `npm run demo` + `npm run demo:serve` | build and serve the Melange todo demo |
 | `npm run demo:watch` | rebuild the demo on change (pair with `demo:serve`) |

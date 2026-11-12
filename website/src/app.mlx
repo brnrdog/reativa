@@ -1309,8 +1309,8 @@ let () =
                "Resource.make turns a promise from your backend into a Loading / Ready / Failed signal that refetches when its dependencies change. View.suspense shows a fallback while it loads.")
             (feature "Compiled templates"
                "The mlx ppx compiles element trees to HTML templates cloned per instance, and keyed lists move only the rows an update displaces: creating a thousand rows is two thousand DOM calls.")
-            (feature "Devtools and reativa-lens"
-               "Reativa.Devtools records every write, recompute and effect run and explains why a node changed. reativa-lens drives your app headlessly from the command line, or as an MCP server for coding agents.")
+            (feature "Devtools and reativa-inspect"
+               "Reativa.Devtools records every write, recompute and effect run and explains why a node changed. reativa-inspect drives your app headlessly from the command line, or as an MCP server for coding agents.")
           </div>
           <p className="api-note">
             ("Upgrading from 1.x? Components are now lazy and the API is declared by interface files - ")
@@ -1514,7 +1514,7 @@ let () =
           (api_group ~id:"api-devtools" ~name:"Devtools"
              ~blurb:"New in 2.0. What the reactive graph does and why; costs nothing until installed."
              [
-               api_row "install / expose" "Start tracking; publish a JSON API for reativa-lens.";
+               api_row "install / expose" "Start tracking; publish a JSON API for reativa-inspect.";
                api_row "record : (unit -> unit) -> Devtools.trace"
                  "The writes, recomputes and runs one interaction caused.";
                api_row "why : int -> Devtools.cause option" "Follow a run back to the signal write that caused it.";

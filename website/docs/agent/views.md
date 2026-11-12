@@ -57,7 +57,7 @@ let counter =
 
 ## Verify
 
-Count DOM work with Devtools or reativa-lens: an update should touch only the nodes that display the changed state.
+Count DOM work with Devtools or reativa-inspect: an update should touch only the nodes that display the changed state.
 
 ## Related
 
