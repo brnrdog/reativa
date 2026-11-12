@@ -241,13 +241,15 @@ let () =
 
   check_generated "an unknown prop keeps the element on the View.Mlx path"
     {| let v = ((div ~notAProp:1 ()) [@JSX]) |}
-    ~has:[ "div ~notAProp:1" ]
+    ~has:[ "div ~notAProp:(static 1)" ]
     ~lacks:[ "Reativa.View.template" ];
 
-  check_generated "markup the parser would rewrite stays on the View.Mlx path"
+  check_generated "markup the parser would rewrite is kept out of the skeleton"
     {| let v = ((p ~children:[((div ()) [@JSX])] ()) [@JSX]) |}
-    ~has:[ "p ~children:" ]
-    ~lacks:[ "Template.make \"<p><div>" ];
+    ~has:
+      [ {|Reativa.View.Template.make "<p><!----></p>"|};
+        "Reativa.View.Template.child [0; 0] (Reativa.View.template" ]
+    ~lacks:[ "<p><div>" ];
 
   check_generated "a component or computed child is a child hole"
     {| let v = ((ul ~children:[((Item.createElement ~children:[] ()) [@JSX]); Signal.get n] ()) [@JSX]) |}
