@@ -63,6 +63,18 @@ val first_child : t -> t option
 (* Detach [node] from its parent, if it has one. *)
 val remove : t -> unit
 
+(* ----- templates ----- *)
+
+(* A deep copy of [node]. *)
+val clone_node : t -> t
+
+(* [child_at node i]: the [i]-th child node (counting text and comments). *)
+val child_at : t -> int -> t
+
+(* Parse an HTML string into a DocumentFragment, through a <template> element
+   (inert: no script runs, no resource loads). *)
+val template_content : string -> t
+
 (* ----- attributes & content ----- *)
 
 val set_attribute : t -> string -> string -> unit

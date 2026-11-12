@@ -7,4 +7,5 @@ let () =
   Test_attributes.register ();
   Test_keyed.register ();
   Test_features.register ();
+  Test_templates.register ();
   Harness.run ()

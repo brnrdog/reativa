@@ -72,6 +72,40 @@ val tracked : (unit -> t) -> t
     thunk of one of those (which becomes a tracked region). *)
 val child : 'a -> t
 
+(** {2 Templates}
+
+    What the mlx ppx compiles element trees to: the static parts of a tree as
+    an HTML string, parsed once and cloned for every instance, plus the
+    "holes" where values go. Writing them by hand is possible but rarely
+    worth it; mlx does it for you. *)
+
+type view = t
+
+module Template : sig
+  type t
+  type hole
+
+  (** The skeleton, as HTML. Children are counted as the HTML parser builds
+      them: write a text hole as a single space and a child hole as an empty
+      comment ([<!---->]), and keep static text from touching a text hole. *)
+  val make : string -> t
+
+  (** A hole is addressed by child indices from the skeleton's root. *)
+  val attr : int list -> attr -> hole
+
+  val event : int list -> string -> (Dom.event -> unit) -> hole
+
+  (** The node at the path is a text node; it shows the value. *)
+  val text : int list -> string value -> hole
+
+  (** The node at the path is a comment; the view replaces it. [svg] when the
+      comment sits inside an <svg>. *)
+  val child : ?svg:bool -> int list -> view -> hole
+end
+
+(** An instance of a template with its holes filled. *)
+val template : Template.t -> Template.hole list -> t
+
 (** {2 Boundaries, portals and suspense} *)
 
 (** [error_boundary ~fallback child] renders [child]; an exception raised

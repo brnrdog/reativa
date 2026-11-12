@@ -44,6 +44,14 @@ type 'a value =
   | Static of 'a
   | Reactive of (unit -> 'a)
 
+(* A static skeleton, parsed on first use and cloned for every instance; one
+   copy parsed in an HTML context and, when needed, one in an SVG context. *)
+type template = {
+  html : string;
+  mutable html_skeleton : Dom.t option;
+  mutable svg_skeleton : Dom.t option;
+}
+
 type t =
   | Empty
   | Text of string
@@ -74,6 +82,8 @@ type t =
       child : t;
       fallback : t;
     }
+  (* A clone of [template]'s skeleton with its holes filled; see {!Template}. *)
+  | Template of template * hole list
   | Keyed :
       {
         items : unit -> 'item list;
@@ -88,6 +98,16 @@ type t =
         render : 'item -> t;
       }
       -> t
+
+(* A place in a template's skeleton, by child indices from the skeleton's
+   root, and what to put there. *)
+and hole =
+  | Hole_attr of int list * attr
+  | Hole_event of int list * handler
+  (* The node at the path is a text node; its data is set. *)
+  | Hole_text of int list * string value
+  (* The node at the path is a placeholder comment; the view replaces it. *)
+  | Hole_child of int list * bool * t
 
 (* Ownership. Every Effect created while building a subtree registers with
    the current {!Owner}: a [Dynamic] region's effect owns its current pass and
@@ -242,6 +262,36 @@ let on_mount f =
 
 let on_cleanup f = Owner.on_cleanup f
 
+(* ----- templates ----- *)
+
+let template_skeleton tpl svg =
+  if not svg then
+    match tpl.html_skeleton with
+    | Some skeleton -> skeleton
+    | None ->
+      let skeleton = Dom.template_content tpl.html in
+      tpl.html_skeleton <- Some skeleton;
+      skeleton
+  else
+    match tpl.svg_skeleton with
+    | Some skeleton -> skeleton
+    | None ->
+      (* Parsed inside an <svg> so its elements land in the SVG namespace,
+         then moved out of it into a fragment of their own. *)
+      let wrapper = Dom.template_content ("<svg>" ^ tpl.html ^ "</svg>") in
+      let svg_el = Dom.child_at wrapper 0 in
+      let skeleton = Dom.create_fragment () in
+      let rec move () =
+        match Dom.first_child svg_el with
+        | Some node ->
+          Dom.append_child skeleton node;
+          move ()
+        | None -> ()
+      in
+      move ();
+      tpl.svg_skeleton <- Some skeleton;
+      skeleton
+
 (* ----- keyed lists -----
 
    A keyed list keeps one row per key across passes. [table] maps keys to rows
@@ -289,6 +339,22 @@ let build_row into view_of key value signal =
   Owner.run_in owner (fun () ->
     Signal.untrack (fun () -> insert_ref.contents into None (view_of ()) nodes));
   { key; value; signal; nodes = List.rev !nodes; owner; stamp = 0; index = -1 }
+
+(* Whether the rows (in order) and then the anchor are all of [parent]'s
+   children. *)
+let owns_parent parent anchor rows =
+  Option.is_none (Dom.next_sibling anchor)
+  &&
+  let first =
+    let rec find i =
+      if i >= Array.length rows then Some anchor
+      else match rows.(i).nodes with first :: _ -> Some first | [] -> find (i + 1)
+    in
+    find 0
+  in
+  match (first, Dom.first_child parent) with
+  | Some a, Some b -> Dom.is_same_node a b
+  | _ -> false
 
 (* Indices into [positions] (values >= 0) forming a longest strictly
    increasing subsequence, as a membership array. O(n log n). *)
@@ -345,29 +411,51 @@ let reconcile ~make ~reuse anchor fallback_parent state items key =
   let placeholder : _ row = Obj.magic 0 in
   let next = Array.make n placeholder in
   let is_new = Array.make n false in
+  let old = state.rows in
+  let old_n = Array.length old in
   for i = 0 to n - 1 do
     let item = items.(i) in
     let k = key item in
-    match Hashtbl.find_opt state.table k with
-    | Some row when row.stamp = pass -> failwith ("View.for_with_key: duplicate key " ^ k)
-    | Some row when reuse row item ->
-      row.stamp <- pass;
-      next.(i) <- row
-    | Some row ->
+    (* A row that kept its index and key (appends, in-place updates) is found
+       without hashing its key. *)
+    let found =
+      if i < old_n && String.equal old.(i).key k then old.(i)
+      else match Hashtbl.find_opt state.table k with Some row -> row | None -> placeholder
+    in
+    if found == placeholder then is_new.(i) <- true
+    else if found.stamp = pass then failwith ("View.for_with_key: duplicate key " ^ k)
+    else if reuse found item then begin
+      found.stamp <- pass;
+      next.(i) <- found
+    end
+    else begin
       (* Rebuild: the old row goes once the new one is in place. *)
-      row.stamp <- pass;
-      replaced := row :: !replaced;
+      found.stamp <- pass;
+      replaced := found :: !replaced;
       is_new.(i) <- true
-    | None -> is_new.(i) <- true
+    end
   done;
-  (* Drop stale rows (and rows being rebuilt). *)
-  Array.iter
-    (fun row ->
-      if row.stamp <> pass then begin
-        Hashtbl.remove state.table row.key;
-        dispose_row row
-      end)
-    state.rows;
+  (* Drop stale rows (and rows being rebuilt). When every row goes and the
+     list owns all of its parent's children (its rows, then its anchor), one
+     [textContent] write empties the parent instead of a removal per node. *)
+  if n = 0 && Array.length state.rows > 0 && owns_parent parent anchor state.rows then begin
+    Dom.set_text_content parent "";
+    Array.iter
+      (fun row ->
+        row.nodes <- [];
+        Owner.dispose row.owner)
+      state.rows;
+    Hashtbl.reset state.table;
+    Dom.append_child parent anchor
+  end
+  else
+    Array.iter
+      (fun row ->
+        if row.stamp <> pass then begin
+          Hashtbl.remove state.table row.key;
+          dispose_row row
+        end)
+      state.rows;
   (* A rebuilt row's old entry must not count as a duplicate below. *)
   List.iter
     (fun row ->
@@ -484,6 +572,7 @@ let rec insert parent before view (acc : Dom.t list ref) =
     keyed_region parent before acc items key
       ~make:(fun into item k -> build_row into (fun () -> render item) k item None)
       ~reuse:(fun row item -> row.value == item)
+  | Template (tpl, holes) -> insert_template parent before acc tpl holes
   | Boundary { child; fallback } -> boundary_region parent before acc child fallback
   | Portal { target; child } -> portal_region parent before acc target child
   | Suspense { child; fallback } -> suspense_region parent before acc child fallback
@@ -551,6 +640,47 @@ and dynamic_region parent before acc f =
        region := !local;
        (match (view, !local) with Text _, [ node ] -> text_node := Some node | _ -> ()));
     None)
+
+(* A template instance: clone the skeleton, find every hole's node before
+   touching any (filling a child hole shifts the indices after it), fill the
+   holes, then move the whole clone into place with one call. *)
+and insert_template parent before acc tpl holes =
+  let svg = !in_svg in
+  let fragment = Dom.clone_node (template_skeleton tpl svg) in
+  let rec resolve node = function [] -> node | i :: rest -> resolve (Dom.child_at node i) rest in
+  let rec locate = function
+    | [] -> []
+    | hole :: rest ->
+      let path =
+        match hole with
+        | Hole_attr (p, _) | Hole_event (p, _) | Hole_text (p, _) | Hole_child (p, _, _) -> p
+      in
+      resolve fragment path :: locate rest
+  in
+  let rec fill holes nodes =
+    match (holes, nodes) with
+    | hole :: holes, node :: nodes ->
+      (match hole with
+       | Hole_attr (_, a) -> apply_attr node a
+       | Hole_event (_, (name, handler)) -> Dom.add_event_listener node name handler
+       | Hole_text (_, Static s) -> Dom.set_text_content node s
+       | Hole_text (_, Reactive f) -> leaf_string (Dom.set_text_content node) f
+       | Hole_child (_, hole_svg, view) ->
+         let p = parent_of node fragment in
+         with_svg (svg || hole_svg) (fun () -> insert p (Some node) view (ref []));
+         Dom.remove node);
+      fill holes nodes
+    | _ -> ()
+  in
+  fill holes (locate holes);
+  let rec collect = function
+    | None -> ()
+    | Some node ->
+      acc := node :: !acc;
+      collect (Dom.next_sibling node)
+  in
+  collect (Dom.first_child fragment);
+  place parent before fragment
 
 (* An error boundary. The child renders under an owner whose parent carries
    the error handler, so an exception raised while rendering the child, or
@@ -711,6 +841,24 @@ let fragment views = Fragment views
    are disposed with it, and untracked, so its signal reads never subscribe
    the region around it. The mlx ppx wraps every component tag in this. *)
 let component body = Component body
+
+(* ----- templates (public) ----- *)
+
+type view = t
+
+module Template = struct
+  type t = template
+  type nonrec hole = hole
+
+  let make html = { html; html_skeleton = None; svg_skeleton = None }
+  let attr path a = Hole_attr (path, a)
+  let event path name handler = Hole_event (path, (name, handler))
+  let text path v = Hole_text (path, v)
+  let child ?(svg = false) path (view : view) = Hole_child (path, svg, view)
+  let instance tpl holes = Template (tpl, holes)
+end
+
+let template = Template.instance
 
 (* ----- refs, boundaries, portals, suspense ----- *)
 
