@@ -45,7 +45,9 @@ val installed : unit -> bool
 (** Call [f] on every event from now on; returns the unsubscribe function. *)
 val subscribe : (event -> unit) -> unit -> unit
 
-(** Run [f] without recording its events. *)
+(** Run [f] without recording its events. Nodes created while muted (tooling
+    such as the devtools panel) are also left out of {!snapshot}, {!leaks}
+    and the element lookups. *)
 val mute : (unit -> 'a) -> 'a
 
 val history : unit -> event list

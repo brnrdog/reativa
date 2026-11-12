@@ -7,4 +7,4 @@
  (modes js)
  (enabled_if
   (= %{env:REATIVA_JSOO=} enabled))
- (libraries reativa reativa-jsoo reativa_probe_jsoo))
+ (libraries reativa reativa.devtools reativa-jsoo reativa_probe_jsoo))
