@@ -1,0 +1,42 @@
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Draft PRs are skipped; fork PRs get no secrets, so they are skipped too.
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request. Read AGENTS.md first: it holds the
+            architecture, the reactivity and ownership model, the renderer,
+            the mlx ppx, testing and the common pitfalls.
+
+            Report only real problems: correctness bugs, regressions, API
+            breaks that are not marked BREAKING CHANGE, missing tests for
+            changed behaviour, and violations of the rules in AGENTS.md.
+            Skip style nitpicks and anything CI already checks.
+
+            Post one review comment with the findings, most severe first,
+            each with file and line. If there is nothing to report, say so
+            in one line.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
