@@ -136,10 +136,10 @@ let parent_of anchor fallback = match Dom.parent_node anchor with Some p -> p | 
    a run lands on the same value: selecting one row of a thousand runs every
    row's class effect, but only two of them write. *)
 
-let leaf_string write f =
+let leaf_string ?target write f =
   let last = ref None in
   ignore
-    (Effect_core.leaf (fun () ->
+    (Effect_core.leaf ?target (fun () ->
        let v = f () in
        (match !last with
         | Some prev when String.equal prev v -> ()
@@ -148,10 +148,10 @@ let leaf_string write f =
           write v);
        None))
 
-let leaf_bool write f =
+let leaf_bool ?target write f =
   let last = ref None in
   ignore
-    (Effect_core.leaf (fun () ->
+    (Effect_core.leaf ?target (fun () ->
        let v = f () in
        (match !last with
         | Some prev when prev = v -> ()
@@ -166,12 +166,13 @@ let toggle_attribute el name present =
 let apply_attr el = function
   | Attr_static ("value", v) -> Dom.set_value el v
   | Attr_static (name, v) -> Dom.set_attribute el name v
-  | Attr_reactive ("value", f) -> leaf_string (Dom.set_value el) f
-  | Attr_reactive (name, f) -> leaf_string (Dom.set_attribute el name) f
+  | Attr_reactive ("value", f) -> leaf_string ~target:(Obj.repr el, "value") (Dom.set_value el) f
+  | Attr_reactive (name, f) -> leaf_string ~target:(Obj.repr el, name) (Dom.set_attribute el name) f
   | Attr_bool_static ("checked", v) -> Dom.set_checked el v
   | Attr_bool_static (name, v) -> toggle_attribute el name v
-  | Attr_bool_reactive ("checked", f) -> leaf_bool (Dom.set_checked el) f
-  | Attr_bool_reactive (name, f) | Attr_toggle (name, f) -> leaf_bool (toggle_attribute el name) f
+  | Attr_bool_reactive ("checked", f) -> leaf_bool ~target:(Obj.repr el, "checked") (Dom.set_checked el) f
+  | Attr_bool_reactive (name, f) | Attr_toggle (name, f) ->
+    leaf_bool ~target:(Obj.repr el, name) (toggle_attribute el name) f
   | Attr_ref r ->
     r.current <- Some el;
     (match r.on_set with Some f -> f el | None -> ());
@@ -180,7 +181,7 @@ let apply_attr el = function
   | Attr_optional (name, f) ->
     let last = ref None and first = ref true in
     ignore
-      (Effect_core.leaf (fun () ->
+      (Effect_core.leaf ~target:(Obj.repr el, name) (fun () ->
          let v = f () in
          if !first || v <> !last then begin
            first := false;
@@ -545,7 +546,7 @@ let rec insert parent before view (acc : Dom.t list ref) =
     acc := node :: !acc
   | Reactive_text f ->
     let node = Dom.create_text_node "" in
-    leaf_string (Dom.set_text_content node) f;
+    leaf_string ~target:(Obj.repr node, "text") (Dom.set_text_content node) f;
     place parent before node;
     acc := node :: !acc
   | Element { tag; attrs; events; children } ->
@@ -666,7 +667,7 @@ and insert_template parent before acc tpl holes =
        | Hole_attrs (_, l) -> apply_attrs node l
        | Hole_event (_, (name, handler)) -> Dom.add_event_listener node name handler
        | Hole_text (_, Static s) -> Dom.set_text_content node s
-       | Hole_text (_, Reactive f) -> leaf_string (Dom.set_text_content node) f
+       | Hole_text (_, Reactive f) -> leaf_string ~target:(Obj.repr node, "text") (Dom.set_text_content node) f
        | Hole_child (_, hole_svg, view) ->
          let p = parent_of node fragment in
          with_svg (svg || hole_svg) (fun () -> insert p (Some node) view (ref []));

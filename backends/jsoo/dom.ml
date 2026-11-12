@@ -206,3 +206,7 @@ let meta_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "metaKey" : bool
 let ctrl_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "ctrlKey" : bool Js.t)
 let shift_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "shiftKey" : bool Js.t)
 let alt_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "altKey" : bool Js.t)
+
+let expose_object (name : string) (entries : (string * Obj.t) array) : unit =
+  let obj = Js.Unsafe.obj (Array.map (fun (k, v) -> (k, (Obj.magic v : Js.Unsafe.any))) entries) in
+  Js.Unsafe.set Js.Unsafe.global name obj

@@ -146,6 +146,7 @@ let run_computed_cycle node ~should_clear_pending =
   if should_clear_pending then clear_pending node;
   with_tracking node (fun () ->
     match node.compute with Some f -> f () | None -> ());
+  if !Trace.enabled then !Trace.hooks.recomputed node;
   clear_dirty node;
   node.last_global_version <- !global_version;
   if node.first_sub <> None && node.version <> previous_version then begin
@@ -177,6 +178,7 @@ let retrack_effect node =
   (* Disposed after it was queued: dequeue it without running. *)
   if not (is_disposed node) then begin
     let old_level = node.level in
+    if !Trace.enabled then !Trace.hooks.ran node;
     with_tracking node (fun () -> match node.run with Some f -> f () | None -> ());
     clear_dirty node;
     if old_level = 0 then node.level <- compute_level node

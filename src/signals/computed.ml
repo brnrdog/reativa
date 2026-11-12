@@ -37,6 +37,7 @@ let make_without_equals ?name compute =
   signal_ref := signal;
   node.last_global_version <- !Core.global_version;
   Core.clear_dirty node;
+  if !Trace.enabled then !Trace.hooks.created node;
   signal
 
 let make_with_equals ?name compute equals =
@@ -59,6 +60,7 @@ let make_with_equals ?name compute equals =
   signal_ref := signal;
   node.last_global_version <- !Core.global_version;
   Core.clear_dirty node;
+  if !Trace.enabled then !Trace.hooks.created node;
   signal
 
 let make ?name ?equals compute =
@@ -67,4 +69,6 @@ let make ?name ?equals compute =
   | None -> make_without_equals ?name compute
 
 (* Detach the computed from its dependencies; it will no longer update. *)
-let dispose (signal : 'a Signal_core.t) = Core.clear_deps signal.node
+let dispose (signal : 'a Signal_core.t) =
+  if !Trace.enabled then !Trace.hooks.disposed signal.node;
+  Core.clear_deps signal.node

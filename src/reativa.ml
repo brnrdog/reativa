@@ -21,6 +21,7 @@ module Promise = Promise
 module View = View
 module Context = Context
 module Resource = Resource
+module Devtools = Devtools
 module Router_match = Router_match
 module Router = Router
 module Route = Router.Route

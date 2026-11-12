@@ -154,3 +154,10 @@ val meta_key : event -> bool
 val ctrl_key : event -> bool
 val shift_key : event -> bool
 val alt_key : event -> bool
+
+(* ----- tooling ----- *)
+
+(* [expose_object name props]: set [globalThis[name]] to a JS object with these
+   properties (functions taking and returning strings, numbers or DOM nodes
+   are callable from JS). Used by [Devtools.expose]. *)
+val expose_object : string -> (string * Obj.t) array -> unit
