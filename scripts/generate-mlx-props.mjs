@@ -232,6 +232,15 @@ export const ELEMENTS = [
   "defs", "symbol", "use", "stop",
 ];
 
+// Tags with no View.Mlx helper (they would shadow common names after
+// [open View.Mlx]) that the ppx still compiles to templates, where no helper
+// is needed: <b>, <i>, SVG's <text>...
+export const TEMPLATE_ONLY_ELEMENTS = [
+  "b", "i", "s", "q", "u", "bdi", "bdo", "data", "rp", "rt", "ruby", "var",
+  "text", "tspan", "title", "desc", "clipPath", "linearGradient", "radialGradient",
+  "mask", "pattern", "marker", "image", "foreignObject",
+];
+
 function generate() {
   const lines = [];
   const push = (s = "") => lines.push(s);
@@ -332,8 +341,8 @@ function generatePpxTable() {
   for (const [label, attr, k] of ATTRIBUTES) lines.push(`    (${JSON.stringify(label)}, ${JSON.stringify(attr)}, ${kind[k]});`);
   lines.push("  ]", "", "(* label, DOM event *)", "let events =", "  [");
   for (const [label, event] of EVENTS) lines.push(`    (${JSON.stringify(label)}, ${JSON.stringify(event)});`);
-  lines.push("  ]", "", "let elements =", "  [");
-  for (const tag of ELEMENTS) lines.push(`    ${JSON.stringify(tag)};`);
+  lines.push("  ]", "", "(* Tags the ppx compiles to templates. *)", "let elements =", "  [");
+  for (const tag of [...ELEMENTS, ...TEMPLATE_ONLY_ELEMENTS]) lines.push(`    ${JSON.stringify(tag)};`);
   lines.push("  ]", "");
   return lines.join("\n");
 }

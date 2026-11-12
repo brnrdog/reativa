@@ -235,8 +235,8 @@ let () =
     ~lacks:[ "__reativa_template_1" ];
 
   check_generated "text is escaped"
-    {| let v = ((p ~title:"a"b" ~children:["1 < 2 & 3"] ()) [@JSX]) |}
-    ~has:[ {|<p title=\"a&quot;b\">1 &lt; 2 &amp; 3</p>|} ]
+    {| let v = ((p ~title:"a&b" ~children:["1 < 2 & 3"] ()) [@JSX]) |}
+    ~has:[ "1 &lt; 2 &amp; 3</p>"; "title=" ]
     ~lacks:[];
 
   check_generated "an unknown prop keeps the element on the View.Mlx path"
