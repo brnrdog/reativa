@@ -5,6 +5,9 @@
   "scripts": {
     "build": "opam exec -- dune build @melange",
     "test": "opam exec -- dune test",
+    "test:dom": "npm run test:dom:melange && npm run test:dom:jsoo",
+    "test:dom:melange": "opam exec -- dune build @test/dom/dom-tests && node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js",
+    "test:dom:jsoo": "REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js && node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js",
     "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
     "demo:serve": "node scripts/serve-demo.mjs --root demo/ui",
@@ -54,6 +57,7 @@
     "@semantic-release/release-notes-generator": "^14.0.1",
     "esbuild": "^0.28.1",
     "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
     "posthog-js": "^1.413.0",
     "semantic-release": "^24.2.0",
     "vite": "^8.1.0"
