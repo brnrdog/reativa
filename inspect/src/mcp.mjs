@@ -1,12 +1,12 @@
-// The MCP server: the same lens as the CLI, as tools an agent can call.
+// The MCP server: the same inspection as the CLI, as tools an agent can call.
 // Newline-delimited JSON-RPC 2.0 over stdio.
 
 import { createInterface } from "node:readline";
-import { lens } from "./api.mjs";
+import { inspect } from "./api.mjs";
 
 const TOOLS = [
   {
-    name: "reativa_lens_run",
+    name: "reativa_inspect_run",
     description:
       "Load a compiled Reativa app (a Melange ES module entry or a js_of_ocaml .bc.js) under jsdom, " +
       "perform actions, and report for each what was written, recomputed and run and which DOM nodes " +
@@ -44,7 +44,7 @@ async function handle(message) {
     return reply(id, {
       protocolVersion: params?.protocolVersion ?? "2025-06-18",
       capabilities: { tools: {} },
-      serverInfo: { name: "reativa-lens", version: "0.1.0" },
+      serverInfo: { name: "reativa-inspect", version: "0.1.0" },
     });
   }
   if (method === "notifications/initialized" || id === undefined) return;
@@ -52,9 +52,9 @@ async function handle(message) {
   if (method === "tools/list") return reply(id, { tools: TOOLS });
   if (method === "tools/call") {
     const { name, arguments: input = {} } = params ?? {};
-    if (name !== "reativa_lens_run") return fail(id, -32602, `unknown tool ${name}`);
+    if (name !== "reativa_inspect_run") return fail(id, -32602, `unknown tool ${name}`);
     try {
-      const { text } = await lens({
+      const { text } = await inspect({
         bundle: input.bundle,
         actions: input.actions ?? [],
         why: input.why ?? [],

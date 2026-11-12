@@ -9,7 +9,7 @@
     "test:dom:melange": "opam exec -- dune build @test/dom/dom-tests && node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js",
     "test:dom:jsoo": "REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js && node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js",
     "test:dom:mlx": "opam exec -- dune build @test/dom_mlx/dom-mlx-tests && node test/dom/run.mjs _build/default/test/dom_mlx/output/test/dom_mlx/main.js && REATIVA_JSOO=enabled opam exec -- dune build test/dom_mlx/jsoo/main.bc.js && node test/dom/run.mjs _build/default/test/dom_mlx/jsoo/main.bc.js",
-    "lens:test": "npm --prefix lens install && REATIVA_JSOO=enabled opam exec -- dune build lens/test/fixture/app.bc.js && node lens/test/run.mjs",
+    "inspect:test": "npm --prefix inspect install && REATIVA_JSOO=enabled opam exec -- dune build inspect/test/fixture/app.bc.js && node inspect/test/run.mjs",
     "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
     "demo:serve": "node scripts/serve-demo.mjs --root demo/ui",

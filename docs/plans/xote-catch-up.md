@@ -170,7 +170,7 @@ should run both.
 | T3 | Public API guardrails: an exported-surface snapshot per module, and a consumer test that builds an out-of-tree project against the installed opam package | `test:exports`, `scripts/consumer-boundary-test.mjs` | Keeps the `.mli` boundary from A8 honest |
 | T4 | `AGENTS.md` as the single source of truth (architecture, reactivity model, patterns, pitfalls), a one-line `CLAUDE.md` pointer, and both shipped in the opam package | xote `AGENTS.md`, 7.1 `450e210` | Agents and contributors work from the same reference |
 | T5 | Docs site: one page registry that drives routes, sidebar and search; a human and an agent layer per page; Markdown copies and `/llms.txt`; "New in 1.x" badges | 7.2 `1524427` | Same docs model as xote. Agent pages follow xote's fixed outline |
-| T6 | `reativa-lens`: a CLI and MCP server over the devtools runtime (render headlessly, `--act`, `--why`) | `lens/` | Comes after A7. Can run on the jsoo or Melange output under jsdom |
+| T6 | `reativa-inspect`: a CLI and MCP server over the devtools runtime (render headlessly, `--act`, `--why`) | `inspect/` | Comes after A7. Can run on the jsoo or Melange output under jsdom |
 | T7 | Release channels: an `rc` prerelease branch in `.releaserc.json`, so phases ship as `2.0.0-rc.N` the way 7.2 went through betas | xote `314ad34` | Lets large features ship early without blocking the main branch |
 | T8 | Repo hygiene: `.gitattributes` (linguist rules for `_build`, benchmarks and the website; LF for `*.sh`), Dependabot for npm and GitHub Actions | xote `.gitattributes`, dependabot PRs | Small and independent |
 
@@ -230,7 +230,7 @@ Every item above is implemented on this branch, with tests on both backends.
 | A2-A6 | `View.on_mount`/`on_cleanup`/`Ref`, `Context`, `View.error_boundary`, `View.portal`, `Promise` (virtual), `Resource`, `View.suspense` |
 | P6, P7 | `View.Template` and the ppx template compiler (props from the generated table) |
 | A7 devtools | `Reativa.Devtools` (+ `src/signals/trace.ml` hooks), panel in `reativa.devtools` |
-| T6 lens | `lens/` (CLI + MCP server) |
+| T6 inspection tool (named reativa-inspect) | `inspect/` (CLI + MCP server) |
 | T4 AGENTS.md | `AGENTS.md`, `CLAUDE.md` |
 | T5 docs | site "New in 2.0", agent layer `website/docs/agent`, `website/docs.pages.mjs`, `/llms.txt` |
 

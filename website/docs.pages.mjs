@@ -21,6 +21,6 @@ export const pages = [
   { slug: "resources", title: "Resources and suspense", section: "Async", summary: "Promise-backed data as a signal, refetching on dependency changes, and Suspense fallbacks.", isNew: true, file: "resources.md" },
   { slug: "routing", title: "Routing", section: "Composition", summary: "The location signal, navigation, links, routes and redirects.", file: "routing.md" },
   { slug: "backends", title: "Backends", section: "Platform", summary: "Melange or js_of_ocaml: selecting one, what differs, and the Dom/History/Promise contract.", file: "backends.md" },
-  { slug: "devtools", title: "Devtools and reativa-lens", section: "Tooling", summary: "Inspect what the reactive graph does and why; drive an app headlessly from a CLI or an agent.", isNew: true, file: "devtools.md" },
+  { slug: "devtools", title: "Devtools and reativa-inspect", section: "Tooling", summary: "Inspect what the reactive graph does and why; drive an app headlessly from a CLI or an agent.", isNew: true, file: "devtools.md" },
   { slug: "migrating-to-2", title: "Migrating to 2.0", section: "Start", summary: "What changed in 2.0 and how to update: lazy components, interface files, Mlx opens.", isNew: true, file: "migrating-to-2.md" },
 ];

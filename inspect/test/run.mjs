@@ -1,15 +1,15 @@
 // Drives the fixture app through the CLI and the MCP server and checks the
 // reports. Needs the fixture built first:
-//   REATIVA_JSOO=enabled dune build lens/test/fixture/app.bc.js
-// then: node lens/test/run.mjs [path to app.bc.js]
+//   REATIVA_JSOO=enabled dune build inspect/test/fixture/app.bc.js
+// then: node inspect/test/run.mjs [path to app.bc.js]
 
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const bin = resolve(here, "../bin/reativa-lens.mjs");
-const bundle = resolve(process.argv[2] ?? resolve(here, "../../_build/default/lens/test/fixture/app.bc.js"));
+const bin = resolve(here, "../bin/reativa-inspect.mjs");
+const bundle = resolve(process.argv[2] ?? resolve(here, "../../_build/default/inspect/test/fixture/app.bc.js"));
 
 let failures = 0;
 const check = (name, cond, detail = "") => {
@@ -56,16 +56,16 @@ send({
   jsonrpc: "2.0",
   id: 3,
   method: "tools/call",
-  params: { name: "reativa_lens_run", arguments: { bundle, actions: ["click #inc"], why: ["#value"] } },
+  params: { name: "reativa_inspect_run", arguments: { bundle, actions: ["click #inc"], why: ["#value"] } },
 });
 const deadline = Date.now() + 15000;
 while (responses.length < 3 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
 server.kill();
 const byId = Object.fromEntries(responses.map((r) => [r.id, r]));
-check("mcp initialize", byId[1]?.result?.serverInfo?.name === "reativa-lens", JSON.stringify(byId[1]));
-check("mcp lists the tool", byId[2]?.result?.tools?.[0]?.name === "reativa_lens_run", JSON.stringify(byId[2]));
+check("mcp initialize", byId[1]?.result?.serverInfo?.name === "reativa-inspect", JSON.stringify(byId[1]));
+check("mcp lists the tool", byId[2]?.result?.tools?.[0]?.name === "reativa_inspect_run", JSON.stringify(byId[2]));
 const text = byId[3]?.result?.content?.[0]?.text ?? "";
-check("mcp runs the lens", text.includes("count=1") && text.includes("signal count (written = 1)"), text);
+check("mcp runs the inspection", text.includes("count=1") && text.includes("signal count (written = 1)"), text);
 
-console.log(failures ? `\n${failures} failure(s)` : "\nlens ok");
+console.log(failures ? `\n${failures} failure(s)` : "\ninspect ok");
 process.exit(failures ? 1 : 0);

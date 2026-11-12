@@ -3,7 +3,7 @@
 import { openSession } from "./session.mjs";
 import { formatAct, formatLeaks, formatSnapshot, formatWhy } from "./format.mjs";
 
-export async function lens({ bundle, actions = [], why = [], snapshot = false, rootId, html }) {
+export async function inspect({ bundle, actions = [], why = [], snapshot = false, rootId, html }) {
   const session = await openSession(bundle, { rootId, html });
   try {
     const results = [];

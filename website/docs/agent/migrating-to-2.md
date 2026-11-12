@@ -15,7 +15,7 @@
 
 ## Verify
 
-Build with the new release; fix type errors from rule 2. Then check components whose bodies read signals (rule 1): in the browser, or with reativa-lens (`--act` the interaction that should update them).
+Build with the new release; fix type errors from rule 2. Then check components whose bodies read signals (rule 1): in the browser, or with reativa-inspect (`--act` the interaction that should update them).
 
 ## Related
 

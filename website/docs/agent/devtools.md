@@ -1,8 +1,8 @@
-# Devtools and reativa-lens
+# Devtools and reativa-inspect
 
 ## Summary
 
-`Reativa.Devtools` records what the reactive graph does — writes, recomputes, effect runs, creations, disposals — and explains why a node changed. `reativa-lens` drives a compiled app under jsdom and reports per interaction; it is also an MCP server for agents.
+`Reativa.Devtools` records what the reactive graph does — writes, recomputes, effect runs, creations, disposals — and explains why a node changed. `reativa-inspect` drives a compiled app under jsdom and reports per interaction; it is also an MCP server for agents.
 
 ## Availability
 
@@ -13,7 +13,7 @@ New in 2.0.
 1. Call `Devtools.install ()` before creating what you want to see; nodes created earlier are not tracked.
 2. Until installed, the cost is one boolean test per instrumentation point; apps that never reference `Devtools` do not ship it.
 3. Name signals (`~name`) to read reports; unnamed nodes appear by id.
-4. For reativa-lens the app must also call `Devtools.expose ()` and mount into `<div id="app">`.
+4. For reativa-inspect the app must also call `Devtools.expose ()` and mount into `<div id="app">`.
 
 ## API
 
@@ -27,8 +27,8 @@ Devtools.snapshot / inspect / history / subscribe / leaks / expose
 ```
 
 ```
-reativa-lens run app.bc.js --act "click #inc" --act "type #name Ada" --why "#greeting"
-reativa-lens mcp      # tool: reativa_lens_run {bundle, actions, why, snapshot}
+reativa-inspect run app.bc.js --act "click #inc" --act "type #name Ada" --why "#greeting"
+reativa-inspect mcp      # tool: reativa_inspect_run {bundle, actions, why, snapshot}
 ```
 
 In-page panel (library `reativa.devtools`): live counts, latest events, leaks, and an inspect mode that explains a clicked element.
@@ -48,7 +48,7 @@ assert (trace.counts.runs = 1)
 
 ## Verify
 
-`reativa-lens run` exits 1 if the page raised an error; every report ends with `Devtools.leaks`.
+`reativa-inspect run` exits 1 if the page raised an error; every report ends with `Devtools.leaks`.
 
 ## Related
 

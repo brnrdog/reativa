@@ -5,7 +5,7 @@
     {[
       let () =
         Devtools.install ();
-        Devtools.expose ();          (* for reativa-lens and the browser console *)
+        Devtools.expose ();          (* for reativa-inspect and the browser console *)
         View.mount_by_id "app" app
     ]}
 
@@ -107,5 +107,5 @@ val preview : 'a -> string
 (** Make the devtools reachable from JavaScript as [globalThis.\[name\]]
     (default ["__reativaDevtools"]): [snapshot()], [history()],
     [clearHistory()], [why(id)], [whyElement(el)] and [leaks()], each
-    returning JSON. reativa-lens drives an app through it. *)
+    returning JSON. reativa-inspect drives an app through it. *)
 val expose : ?name:string -> unit -> unit

@@ -1,4 +1,4 @@
-; The lens test app, linked with js_of_ocaml (REATIVA_JSOO=enabled).
+; The reativa-inspect test app, linked with js_of_ocaml (REATIVA_JSOO=enabled).
 (executable
  (name app)
  (modes js)

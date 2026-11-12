@@ -25,7 +25,7 @@ It follows [xote](https://github.com/brnrdog/xote) (ReScript) closely; see
 | `opam exec -- dune build` | build everything (both backends' code, demos, website, benchmarks app) |
 | `opam exec -- dune test` | native tests: signals, router, ppx rewrite |
 | `npm run test:dom` | DOM suites under jsdom: `test/dom` on Melange and js_of_ocaml, and `test/dom_mlx` (written in mlx) on both |
-| `npm run lens:test` | reativa-lens CLI and MCP server against a fixture app |
+| `npm run inspect:test` | reativa-inspect CLI and MCP server against a fixture app |
 | `scripts/check-api.sh` | compare the public API with `test/api/reativa.api` (`--update` to accept a change) |
 | `node scripts/generate-mlx-props.mjs` | regenerate the element props (`--check` in CI) |
 | `npm --prefix benchmarks install && node benchmarks/build.mjs && node benchmarks/driver.mjs` | keyed-list benchmark (see `benchmarks/README.md`) |
@@ -49,7 +49,7 @@ backends/jsoo/        Dom/History/Promise over Js_of_ocaml.Js.Unsafe (package re
 ppx/                  the mlx ppx (reativa.mlx_ppx); mlx_prop_table.ml is generated
 test/                 native tests; test/dom (jsdom, plain OCaml); test/dom_mlx (jsdom, mlx);
                       test/api (API snapshot); test/consumer (built against installed packages)
-lens/                 reativa-lens: CLI + MCP server over Devtools (Node)
+inspect/              reativa-inspect: CLI + MCP server over Devtools (Node)
 benchmarks/           keyed-list benchmark vs xote and SolidJS
 demo/, examples/      the todo demo (Melange) and both demos on js_of_ocaml
 website/              documentation site (itself a reativa app) and agent docs
@@ -185,11 +185,11 @@ and `<Card title="x" />` to `Card.createElement ~title:"x" ~children:[] () [@JSX
 The ppx targets ppxlib's OCaml 5.2 AST (`Pexp_function (params, constraint, body)`,
 `Pfunction_cases (cases, loc, attrs)`). It cannot be built with older ppxlib.
 
-### Devtools and reativa-lens
+### Devtools and reativa-inspect
 
 `src/signals/trace.ml` holds hooks the core and renderer call behind one
 `!Trace.enabled` test. `Devtools.install` sets them; `Devtools.expose` puts a
-JSON API on `globalThis.__reativaDevtools`, which `lens/` (a Node CLI and MCP
+JSON API on `globalThis.__reativaDevtools`, which `inspect/` (a Node CLI and MCP
 server) drives under jsdom.
 
 ## Common pitfalls
