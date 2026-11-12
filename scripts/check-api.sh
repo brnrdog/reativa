@@ -15,7 +15,9 @@ if [ ! -f "$objs/reativa.cmi" ]; then
   exit 2
 fi
 
-ocamlc=${OCAMLC:-ocamlfind ocamlc}
+# Plain ocamlc is enough (the library's .cmi files are all that is needed);
+# OCAMLC overrides it.
+ocamlc=${OCAMLC:-ocamlc}
 actual=$(mktemp)
 trap 'rm -f "$actual"' EXIT
 # Collapse runs of whitespace: line breaking differs between compiler versions.
