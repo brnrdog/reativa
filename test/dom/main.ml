@@ -8,4 +8,5 @@ let () =
   Test_keyed.register ();
   Test_features.register ();
   Test_templates.register ();
+  Test_devtools.register ();
   Harness.run ()

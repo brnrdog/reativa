@@ -80,6 +80,7 @@ val meta_key : event -> bool
 val ctrl_key : event -> bool
 val shift_key : event -> bool
 val alt_key : event -> bool
+val expose_object : string -> (string * Obj.t) array -> unit
 end
 module View : sig
 type t = Reativa.View.t
@@ -208,4 +209,31 @@ type 'a t = 'a Reativa.Promise.t exception Rejected of string
 val resolve : 'a -> 'a t
 val reject : exn -> 'a t
 val on_settled : 'a t -> ok:('a -> unit) -> error:(exn -> unit) -> unit
+end
+module Devtools : sig
+type kind = Reativa.Devtools.kind = Signal | Computed | Effect
+type node_info = Reativa.Devtools.node_info = { id : int; kind : kind; name : string option; subscribers : int; dependencies : int list; disposed : bool; }
+type event = Reativa.Devtools.event = Created of { id : int; kind : kind; name : string option; } | Written of { id : int; name : string option; value : string; } | Recomputed of { id : int; name : string option; } | Ran of { id : int; name : string option; } | Disposed of { id : int; name : string option; }
+val install : ?history:int -> unit -> unit
+val uninstall : unit -> unit
+val installed : unit -> bool
+val subscribe : (event -> unit) -> unit -> unit
+val mute : (unit -> 'a) -> 'a
+val history : unit -> event list
+val clear_history : unit -> unit
+val snapshot : unit -> node_info list
+val inspect : int -> node_info option
+val value : int -> string option
+type counts = Reativa.Devtools.counts = { writes : int; recomputes : int; runs : int; created : int; disposed : int; }
+type trace = Reativa.Devtools.trace = { events : event list; counts : counts; }
+val record : (unit -> unit) -> trace
+type action = Reativa.Devtools.action = Written_by_user | Recomputed_from | Ran_after
+type cause = Reativa.Devtools.cause = { node : node_info; action : action; value : string option; because : cause option; }
+val why : int -> cause option
+val effects_writing : Reativa__.Dom.t -> (int * string) list
+val target_of : int -> (Reativa__.Dom.t * string) option
+val writers_of : Reativa__.Dom.t -> int list
+val leaks : unit -> node_info list
+val preview : 'a -> string
+val expose : ?name:string -> unit -> unit
 end 

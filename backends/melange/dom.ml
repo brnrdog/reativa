@@ -151,3 +151,8 @@ external meta_key : event -> bool = "metaKey" [@@mel.get]
 external ctrl_key : event -> bool = "ctrlKey" [@@mel.get]
 external shift_key : event -> bool = "shiftKey" [@@mel.get]
 external alt_key : event -> bool = "altKey" [@@mel.get]
+
+(* Set globalThis[name] to an object with the given properties. An array of
+   pairs is an array of two-element arrays under Melange. *)
+external expose_object : string -> (string * Obj.t) array -> unit = "exposeObject"
+  [@@mel.module "./reativa_runtime.js"]

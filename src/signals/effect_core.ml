@@ -11,7 +11,7 @@
    effect ({!Owner.handle_error}); with none, it propagates as before. *)
 type disposer = { dispose : unit -> unit }
 
-let make ?name ~owned fn =
+let make ?name ?target ~owned fn =
   let id = Id.make () in
   let parent = Owner.active () in
   let owner = if owned then Some (Owner.make ()) else None in
@@ -37,6 +37,7 @@ let make ?name ~owned fn =
   let dispose () =
     if not !disposed then begin
       disposed := true;
+      if !Trace.enabled then !Trace.hooks.disposed node;
       Core.set_disposed node;
       Core.clear_deps node;
       run_cleanup ();
@@ -44,6 +45,11 @@ let make ?name ~owned fn =
     end
   in
   Owner.on_cleanup dispose;
+  if !Trace.enabled then begin
+    !Trace.hooks.created node;
+    (match target with Some (el, what) -> !Trace.hooks.bound node el what | None -> ());
+    !Trace.hooks.ran node
+  end;
   (* Initial run under tracking to establish dependencies. *)
   let prev = !Scheduler.current_target in
   Scheduler.current_target := Some node;
@@ -64,4 +70,4 @@ let run ?name fn = ignore (make ?name ~owned:true fn)
    anything it creates is not tied to it. For renderer leaves — a text node or
    an attribute that only reads signals and writes the DOM — this saves an
    owner per leaf. It is still disposed with the current owner. *)
-let leaf ?name fn = make ?name ~owned:false fn
+let leaf ?name ?target fn = make ?name ?target ~owned:false fn

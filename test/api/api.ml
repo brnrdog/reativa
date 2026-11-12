@@ -13,3 +13,4 @@ module Router = struct include Reativa.Router end
 module Context = struct include Reativa.Context end
 module Resource = struct include Reativa.Resource end
 module Promise = struct include Reativa.Promise end
+module Devtools = struct include Reativa.Devtools end

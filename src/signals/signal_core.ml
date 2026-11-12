@@ -15,7 +15,9 @@ let never_equals _ _ = false
 let make ?name ?equals initial_value =
   let id = Id.make () in
   let equals = match equals with Some eq -> eq | None -> default_equals in
-  { value = initial_value; equals; name; node = Core.make_signal_node ~id ~name }
+  let signal = { value = initial_value; equals; name; node = Core.make_signal_node ~id ~name } in
+  if !Trace.enabled then !Trace.hooks.created signal.node;
+  signal
 
 (* Read the current value, tracking it as a dependency of the running
    computed/effect (if any), and refreshing it first if it is a computed. *)
@@ -37,6 +39,7 @@ let set signal new_value =
     signal.value <- new_value;
     signal.node.version <- signal.node.version + 1;
     incr Core.global_version;
+    if !Trace.enabled then !Trace.hooks.written signal.node (Obj.repr new_value);
     Scheduler.notify_subs signal.node
   end
 

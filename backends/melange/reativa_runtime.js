@@ -39,3 +39,7 @@ export function templateContent(html) {
   template.innerHTML = html;
   return template.content;
 }
+
+export function exposeObject(name, entries) {
+  globalThis[name] = Object.fromEntries(entries);
+}
