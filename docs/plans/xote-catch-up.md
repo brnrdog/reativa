@@ -1,6 +1,6 @@
 # Plan: catch reativa up with xote 7.x
 
-Status: accepted (decisions settled 2026-11-12) · Baseline: reativa 1.2.0, xote 7.2.0
+Status: implemented on `brnrdog/wonderful-feynman-igb3kn` (see Implementation status at the end) · Baseline: reativa 1.2.0, xote 7.2.0
 
 reativa started from xote's model around the 7.0 line: signals derived from
 rescript-signals, a DOM-building `View`, Show/Maybe/ForEach, keyed lists and
@@ -212,3 +212,32 @@ Settled on 2026-11-12:
    no runtime shape recording, and trees built by hand are not cloned.
 4. **DOM tests** (T2): no fake DOM. View tests compile for both backends and
    run under jsdom in Node.
+
+## Implementation status
+
+Every item above is implemented on this branch, with tests on both backends.
+
+| Item | Where |
+|------|-------|
+| T8 hygiene, T7 rc channel | `.gitattributes`, `.github/dependabot.yml`, `.releaserc.json`, `docs/RELEASING.md` |
+| T2 DOM tests (jsdom, no fake DOM) | `test/dom` (plain OCaml), `test/dom_mlx` (mlx, runs the generated templates), `test/dom/run.mjs` |
+| T1 benchmark | `benchmarks/` (Reativa on both backends, xote, SolidJS), label-gated `benchmark.yml` |
+| A0 signal fixes | `src/signals/core.ml`, `scheduler.ml`, `computed.ml` |
+| A1 owner tree, lazy components | `src/signals/owner.ml`, `effect_core.ml`, `View.component`, ppx `createElement` |
+| A8 `.mli` boundary, props, attrs, SVG, ppx audit | per-module `.mli`, `scripts/generate-mlx-props.mjs`, ppx reactive helpers/aliases |
+| T3 guardrails | `scripts/check-api.sh` + `test/api/reativa.api`, `test/consumer` |
+| P1, P2, P3, P5 | the keyed reconciler, leaves and regions in `src/view.ml` |
+| A2-A6 | `View.on_mount`/`on_cleanup`/`Ref`, `Context`, `View.error_boundary`, `View.portal`, `Promise` (virtual), `Resource`, `View.suspense` |
+| P6, P7 | `View.Template` and the ppx template compiler (props from the generated table) |
+| A7 devtools | `Reativa.Devtools` (+ `src/signals/trace.ml` hooks), panel in `reativa.devtools` |
+| T6 lens | `lens/` (CLI + MCP server) |
+| T4 AGENTS.md | `AGENTS.md`, `CLAUDE.md` |
+| T5 docs | site "New in 2.0", agent layer `website/docs/agent`, `website/docs.pages.mjs`, `/llms.txt` |
+
+Benchmark, js_of_ocaml build in Chromium, same run (create 1,000 / create
+10,000 / clear 10,000 rows, ms): Reativa 46.6 / 553 / 55.6, xote 54.5 / 551 /
+57.3, SolidJS 44.7 / 402 / 52.6. Swapping two rows costs 2 DOM moves (was
+997). The Melange numbers come from the manual run of the Benchmark workflow,
+which can be dispatched once the workflow is on `main`.
+
+Not ported, as planned: SSR, hydration, SSRState and MDX.

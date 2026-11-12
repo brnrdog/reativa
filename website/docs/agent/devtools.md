@@ -31,6 +31,12 @@ reativa-lens run app.bc.js --act "click #inc" --act "type #name Ada" --why "#gre
 reativa-lens mcp      # tool: reativa_lens_run {bundle, actions, why, snapshot}
 ```
 
+In-page panel (library `reativa.devtools`): live counts, latest events, leaks, and an inspect mode that explains a clicked element.
+
+```ocaml
+let () = ignore (Reativa_devtools.Panel.mount ())   (* returns an unmount function *)
+```
+
 ## Patterns
 
 Assert the cost of an interaction in a test:
