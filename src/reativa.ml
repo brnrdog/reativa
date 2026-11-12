@@ -15,6 +15,7 @@
 module Signal = Signal
 module Computed = Computed
 module Effect = Effect
+module Owner = Owner
 module Dom = Dom
 module View = View
 module Router_match = Router_match

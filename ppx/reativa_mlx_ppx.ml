@@ -249,32 +249,133 @@ let component_accepts_children structure =
       | _ -> false)
     structure
 
-let create_element_item ~loc ~forward_children =
-  let unit_pattern =
-    Builder.ppat_construct ~loc (located ~loc (Longident.Lident "()")) None
+(* The labelled parameters of a [component] function, in order, read off its
+   syntax: [fun ~name ?(size = 1) ~children -> ...]. [None] when they cannot
+   be read (the binding is not literally a function, or takes a positional
+   argument other than a trailing [()]), in which case [createElement] falls
+   back to applying [component] directly. The second component of the result
+   says whether the function ends in a [()] parameter. *)
+let component_params expr =
+  let is_unit_pattern pat =
+    match pat.ppat_desc with
+    | Ppat_construct ({ txt = Longident.Lident "()"; _ }, None) -> true
+    | _ -> false
   in
+  let rec collect acc expr =
+    match expr.pexp_desc with
+    | Pexp_function (params, _, body) -> (
+        let rec take acc = function
+          | [] -> Some (acc, false)
+          | { pparam_desc = Pparam_newtype _; _ } :: rest -> take acc rest
+          | [ { pparam_desc = Pparam_val (Nolabel, None, pat); _ } ] when is_unit_pattern pat ->
+              Some (acc, true)
+          | { pparam_desc = Pparam_val (Nolabel, _, _); _ } :: _ -> None
+          | { pparam_desc = Pparam_val (label, _, _); _ } :: rest -> take (label :: acc) rest
+        in
+        match take acc params with
+        | None -> None
+        | Some (acc, true) -> Some (acc, true)
+        | Some (acc, false) -> (
+            match body with
+            | Pfunction_body body -> collect acc body
+            (* [function] cases take a positional argument. *)
+            | Pfunction_cases _ -> None))
+    | Pexp_constraint (body, _) | Pexp_coerce (body, _, _) | Pexp_newtype (_, body) ->
+        collect acc body
+    | _ -> if acc = [] then None else Some (acc, false)
+  in
+  match collect [] expr with
+  | Some (labels, trailing_unit) -> Some (List.rev labels, trailing_unit)
+  | None -> None
+
+let component_binding structure =
+  List.find_map
+    (fun item ->
+      match item.pstr_desc with
+      | Pstr_value (_, bindings) -> List.find_opt (binding_named "component") bindings
+      | _ -> None)
+    structure
+
+let unit_pattern ~loc = Builder.ppat_construct ~loc (located ~loc (Longident.Lident "()")) None
+let unit_expr ~loc = Builder.pexp_construct ~loc (located ~loc (Longident.Lident "()")) None
+
+(* The eager form, for components whose parameters cannot be read:
+   [let createElement () ~children = component ~children]. *)
+let eager_create_element ~loc ~forward_children =
   let children_pattern =
-    if forward_children then
-      Builder.ppat_var ~loc (located ~loc "children")
-    else
-      Builder.ppat_any ~loc
+    if forward_children then Builder.ppat_var ~loc (located ~loc "children")
+    else Builder.ppat_any ~loc
   in
   let component = Builder.evar ~loc "component" in
   let body =
     if forward_children then
-      Builder.pexp_apply ~loc component
-        [ (Labelled "children", Builder.evar ~loc "children") ]
-    else
-      component
+      Builder.pexp_apply ~loc component [ (Labelled "children", Builder.evar ~loc "children") ]
+    else component
   in
+  Builder.pexp_fun ~loc Nolabel None (unit_pattern ~loc)
+    (Builder.pexp_fun ~loc (Labelled "children") None children_pattern body)
+
+(* The lazy form. For [let component = fun ~name ?size ~children -> ...]:
+
+     let createElement ~children:reativa__children ~name:reativa__name
+         ?size:reativa__size () =
+       View.component (fun () ->
+         component ~name:reativa__name ?size:reativa__size
+           ~children:reativa__children)
+
+   so the body runs when the view is mounted, under its own owner and
+   untracked (see [View.component]). Every prop is forwarded explicitly — an
+   optional one as an option — and [()] comes last so optional props can be
+   left out at the call site. Parameter names are prefixed so a prop can be
+   called anything, [component] included. *)
+let lazy_create_element ~loc ~labels ~trailing_unit ~forward_children =
+  let var name = "reativa__" ^ name in
+  let props =
+    List.filter_map
+      (function
+        | (Labelled name | Optional name) when String.equal name "children" -> None
+        | Labelled name -> Some (Labelled name, name)
+        | Optional name -> Some (Optional name, name)
+        | Nolabel -> None)
+      labels
+  in
+  let forwarded =
+    List.map (fun (label, name) -> (label, Builder.evar ~loc (var name))) props
+    @ (if forward_children then [ (Labelled "children", Builder.evar ~loc (var "children")) ] else [])
+    @ if trailing_unit then [ (Nolabel, unit_expr ~loc) ] else []
+  in
+  let call = Builder.pexp_apply ~loc (Builder.evar ~loc "component") forwarded in
+  let body =
+    Builder.pexp_apply ~loc
+      (Builder.pexp_ident ~loc (located ~loc (Longident.Ldot (Longident.Lident "View", "component"))))
+      [ (Nolabel, Builder.pexp_fun ~loc Nolabel None (unit_pattern ~loc) call) ]
+  in
+  let with_unit = Builder.pexp_fun ~loc Nolabel None (unit_pattern ~loc) body in
+  let with_props =
+    List.fold_right
+      (fun (label, name) acc ->
+        Builder.pexp_fun ~loc label None (Builder.ppat_var ~loc (located ~loc (var name))) acc)
+      props with_unit
+  in
+  let children_pattern =
+    if forward_children then Builder.ppat_var ~loc (located ~loc (var "children"))
+    else Builder.ppat_any ~loc
+  in
+  Builder.pexp_fun ~loc (Labelled "children") None children_pattern with_props
+
+let create_element_item ~loc structure =
+  let forward_children = component_accepts_children structure in
   let expr =
-    Builder.pexp_fun ~loc Nolabel None unit_pattern
-      (Builder.pexp_fun ~loc (Labelled "children") None children_pattern body)
+    match component_binding structure with
+    | Some binding -> (
+        match component_params binding.pvb_expr with
+        | Some (labels, trailing_unit) ->
+            lazy_create_element ~loc ~labels ~trailing_unit ~forward_children
+        | None -> eager_create_element ~loc ~forward_children)
+    | None -> eager_create_element ~loc ~forward_children
   in
   let binding =
-    Builder.value_binding ~loc
-      ~pat:(Builder.ppat_var ~loc (located ~loc "createElement"))
-      ~expr
+    Builder.value_binding ~loc ~pat:(Builder.ppat_var ~loc (located ~loc "createElement")) ~expr
   in
   Builder.pstr_value ~loc Nonrecursive [ binding ]
 
@@ -286,8 +387,7 @@ let append_create_element_if_component ~loc structure =
   if (not has_component) || has_create_element then
     structure
   else
-    let forward_children = component_accepts_children structure in
-    structure @ [ create_element_item ~loc ~forward_children ]
+    structure @ [ create_element_item ~loc structure ]
 
 let mapper =
   object

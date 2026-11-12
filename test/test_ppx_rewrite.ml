@@ -18,7 +18,72 @@ let check name input expected =
       expected actual
   end
 
+let contains haystack needle =
+  let n = String.length needle and h = String.length haystack in
+  let rec go i = i + n <= h && (String.sub haystack i n = needle || go (i + 1)) in
+  go 0
+
+(* For generated code whose exact printing depends on the ppxlib version (how
+   nested [fun]s are merged): check the parts that matter. *)
+let check_generated name input ~has ~lacks =
+  let actual = print (Reativa_mlx_ppx.mapper#structure (parse input)) in
+  let squash s = String.concat "" (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s))) in
+  let actual_s = squash actual in
+  let missing = List.filter (fun s -> not (contains actual_s (squash s))) has in
+  let present = List.filter (fun s -> contains actual_s (squash s)) lacks in
+  if missing = [] && present = [] then Printf.printf "ok - %s\n" name
+  else begin
+    incr failures;
+    Printf.printf "FAIL - %s\n--- actual ---\n%s\n" name actual;
+    List.iter (Printf.printf "    missing: %s\n") missing;
+    List.iter (Printf.printf "    unexpected: %s\n") present
+  end
+
 let () =
+  check_generated "components get a lazy createElement"
+    {| module Greeting = struct
+         let component = fun ~name ?(size = 1) -> view name size
+       end |}
+    ~has:
+      [ "let createElement ~children:_";
+        "~name:reativa__name";
+        "?size:reativa__size";
+        "View.component";
+        "component ~name:reativa__name ?size:reativa__size" ]
+    ~lacks:[];
+
+  check_generated "children are forwarded when the component takes them"
+    {| module Card = struct
+         let component ~title ~children = view title children
+       end |}
+    ~has:
+      [ "~children:reativa__children";
+        "View.component";
+        "component ~title:reativa__title ~children:reativa__children" ]
+    ~lacks:[ "~children:_" ];
+
+  check_generated "a trailing unit parameter is forwarded"
+    {| module Panel = struct
+         let component ?open_ ~label () = view open_ label
+       end |}
+    ~has:[ "View.component"; "component ?open_:reativa__open_ ~label:reativa__label ()" ]
+    ~lacks:[];
+
+  check_generated "an unreadable component falls back to the eager form"
+    {| module Alias = struct
+         let component = Other.component
+       end |}
+    ~has:[ "let createElement () ~children:_ = component" ]
+    ~lacks:[ "View.component" ];
+
+  check_generated "a handwritten createElement is left alone"
+    {| module Custom = struct
+         let component ~x = x
+         let createElement ~x () = component ~x
+       end |}
+    ~has:[ "let createElement ~x () = component ~x" ]
+    ~lacks:[ "View.component" ];
+
   check "plain attribute values stay static"
     {| let v = ((div ~className:"box" ()) [@JSX]) |}
     {| let v = ((div ~className:(static "box") ()) [@JSX]) |};
