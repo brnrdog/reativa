@@ -1,0 +1,14 @@
+# Shell scripts must keep LF endings even when checked out on Windows, where
+# git's core.autocrlf would otherwise rewrite them and break `set -e`.
+*.sh text eol=lf
+
+# Build output, should any of it be committed by accident.
+_build/** linguist-generated
+demo/ui/output/** linguist-generated
+demo/ui/bundle.js linguist-generated
+examples/jsoo/**/*.bundle.js linguist-generated
+
+# Benchmarks and the docs site are not part of the library.
+benchmarks/** linguist-vendored
+website/** linguist-documentation
+docs/** linguist-documentation
