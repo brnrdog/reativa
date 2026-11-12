@@ -830,12 +830,45 @@ let hoisted_bindings () =
       Builder.pstr_value ~loc Nonrecursive [ { binding with pvb_attributes = [ silence ] } ])
     !hoisted
 
+(* [open Reativa.View.Mlx] is what makes mlx element tags resolve; once those
+   elements compile to templates nothing in the file may use it any more, and
+   the unused-open warning (an error in dev builds) would fire on code that
+   did nothing wrong. Opens of a module named Mlx get that warning off. *)
+let silence_mlx_opens =
+  let warning loc =
+    Builder.attribute ~loc ~name:(located ~loc "ocaml.warning")
+      ~payload:(PStr [ Builder.pstr_eval ~loc (Builder.estring ~loc "-33") [] ])
+  in
+  let is_mlx (od : open_declaration) =
+    match od.popen_expr.pmod_desc with
+    | Pmod_ident { txt; _ } -> longident_last txt = Some "Mlx"
+    | _ -> false
+  in
+  let silence (od : open_declaration) =
+    { od with popen_attributes = warning od.popen_loc :: od.popen_attributes }
+  in
+  object
+    inherit Ast_traverse.map as super
+
+    method! structure_item item =
+      let item = super#structure_item item in
+      match item.pstr_desc with
+      | Pstr_open od when is_mlx od -> { item with pstr_desc = Pstr_open (silence od) }
+      | _ -> item
+
+    method! expression expr =
+      let expr = super#expression expr in
+      match expr.pexp_desc with
+      | Pexp_open (od, body) when is_mlx od -> { expr with pexp_desc = Pexp_open (silence od, body) }
+      | _ -> expr
+  end
+
 let rewrite structure =
   collect_reactive_names structure;
   hoisted := [];
   Hashtbl.reset hoisted_by_html;
   let structure = mapper#structure structure in
-  hoisted_bindings () @ structure
+  hoisted_bindings () @ silence_mlx_opens#structure structure
 
 (* For tests of the element path: rewrite without compiling templates. *)
 let rewrite_without_templates structure =
