@@ -82,6 +82,14 @@ jobs:
           opam exec -- dune build @test/dom_mlx/dom-mlx-tests
           node test/dom/run.mjs _build/default/test/dom_mlx/output/test/dom_mlx/main.js
 
+      # The benchmark app's Melange build, bundled the way the Benchmark
+      # workflow does it, so that path does not only run on labelled PRs.
+      - name: Bundle the Melange benchmark app
+        run: |
+          npm --prefix benchmarks ci
+          REATIVA_SKIP_DUNE=1 node benchmarks/build.mjs --apps reativa
+          test -s benchmarks/dist/reativa/index.html
+
       - name: Bundle the demo and check its size
         run: |
           npx --yes esbuild \
