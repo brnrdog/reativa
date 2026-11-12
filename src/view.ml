@@ -94,23 +94,23 @@ let apply_attr el = function
   | Attr_static (name, v) -> Dom.set_attribute el name v
   | Attr_reactive (name, f) ->
     if name = "value" then
-      ignore (Effect.leaf (fun () -> Dom.set_value el (f ()); None))
-    else ignore (Effect.leaf (fun () -> Dom.set_attribute el name (f ()); None))
+      ignore (Effect_core.leaf (fun () -> Dom.set_value el (f ()); None))
+    else ignore (Effect_core.leaf (fun () -> Dom.set_attribute el name (f ()); None))
   | Attr_bool_static ("checked", v) -> Dom.set_checked el v
   | Attr_bool_static (name, v) ->
     if v then Dom.set_attribute el name "" else Dom.remove_attribute el name
   | Attr_bool_reactive ("checked", f) ->
-    ignore (Effect.leaf (fun () -> Dom.set_checked el (f ()); None))
+    ignore (Effect_core.leaf (fun () -> Dom.set_checked el (f ()); None))
   | Attr_optional (name, f) ->
     ignore
-      (Effect.leaf (fun () ->
+      (Effect_core.leaf (fun () ->
          (match f () with
           | Some v -> if name = "value" then Dom.set_value el v else Dom.set_attribute el name v
           | None -> Dom.remove_attribute el name);
          None))
   | Attr_bool_reactive (name, f) | Attr_toggle (name, f) ->
     ignore
-      (Effect.leaf (fun () ->
+      (Effect_core.leaf (fun () ->
          if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
          None))
 
@@ -278,7 +278,7 @@ and insert parent before view (acc : Dom.t list ref) =
     acc := node :: !acc
   | Reactive_text f ->
     let node = Dom.create_text_node "" in
-    ignore (Effect.leaf (fun () -> Dom.set_text_content node (f ()); None));
+    ignore (Effect_core.leaf (fun () -> Dom.set_text_content node (f ()); None));
     place parent before node;
     acc := node :: !acc
   | Element { tag; attrs; events; children } ->
@@ -574,11 +574,196 @@ module Mlx = struct
   let push_event name handler events =
     match handler with Some handler -> (name, handler) :: events | None -> events
 
+  type element =
+    ?class_:string value ->
+    ?className:string value ->
+    ?id:string value ->
+    ?title:string value ->
+    ?lang:string value ->
+    ?dir:string value ->
+    ?role:string value ->
+    ?style:string value ->
+    ?tabIndex:int value ->
+    ?hidden:bool value ->
+    ?draggable:string value ->
+    ?contentEditable:string value ->
+    ?spellcheck:string value ->
+    ?translate:string value ->
+    ?slot:string value ->
+    ?aria_label:string value ->
+    ?aria_labelledby:string value ->
+    ?aria_describedby:string value ->
+    ?aria_hidden:string value ->
+    ?aria_expanded:string value ->
+    ?aria_controls:string value ->
+    ?aria_current:string value ->
+    ?aria_pressed:string value ->
+    ?aria_selected:string value ->
+    ?aria_checked:string value ->
+    ?aria_disabled:string value ->
+    ?aria_live:string value ->
+    ?aria_haspopup:string value ->
+    ?aria_invalid:string value ->
+    ?href:string value ->
+    ?target:string value ->
+    ?rel:string value ->
+    ?download:string value ->
+    ?hreflang:string value ->
+    ?src:string value ->
+    ?srcSet:string value ->
+    ?sizes:string value ->
+    ?alt:string value ->
+    ?width:string value ->
+    ?height:string value ->
+    ?loading:string value ->
+    ?decoding:string value ->
+    ?crossOrigin:string value ->
+    ?poster:string value ->
+    ?preload:string value ->
+    ?controls:bool value ->
+    ?autoplay:bool value ->
+    ?loop:bool value ->
+    ?muted:bool value ->
+    ?playsInline:bool value ->
+    ?name:string value ->
+    ?type_:string value ->
+    ?value:string value ->
+    ?placeholder:string value ->
+    ?for_:string value ->
+    ?htmlFor:string value ->
+    ?form:string value ->
+    ?action:string value ->
+    ?method_:string value ->
+    ?enctype:string value ->
+    ?accept:string value ->
+    ?acceptCharset:string value ->
+    ?autocomplete:string value ->
+    ?pattern:string value ->
+    ?min:string value ->
+    ?max:string value ->
+    ?step:string value ->
+    ?minLength:int value ->
+    ?maxLength:int value ->
+    ?size:int value ->
+    ?rows:int value ->
+    ?cols:int value ->
+    ?wrap:string value ->
+    ?list:string value ->
+    ?inputMode:string value ->
+    ?enterKeyHint:string value ->
+    ?label_:string value ->
+    ?disabled:bool value ->
+    ?required:bool value ->
+    ?readOnly:bool value ->
+    ?multiple:bool value ->
+    ?autofocus:bool value ->
+    ?noValidate:bool value ->
+    ?checked:bool value ->
+    ?selected:bool value ->
+    ?colSpan:int value ->
+    ?rowSpan:int value ->
+    ?headers:string value ->
+    ?scope:string value ->
+    ?start:int value ->
+    ?reversed:bool value ->
+    ?open_:bool value ->
+    ?dateTime:string value ->
+    ?cite:string value ->
+    ?viewBox:string value ->
+    ?xmlns:string value ->
+    ?d:string value ->
+    ?fill:string value ->
+    ?fill_rule:string value ->
+    ?fill_opacity:string value ->
+    ?stroke:string value ->
+    ?stroke_width:string value ->
+    ?stroke_linecap:string value ->
+    ?stroke_linejoin:string value ->
+    ?stroke_dasharray:string value ->
+    ?stroke_dashoffset:string value ->
+    ?opacity:string value ->
+    ?transform:string value ->
+    ?cx:string value ->
+    ?cy:string value ->
+    ?r:string value ->
+    ?rx:string value ->
+    ?ry:string value ->
+    ?x:string value ->
+    ?y:string value ->
+    ?x1:string value ->
+    ?y1:string value ->
+    ?x2:string value ->
+    ?y2:string value ->
+    ?points:string value ->
+    ?offset:string value ->
+    ?stop_color:string value ->
+    ?preserveAspectRatio:string value ->
+    ?onClick:(Dom.event -> unit) ->
+    ?onDblClick:(Dom.event -> unit) ->
+    ?onContextMenu:(Dom.event -> unit) ->
+    ?onInput:(Dom.event -> unit) ->
+    ?onChange:(Dom.event -> unit) ->
+    ?onSubmit:(Dom.event -> unit) ->
+    ?onReset:(Dom.event -> unit) ->
+    ?onInvalid:(Dom.event -> unit) ->
+    ?onKeyDown:(Dom.event -> unit) ->
+    ?onKeyUp:(Dom.event -> unit) ->
+    ?onFocus:(Dom.event -> unit) ->
+    ?onBlur:(Dom.event -> unit) ->
+    ?onFocusIn:(Dom.event -> unit) ->
+    ?onFocusOut:(Dom.event -> unit) ->
+    ?onMouseDown:(Dom.event -> unit) ->
+    ?onMouseUp:(Dom.event -> unit) ->
+    ?onMouseEnter:(Dom.event -> unit) ->
+    ?onMouseLeave:(Dom.event -> unit) ->
+    ?onMouseMove:(Dom.event -> unit) ->
+    ?onMouseOver:(Dom.event -> unit) ->
+    ?onMouseOut:(Dom.event -> unit) ->
+    ?onPointerDown:(Dom.event -> unit) ->
+    ?onPointerUp:(Dom.event -> unit) ->
+    ?onPointerMove:(Dom.event -> unit) ->
+    ?onPointerEnter:(Dom.event -> unit) ->
+    ?onPointerLeave:(Dom.event -> unit) ->
+    ?onPointerOver:(Dom.event -> unit) ->
+    ?onPointerOut:(Dom.event -> unit) ->
+    ?onPointerCancel:(Dom.event -> unit) ->
+    ?onTouchStart:(Dom.event -> unit) ->
+    ?onTouchMove:(Dom.event -> unit) ->
+    ?onTouchEnd:(Dom.event -> unit) ->
+    ?onTouchCancel:(Dom.event -> unit) ->
+    ?onWheel:(Dom.event -> unit) ->
+    ?onScroll:(Dom.event -> unit) ->
+    ?onDragStart:(Dom.event -> unit) ->
+    ?onDrag:(Dom.event -> unit) ->
+    ?onDragEnd:(Dom.event -> unit) ->
+    ?onDragEnter:(Dom.event -> unit) ->
+    ?onDragOver:(Dom.event -> unit) ->
+    ?onDragLeave:(Dom.event -> unit) ->
+    ?onDrop:(Dom.event -> unit) ->
+    ?onCopy:(Dom.event -> unit) ->
+    ?onCut:(Dom.event -> unit) ->
+    ?onPaste:(Dom.event -> unit) ->
+    ?onLoad:(Dom.event -> unit) ->
+    ?onError:(Dom.event -> unit) ->
+    ?onToggle:(Dom.event -> unit) ->
+    ?onClose:(Dom.event -> unit) ->
+    ?onAnimationStart:(Dom.event -> unit) ->
+    ?onAnimationEnd:(Dom.event -> unit) ->
+    ?onTransitionEnd:(Dom.event -> unit) ->
+    ?onPlay:(Dom.event -> unit) ->
+    ?onPause:(Dom.event -> unit) ->
+    ?onEnded:(Dom.event -> unit) ->
+    ?onTimeUpdate:(Dom.event -> unit) ->
+    ?attrs:attr list ->
+    ?children:t list ->
+    unit ->
+    t
+
   (* [className] wins over [class_] when both are given. *)
-  let create tag ?class_ ?className
+  let create tag : element = fun ?class_ ?className
       ?id ?title ?lang ?dir ?role ?style ?tabIndex ?hidden ?draggable ?contentEditable ?spellcheck ?translate ?slot ?aria_label ?aria_labelledby ?aria_describedby ?aria_hidden ?aria_expanded ?aria_controls ?aria_current ?aria_pressed ?aria_selected ?aria_checked ?aria_disabled ?aria_live ?aria_haspopup ?aria_invalid ?href ?target ?rel ?download ?hreflang ?src ?srcSet ?sizes ?alt ?width ?height ?loading ?decoding ?crossOrigin ?poster ?preload ?controls ?autoplay ?loop ?muted ?playsInline ?name ?type_ ?value ?placeholder ?for_ ?htmlFor ?form ?action ?method_ ?enctype ?accept ?acceptCharset ?autocomplete ?pattern ?min ?max ?step ?minLength ?maxLength ?size ?rows ?cols ?wrap ?list ?inputMode ?enterKeyHint ?label_ ?disabled ?required ?readOnly ?multiple ?autofocus ?noValidate ?checked ?selected ?colSpan ?rowSpan ?headers ?scope ?start ?reversed ?open_ ?dateTime ?cite ?viewBox ?xmlns ?d ?fill ?fill_rule ?fill_opacity ?stroke ?stroke_width ?stroke_linecap ?stroke_linejoin ?stroke_dasharray ?stroke_dashoffset ?opacity ?transform ?cx ?cy ?r ?rx ?ry ?x ?y ?x1 ?y1 ?x2 ?y2 ?points ?offset ?stop_color ?preserveAspectRatio
       ?onClick ?onDblClick ?onContextMenu ?onInput ?onChange ?onSubmit ?onReset ?onInvalid ?onKeyDown ?onKeyUp ?onFocus ?onBlur ?onFocusIn ?onFocusOut ?onMouseDown ?onMouseUp ?onMouseEnter ?onMouseLeave ?onMouseMove ?onMouseOver ?onMouseOut ?onPointerDown ?onPointerUp ?onPointerMove ?onPointerEnter ?onPointerLeave ?onPointerOver ?onPointerOut ?onPointerCancel ?onTouchStart ?onTouchMove ?onTouchEnd ?onTouchCancel ?onWheel ?onScroll ?onDragStart ?onDrag ?onDragEnd ?onDragEnter ?onDragOver ?onDragLeave ?onDrop ?onCopy ?onCut ?onPaste ?onLoad ?onError ?onToggle ?onClose ?onAnimationStart ?onAnimationEnd ?onTransitionEnd ?onPlay ?onPause ?onEnded ?onTimeUpdate
-      ?(attrs = []) ?(children = []) () =
+      ?(attrs = []) ?(children = []) () ->
     let class_ = match className with Some _ -> className | None -> class_ in
     let acc = push_string "class" class_ [] in
     let acc = push_string "id" id acc in
