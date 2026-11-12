@@ -1,3 +1,6 @@
+; consumer/ is its own dune project, built against the installed packages by CI.
+(dirs :standard \ consumer api)
+
 (test
  (name test_signals)
  (modules test_signals)

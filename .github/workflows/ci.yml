@@ -37,6 +37,11 @@ jobs:
       - name: Run native behavioral tests
         run: opam exec -- dune test
 
+      # The printed public signature must match test/api/reativa.api, so an
+      # API change is always a reviewed diff (scripts/check-api.sh --update).
+      - name: Public API unchanged
+        run: opam exec -- scripts/check-api.sh
+
   melange-build:
     name: Melange backend build
     runs-on: ubuntu-latest
@@ -174,3 +179,10 @@ jobs:
 
       - name: Install reativa and reativa-jsoo from this checkout
         run: opam install . --with-test
+
+      # Built outside the repository, against the installed packages only.
+      - name: Build a consumer against the installed packages
+        run: |
+          cp -r test/consumer "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          opam exec -- dune build
