@@ -1,0 +1,10 @@
+; js_of_ocaml implementation of the test-only Probe module (see ../probe.mli).
+; Optional, so a build without js_of_ocaml installed simply skips it.
+(copy_files# ../probe.mli)
+
+(library
+ (name reativa_probe_jsoo)
+ (optional)
+ (modes byte)
+ (wrapped false)
+ (libraries reativa js_of_ocaml))

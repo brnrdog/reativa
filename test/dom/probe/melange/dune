@@ -1,0 +1,10 @@
+; Melange implementation of the test-only Probe module (see ../probe.mli).
+(copy_files# ../probe.mli)
+
+(library
+ (name reativa_probe_melange)
+ (modes melange)
+ (wrapped false)
+ (libraries reativa)
+ (preprocess
+  (pps melange.ppx)))

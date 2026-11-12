@@ -52,7 +52,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies (incl. melange)
         run: |
@@ -63,6 +63,14 @@ jobs:
       # dev-profile build of the whole workspace is covered by build-and-test.
       - name: Build Melange (JS) target
         run: opam exec -- dune build --profile release @melange
+
+      - name: Install npm dependencies (jsdom)
+        run: npm ci
+
+      - name: DOM tests on Melange (jsdom)
+        run: |
+          opam exec -- dune build @test/dom/dom-tests
+          node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js
 
       - name: Bundle the demo and check its size
         run: |
@@ -87,7 +95,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies (incl. js_of_ocaml)
         run: |
@@ -109,6 +117,14 @@ jobs:
       # Compile-only: type-checking the PPX inference fixture against the
       # js_of_ocaml backend is the assertion. Its Melange twin is covered by
       # `dune build @melange` in the Melange job.
+      - name: Install npm dependencies (jsdom)
+        run: npm ci
+
+      - name: DOM tests on js_of_ocaml (jsdom)
+        run: |
+          REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js
+          node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js
+
       - name: Type-check the mlx inference fixture on js_of_ocaml
         run: |
           REATIVA_JSOO=enabled opam exec -- dune build --profile release \
