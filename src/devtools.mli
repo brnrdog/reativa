@@ -85,8 +85,8 @@ val why : int -> cause option
 
 (** {2 The DOM} *)
 
-(** The effects that write to this DOM node, with what they write ("text",
-    or an attribute or property name). *)
+(** The effects that write to this DOM node or to its own text children, with
+    what they write ("text", or an attribute or property name). *)
 val effects_writing : Dom.t -> (int * string) list
 
 (** The DOM node an effect writes to, and what it writes. *)

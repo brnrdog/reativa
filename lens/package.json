@@ -1,0 +1,17 @@
+{
+  "name": "reativa-lens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Drive a Reativa app headlessly and see what each interaction wrote, ran and changed, and why. A CLI and an MCP server over Reativa.Devtools.",
+  "bin": {
+    "reativa-lens": "bin/reativa-lens.mjs"
+  },
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "dependencies": {
+    "jsdom": "^25.0.1"
+  },
+  "license": "MIT"
+}
