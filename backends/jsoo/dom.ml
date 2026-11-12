@@ -81,6 +81,16 @@ let next_sibling (node : t) : t option =
 let is_same_node (a : t) (b : t) : bool =
   Js.to_bool (Js.Unsafe.meth_call a "isSameNode" [| Js.Unsafe.inject b |] : bool Js.t)
 
+let create_fragment () : t = Js.Unsafe.meth_call (document ()) "createDocumentFragment" [||]
+
+let parent_node (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "parentNode" : t Js.opt)
+
+let first_child (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "firstChild" : t Js.opt)
+
+let remove (node : t) : unit = ignore (Js.Unsafe.meth_call node "remove" [||])
+
 (* ----- attributes & content ----- *)
 
 let set_attribute (el : t) (name : string) (v : string) : unit =

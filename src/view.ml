@@ -66,14 +66,6 @@ type t =
       }
       -> t
 
-type 'item keyed_block = {
-  key : string;
-  item : 'item Signal.t;
-  nodes : Dom.t list;
-  (* Owns the row's effects; disposed when the row is dropped. *)
-  owner : Owner.t;
-}
-
 (* Ownership. Every Effect created while building a subtree registers with
    the current {!Owner}: a [Dynamic] region's effect owns its current pass and
    resets it before re-rendering, a keyed row owns its row, a component owns
@@ -89,30 +81,78 @@ let place parent before node =
   | Some ref_node -> Dom.insert_before parent node ref_node
   | None -> Dom.append_child parent node
 
+(* Where a region inserts: the anchor's current parent. A region's nodes can
+   move after it was created (a keyed row is built in a fragment and then
+   inserted), so the parent it was created under is only a fallback. *)
+let parent_of anchor fallback = match Dom.parent_node anchor with Some p -> p | None -> fallback
+
+(* ----- leaves -----
+
+   Each reactive leaf remembers the last value it wrote and skips the DOM when
+   a run lands on the same value: selecting one row of a thousand runs every
+   row's class effect, but only two of them write. *)
+
+let leaf_string write f =
+  let last = ref None in
+  ignore
+    (Effect_core.leaf (fun () ->
+       let v = f () in
+       (match !last with
+        | Some prev when String.equal prev v -> ()
+        | _ ->
+          last := Some v;
+          write v);
+       None))
+
+let leaf_bool write f =
+  let last = ref None in
+  ignore
+    (Effect_core.leaf (fun () ->
+       let v = f () in
+       (match !last with
+        | Some prev when prev = v -> ()
+        | _ ->
+          last := Some v;
+          write v);
+       None))
+
+let toggle_attribute el name present =
+  if present then Dom.set_attribute el name "" else Dom.remove_attribute el name
+
 let apply_attr el = function
   | Attr_static ("value", v) -> Dom.set_value el v
   | Attr_static (name, v) -> Dom.set_attribute el name v
-  | Attr_reactive (name, f) ->
-    if name = "value" then
-      ignore (Effect_core.leaf (fun () -> Dom.set_value el (f ()); None))
-    else ignore (Effect_core.leaf (fun () -> Dom.set_attribute el name (f ()); None))
+  | Attr_reactive ("value", f) -> leaf_string (Dom.set_value el) f
+  | Attr_reactive (name, f) -> leaf_string (Dom.set_attribute el name) f
   | Attr_bool_static ("checked", v) -> Dom.set_checked el v
-  | Attr_bool_static (name, v) ->
-    if v then Dom.set_attribute el name "" else Dom.remove_attribute el name
-  | Attr_bool_reactive ("checked", f) ->
-    ignore (Effect_core.leaf (fun () -> Dom.set_checked el (f ()); None))
+  | Attr_bool_static (name, v) -> toggle_attribute el name v
+  | Attr_bool_reactive ("checked", f) -> leaf_bool (Dom.set_checked el) f
+  | Attr_bool_reactive (name, f) | Attr_toggle (name, f) -> leaf_bool (toggle_attribute el name) f
   | Attr_optional (name, f) ->
+    let last = ref None and first = ref true in
     ignore
       (Effect_core.leaf (fun () ->
-         (match f () with
-          | Some v -> if name = "value" then Dom.set_value el v else Dom.set_attribute el name v
-          | None -> Dom.remove_attribute el name);
+         let v = f () in
+         if !first || v <> !last then begin
+           first := false;
+           last := v;
+           match v with
+           | Some v -> if name = "value" then Dom.set_value el v else Dom.set_attribute el name v
+           | None -> Dom.remove_attribute el name
+         end;
          None))
-  | Attr_bool_reactive (name, f) | Attr_toggle (name, f) ->
-    ignore
-      (Effect_core.leaf (fun () ->
-         if f () then Dom.set_attribute el name "" else Dom.remove_attribute el name;
-         None))
+
+let rec apply_attrs el = function
+  | [] -> ()
+  | attr :: rest ->
+    apply_attr el attr;
+    apply_attrs el rest
+
+let rec add_listeners el = function
+  | [] -> ()
+  | (name, handler) :: rest ->
+    Dom.add_event_listener el name handler;
+    add_listeners el rest
 
 (* SVG. Elements created while [in_svg] holds go in the SVG namespace: an
    <svg> element sets it for its children, a <foreignObject> clears it again.
@@ -132,144 +172,212 @@ let with_svg svg f =
     in_svg := prev;
     raise e
 
+(* ----- keyed lists -----
+
+   A keyed list keeps one row per key across passes. [table] maps keys to rows
+   and survives between passes; each pass stamps the rows it reaches, so the
+   ones left unstamped are the stale ones, found without building a key set.
+   [index] is a row's position in the previous pass, which is also its
+   relative DOM order. *)
+
+type 'item row = {
+  key : string;
+  mutable value : 'item;
+  (* [Some] for [for_with_key]: a surviving row receives the new item here. *)
+  signal : 'item Signal.t option;
+  mutable nodes : Dom.t list;
+  (* Owns the row's effects; disposed when the row is dropped. *)
+  owner : Owner.t;
+  mutable stamp : int;
+  mutable index : int;
+}
+
+type 'item keyed_state = {
+  mutable rows : 'item row array;
+  table : (string, 'item row) Hashtbl.t;
+  mutable pass : int;
+}
+
+let dispose_row row =
+  Owner.dispose row.owner;
+  List.iter Dom.remove row.nodes;
+  row.nodes <- []
+
 (* [build_row] needs [insert], which is defined below it in the same
-   recursive group as the reconcilers; this ref breaks the cycle. *)
+   recursive group as the reconciler; this ref breaks the cycle. *)
 let insert_ref : (Dom.t -> Dom.t option -> t -> Dom.t list ref -> unit) ref =
   ref (fun _ _ _ _ -> ())
 
-let dispose_keyed_block parent block =
-  Owner.dispose block.owner;
-  List.iter (fun node -> Dom.remove_child parent node) block.nodes
-
-(* Build one keyed row under a fresh owner. The owner's parent is the current
-   one (the list's reconciling effect), for context lookups; it is not
-   registered there — the list disposes its rows itself. Rows render
-   untracked, so a read in a row's render function never subscribes the whole
-   list. *)
-let build_row parent before view_of key item_signal =
+(* Build one row into [into] (a fragment) under a fresh owner. The owner's
+   parent is the current one (the list's reconciling effect), for context
+   lookups; it is not registered there — the list disposes its rows itself.
+   Rows render untracked, so a read in a row's render function never
+   subscribes the whole list. *)
+let build_row into view_of key value signal =
   let owner = Owner.make () in
-  let local_nodes = ref [] in
+  let nodes = ref [] in
   Owner.run_in owner (fun () ->
-    Signal.untrack (fun () -> insert_ref.contents parent before (view_of ()) local_nodes));
-  { key; item = item_signal; nodes = List.rev !local_nodes; owner }
+    Signal.untrack (fun () -> insert_ref.contents into None (view_of ()) nodes));
+  { key; value; signal; nodes = List.rev !nodes; owner; stamp = 0; index = -1 }
 
-let node_is_followed_by node next =
-  match Dom.next_sibling node with
-  | Some sibling -> Dom.is_same_node sibling next
-  | None -> false
+(* Indices into [positions] (values >= 0) forming a longest strictly
+   increasing subsequence, as a membership array. O(n log n). *)
+let lis_members positions =
+  let n = Array.length positions in
+  let member = Array.make n false in
+  let tails = Array.make (n + 1) 0 (* index of the smallest tail per length *) in
+  let prev = Array.make n (-1) in
+  let len = ref 0 in
+  for i = 0 to n - 1 do
+    let p = positions.(i) in
+    if p >= 0 then begin
+      (* binary search for the first length whose tail is >= p *)
+      let lo = ref 0 and hi = ref !len in
+      while !lo < !hi do
+        let mid = (!lo + !hi) / 2 in
+        if positions.(tails.(mid)) < p then lo := mid + 1 else hi := mid
+      done;
+      if !lo > 0 then prev.(i) <- tails.(!lo - 1);
+      tails.(!lo) <- i;
+      if !lo = !len then incr len
+    end
+  done;
+  if !len > 0 then begin
+    let k = ref tails.(!len - 1) in
+    while !k >= 0 do
+      member.(!k) <- true;
+      k := prev.(!k)
+    done
+  end;
+  member
 
-let rec nodes_are_contiguous_before nodes before =
-  match nodes with
-  | [] -> true
-  | [ node ] -> node_is_followed_by node before
-  | node :: (next :: _ as rest) ->
-    node_is_followed_by node next && nodes_are_contiguous_before rest before
+(* One pass of a keyed list.
 
-let move_block_before parent block before =
-  match block.nodes with
-  | [] -> before
-  | first :: _ ->
-    if not (nodes_are_contiguous_before block.nodes before) then
-      List.iter (fun node -> place parent (Some before) node) block.nodes;
-    first
+   - Surviving rows are reused: [reuse row item] updates them and returns
+     [false] when the row must be rebuilt instead ([for_] of raw items rebuilds
+     a row whose item changed physically).
+   - Stale rows are disposed and their nodes removed.
+   - New rows are built in order, each run of consecutive new rows into one
+     fragment that is inserted with a single DOM call.
+   - Surviving rows that keep their relative order (a longest increasing
+     subsequence of their previous positions) stay where they are; only the
+     others move. An append, a removal or a swap moves nothing or almost
+     nothing. *)
+let reconcile ~make ~reuse anchor fallback_parent state items key =
+  let parent = parent_of anchor fallback_parent in
+  state.pass <- state.pass + 1;
+  let pass = state.pass in
+  let items = Array.of_list items in
+  let n = Array.length items in
+  let replaced = ref [] in
+  (* Match items to rows. Slots for new rows hold [placeholder] until the rows
+     are built below; nothing reads a slot before it is filled. *)
+  let placeholder : _ row = Obj.magic 0 in
+  let next = Array.make n placeholder in
+  let is_new = Array.make n false in
+  for i = 0 to n - 1 do
+    let item = items.(i) in
+    let k = key item in
+    match Hashtbl.find_opt state.table k with
+    | Some row when row.stamp = pass -> failwith ("View.for_with_key: duplicate key " ^ k)
+    | Some row when reuse row item ->
+      row.stamp <- pass;
+      next.(i) <- row
+    | Some row ->
+      (* Rebuild: the old row goes once the new one is in place. *)
+      row.stamp <- pass;
+      replaced := row :: !replaced;
+      is_new.(i) <- true
+    | None -> is_new.(i) <- true
+  done;
+  (* Drop stale rows (and rows being rebuilt). *)
+  Array.iter
+    (fun row ->
+      if row.stamp <> pass then begin
+        Hashtbl.remove state.table row.key;
+        dispose_row row
+      end)
+    state.rows;
+  (* A rebuilt row's old entry must not count as a duplicate below. *)
+  List.iter
+    (fun row ->
+      row.stamp <- -1;
+      dispose_row row)
+    !replaced;
+  (* Build new rows in order, one fragment per run of consecutive new rows. *)
+  let fragments = Array.make n None in
+  let current = ref None in
+  for i = 0 to n - 1 do
+    if is_new.(i) then begin
+      let fragment =
+        match !current with
+        | Some f -> f
+        | None ->
+          let f = Dom.create_fragment () in
+          current := Some f;
+          fragments.(i) <- Some f;
+          f
+      in
+      let item = items.(i) in
+      let k = key item in
+      (match Hashtbl.find_opt state.table k with
+       | Some existing when existing.stamp = pass ->
+         failwith ("View.for_with_key: duplicate key " ^ k)
+       | _ -> ());
+      let row = make fragment item k in
+      row.stamp <- pass;
+      Hashtbl.replace state.table row.key row;
+      next.(i) <- row
+    end
+    else current := None
+  done;
+  (* Place: walk backwards from the anchor. *)
+  let positions = Array.init n (fun i -> if is_new.(i) then -1 else next.(i).index) in
+  let stay = lis_members positions in
+  let before = ref anchor in
+  for i = n - 1 downto 0 do
+    let row = next.(i) in
+    if is_new.(i) then begin
+      (* The first row of a run carries the run's fragment. *)
+      match fragments.(i) with
+      | Some fragment ->
+        Dom.insert_before parent fragment !before;
+        (* The run's first node is now the reference for what precedes it. *)
+        let rec first_of j =
+          if j >= n || not is_new.(j) then None
+          else match next.(j).nodes with first :: _ -> Some first | [] -> first_of (j + 1)
+        in
+        (match first_of i with Some first -> before := first | None -> ())
+      | None -> ()
+    end
+    else begin
+      if not stay.(i) then List.iter (fun node -> Dom.insert_before parent node !before) row.nodes;
+      match row.nodes with first :: _ -> before := first | [] -> ()
+    end
+  done;
+  Array.iteri (fun i row -> row.index <- i) next;
+  state.rows <- next
 
-let rec reconcile_keyed :
-  type item.
-  Dom.t ->
-  Dom.t ->
-  item list ->
-  (item -> string) ->
-  (item Signal.t -> t) ->
-  item keyed_block list ref ->
-  unit =
- fun parent anchor items key render blocks ->
-  let old_by_key = Hashtbl.create (List.length !blocks) in
-  List.iter (fun block -> Hashtbl.replace old_by_key block.key block) !blocks;
-  let seen_keys = Hashtbl.create (List.length items) in
-  let create_block item item_key =
-    let item_signal = Signal.make item in
-    build_row parent (Some anchor) (fun () -> render item_signal) item_key item_signal
-  in
-  let keyed_items =
-    map_list
-      (fun item ->
-        let item_key = key item in
-        if Hashtbl.mem seen_keys item_key then
-          failwith ("View.for_with_key: duplicate key " ^ item_key);
-        Hashtbl.add seen_keys item_key ();
-        (item_key, item))
-      items
-  in
-  let next_blocks =
-    map_list
-      (fun (item_key, item) ->
-        match Hashtbl.find_opt old_by_key item_key with
-        | Some block ->
-          Hashtbl.remove old_by_key item_key;
-          Signal.set block.item item;
-          block
-        | None -> create_block item item_key)
-      keyed_items
-  in
-  Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
-  ignore (List.fold_left (fun before block -> move_block_before parent block before) anchor (List.rev next_blocks));
-  blocks := next_blocks;
-
-and reconcile_keyed_raw :
-  type item.
-  Dom.t ->
-  Dom.t ->
-  item list ->
-  (item -> string) ->
-  (item -> t) ->
-  item keyed_block list ref ->
-  unit =
- fun parent anchor items key render blocks ->
-  let old_by_key = Hashtbl.create (List.length !blocks) in
-  List.iter (fun block -> Hashtbl.replace old_by_key block.key block) !blocks;
-  let seen_keys = Hashtbl.create (List.length items) in
-  let create_block ?(before = anchor) item item_key =
-    build_row parent (Some before) (fun () -> render item) item_key (Signal.make item)
-  in
-  let keyed_items =
-    map_list
-      (fun item ->
-        let item_key = key item in
-        if Hashtbl.mem seen_keys item_key then
-          failwith ("View.for_with_key: duplicate key " ^ item_key);
-        Hashtbl.add seen_keys item_key ();
-        (item_key, item))
-      items
-  in
-  let next_blocks =
-    map_list
-      (fun (item_key, item) ->
-        match Hashtbl.find_opt old_by_key item_key with
-        | Some block when item == Signal.peek block.item ->
-          Hashtbl.remove old_by_key item_key;
-          block
-        | Some block ->
-          Hashtbl.remove old_by_key item_key;
-          let before =
-            match block.nodes with
-            | first :: _ -> first
-            | [] -> anchor
-          in
-          let next_block = create_block ~before item item_key in
-          dispose_keyed_block parent block;
-          next_block
-        | None -> create_block item item_key)
-      keyed_items
-  in
-  Hashtbl.iter (fun _ block -> dispose_keyed_block parent block) old_by_key;
-  ignore (List.fold_left (fun before block -> move_block_before parent block before) anchor (List.rev next_blocks));
-  blocks := next_blocks;
+let keyed_region ~make ~reuse parent before acc items key =
+  let anchor = Dom.create_comment "" in
+  place parent before anchor;
+  acc := anchor :: !acc;
+  let state = { rows = [||]; table = Hashtbl.create 16; pass = 0 } in
+  Owner.on_cleanup (fun () ->
+    Array.iter dispose_row state.rows;
+    state.rows <- [||];
+    Hashtbl.reset state.table);
+  let svg = !in_svg in
+  Effect_core.run (fun () ->
+    let items = items () in
+    with_svg svg (fun () -> reconcile ~make ~reuse anchor parent state items key);
+    None)
 
 (* Build [view] and insert its top-level nodes into [parent] (before [before],
    or appended when [before] is [None]). Top-level nodes are pushed onto [acc]
    so a [Dynamic] region can later remove exactly what it inserted. Effects
    created here register with the current owner. *)
-and insert parent before view (acc : Dom.t list ref) =
+let rec insert parent before view (acc : Dom.t list ref) =
   match view with
   | Empty -> ()
   | Text s ->
@@ -278,41 +386,15 @@ and insert parent before view (acc : Dom.t list ref) =
     acc := node :: !acc
   | Reactive_text f ->
     let node = Dom.create_text_node "" in
-    ignore (Effect_core.leaf (fun () -> Dom.set_text_content node (f ()); None));
+    leaf_string (Dom.set_text_content node) f;
     place parent before node;
     acc := node :: !acc
   | Element { tag; attrs; events; children } ->
-    let svg = !in_svg || tag = "svg" in
-    let el = if svg then Dom.create_element_ns svg_namespace tag else Dom.create_element tag in
-    List.iter (apply_attr el) attrs;
-    List.iter (fun (name, h) -> Dom.add_event_listener el name h) events;
-    (* Children are inserted directly into [el]; their own top-level nodes are
-       irrelevant to our caller, so they go into a throwaway accumulator. *)
-    let child_acc = ref [] in
-    with_svg (svg && tag <> "foreignObject") (fun () ->
-      List.iter (fun c -> insert el None c child_acc) children);
+    let el = insert_element tag attrs events children in
     place parent before el;
     acc := el :: !acc
   | Fragment views -> List.iter (fun v -> insert parent before v acc) views
-  | Dynamic f ->
-    (* The anchor stays put; the region's nodes live just before it and are
-       swapped out wholesale whenever a dependency of [f] changes. The effect
-       owns each pass: before a re-run it disposes everything the previous
-       pass created, then the cleanup below removes the previous nodes. *)
-    let anchor = Dom.create_comment "" in
-    place parent before anchor;
-    acc := anchor :: !acc;
-    let region : Dom.t list ref = ref [] in
-    let cleanup () =
-      List.iter (fun node -> Dom.remove_child parent node) !region;
-      region := []
-    in
-    let svg = !in_svg in
-    Effect.run (fun () ->
-      let local = ref [] in
-      with_svg svg (fun () -> insert parent (Some anchor) (f ()) local);
-      region := !local;
-      Some cleanup)
+  | Dynamic f -> dynamic_region parent before acc f
   | Component body ->
     (* Runs now, at insertion: under its own owner (disposed with the current
        one) and untracked, so reads in the body never subscribe the region
@@ -320,29 +402,81 @@ and insert parent before view (acc : Dom.t list ref) =
     let owner = Owner.make_child () in
     Owner.run_in owner (fun () -> insert parent before (Signal.untrack body) acc)
   | Keyed { items; key; render } ->
-    let anchor = Dom.create_comment "" in
-    place parent before anchor;
-    acc := anchor :: !acc;
-    let blocks = ref [] in
-    Owner.on_cleanup (fun () ->
-      List.iter (dispose_keyed_block parent) !blocks;
-      blocks := []);
-    let svg = !in_svg in
-    Effect.run (fun () ->
-      with_svg svg (fun () -> reconcile_keyed parent anchor (items ()) key render blocks);
-      None)
+    keyed_region parent before acc items key
+      ~make:(fun into item k ->
+        let signal = Signal.make item in
+        build_row into (fun () -> render signal) k item (Some signal))
+      ~reuse:(fun row item ->
+        (match row.signal with Some s -> Signal.set s item | None -> ());
+        row.value <- item;
+        true)
   | Keyed_raw { items; key; render } ->
-    let anchor = Dom.create_comment "" in
-    place parent before anchor;
-    acc := anchor :: !acc;
-    let blocks = ref [] in
-    Owner.on_cleanup (fun () ->
-      List.iter (dispose_keyed_block parent) !blocks;
-      blocks := []);
-    let svg = !in_svg in
-    Effect.run (fun () ->
-      with_svg svg (fun () -> reconcile_keyed_raw parent anchor (items ()) key render blocks);
-      None)
+    keyed_region parent before acc items key
+      ~make:(fun into item k -> build_row into (fun () -> render item) k item None)
+      ~reuse:(fun row item -> row.value == item)
+
+(* Build an element and its subtree.
+
+   No closure created here captures [children] or [attrs]: js_of_ocaml's
+   release build inlines the attribute helpers into this function, so a
+   closure that captured the lists would share this call's scope with the
+   attribute effects, which live as long as the element, and keep the whole
+   view description of the subtree alive. Children are walked by a plain
+   recursive loop for the same reason. *)
+and insert_element tag attrs events children =
+  let svg = !in_svg || tag = "svg" in
+  let el = if svg then Dom.create_element_ns svg_namespace tag else Dom.create_element tag in
+  apply_attrs el attrs;
+  add_listeners el events;
+  let prev = !in_svg in
+  in_svg := svg && tag <> "foreignObject";
+  (match insert_children el children with
+   | () -> in_svg := prev
+   | exception e ->
+     in_svg := prev;
+     raise e);
+  el
+
+(* Children go straight into [el]; their top-level nodes are irrelevant to the
+   caller, so they share a throwaway accumulator. *)
+and insert_children el = function
+  | [] -> ()
+  | child :: rest ->
+    insert el None child (ref []);
+    insert_children el rest
+
+(* A region rebuilt whenever a signal [f] read changes. The anchor stays put;
+   the region's nodes live just before it. The effect owns each pass: before a
+   re-run it disposes everything the previous pass created.
+
+   When the previous pass and the new one are both a single text, the text
+   node is kept and only its data is written: a [View.child] thunk returning a
+   string or a number updates like a reactive text leaf instead of rebuilding
+   a node each time. *)
+and dynamic_region parent before acc f =
+  let anchor = Dom.create_comment "" in
+  place parent before anchor;
+  acc := anchor :: !acc;
+  let region : Dom.t list ref = ref [] in
+  let text_node = ref None in
+  let clear () =
+    List.iter Dom.remove !region;
+    region := [];
+    text_node := None
+  in
+  Owner.on_cleanup clear;
+  let svg = !in_svg in
+  Effect_core.run (fun () ->
+    let view = f () in
+    (match (view, !text_node) with
+     | Text s, Some node -> Dom.set_text_content node s
+     | _ ->
+       clear ();
+       let local = ref [] in
+       with_svg svg (fun () -> insert (parent_of anchor parent) (Some anchor) view local);
+       region := !local;
+       (match (view, !local) with Text _, [ node ] -> text_node := Some node | _ -> ()));
+    None)
 
 let () = insert_ref := insert
 

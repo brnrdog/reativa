@@ -45,6 +45,17 @@ external next_sibling : t -> t option = "nextSibling"
 
 external is_same_node : t -> t -> bool = "isSameNode" [@@mel.send]
 
+external create_fragment : unit -> t = "createDocumentFragment"
+  [@@mel.scope "document"]
+
+external parent_node : t -> t option = "parentNode"
+  [@@mel.get] [@@mel.return nullable]
+
+external first_child : t -> t option = "firstChild"
+  [@@mel.get] [@@mel.return nullable]
+
+external remove : t -> unit = "remove" [@@mel.send]
+
 (* ----- attributes & content ----- *)
 
 external set_attribute : t -> string -> string -> unit = "setAttribute"
