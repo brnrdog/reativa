@@ -338,7 +338,26 @@ let test_nested_creation () =
       Signal.get count)
   in
   Signal.set count 5;
-  check_eq "computed keeps its dependency" (Signal.peek c) 5
+  check_eq "computed keeps its dependency" (Signal.peek c) 5;
+  (* An effect that reads, then writes, the same signal during its first run.
+     The write must not re-run the effect nested inside that first run: the
+     nested run re-marks the link, and pruning after the first run then drops
+     it, so the effect would never run again. *)
+  let s = Signal.make 0 in
+  let runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      incr runs;
+      let v = Signal.get s in
+      if v < 1 then Signal.set s 1;
+      None)
+  in
+  check_eq "the write does not re-run the effect inside its own run" !runs 1;
+  check_eq "the write is applied" (Signal.peek s) 1;
+  let before = !runs in
+  Signal.set s 5;
+  check_eq "the effect keeps its dependency on what it wrote" !runs (before + 1);
+  d.dispose ()
 
 let () =
   test_signal ();

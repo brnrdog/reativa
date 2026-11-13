@@ -17,8 +17,16 @@ let pending_effects : node list ref = ref []
 let pending_computeds : node list ref = ref []
 let flushing = ref false
 
+(* An effect never queues itself while it is running: a write it makes to a
+   signal it read is already visible to the rest of that run. Re-running it
+   from inside its own run (which happens when the write is not batched, as
+   in a first run at top level) would nest a second run whose tracking
+   version the outer run then prunes, losing the dependency. Computeds already
+   skip the running effect when they propagate (see [run_computed_cycle]). *)
+let is_running node = match !current_target with Some cur -> cur == node | None -> false
+
 let add_effect_to_pending node =
-  if not (is_pending node) then begin
+  if not (is_pending node || is_running node) then begin
     set_pending node;
     pending_effects := node :: !pending_effects
   end
