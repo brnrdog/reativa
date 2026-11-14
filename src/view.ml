@@ -338,10 +338,43 @@ let insert_ref : (Dom.t -> Dom.t option -> t -> Dom.t list ref -> unit) ref =
 let build_row into view_of key value signal =
   let owner = Owner.make () in
   let nodes = ref [] in
+  let before_row = Dom.last_child into in
   Owner.run_in owner (fun () ->
     Signal.untrack (fun () -> insert_ref.contents into None (view_of ()) nodes));
-  { key; value; signal; nodes = List.rev !nodes; owner; stamp = 0; index = -1 }
+  let nodes = List.rev !nodes in
+  (* A row that starts with a region reports the region's anchor first, but
+     the region's content sits before that anchor and changes over time. An
+     empty text node (invisible in the markup) marks where such a row starts,
+     so the row is always the contiguous range from its first node to its
+     last one, content included (see [row_range]). *)
+  let nodes =
+    match nodes with
+    | first :: _ when Dom.is_comment first ->
+      let marker = Dom.create_text_node "" in
+      let row_start =
+        match before_row with Some last -> Dom.next_sibling last | None -> Dom.first_child into
+      in
+      (match row_start with
+       | Some start -> Dom.insert_before into marker start
+       | None -> Dom.append_child into marker);
+      marker :: nodes
+    | _ -> nodes
+  in
+  { key; value; signal; nodes; owner; stamp = 0; index = -1 }
 
+(* Every node of a row in DOM order: from its first reported node to its last,
+   including the content its regions show in between. *)
+let row_range row =
+  match row.nodes with
+  | [] -> []
+  | first :: _ ->
+    let last = List.nth row.nodes (List.length row.nodes - 1) in
+    let rec walk node acc =
+      let acc = node :: acc in
+      if node == last then List.rev acc
+      else match Dom.next_sibling node with Some next -> walk next acc | None -> List.rev acc
+    in
+    walk first []
 
 (* Whether the rows (in order) and then the anchor are all of [parent]'s
    children. *)
@@ -512,7 +545,7 @@ let reconcile ~make ~reuse anchor fallback_parent state items key =
       | None -> ()
     end
     else begin
-      if not stay.(i) then List.iter (fun node -> Dom.insert_before parent node !before) row.nodes;
+      if not stay.(i) then List.iter (fun node -> Dom.insert_before parent node !before) (row_range row);
       match row.nodes with first :: _ -> before := first | [] -> ()
     end
   done;

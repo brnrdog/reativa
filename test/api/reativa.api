@@ -55,6 +55,8 @@ val body : unit -> t
 val create_fragment : unit -> t
 val parent_node : t -> t option
 val first_child : t -> t option
+val last_child : t -> t option
+val is_comment : t -> bool
 val remove : t -> unit
 val clone_node : t -> t
 val child_at : t -> int -> t

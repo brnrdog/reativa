@@ -89,4 +89,19 @@ let register_regions () =
     (match dispose () with
      | () -> check "no error" true
      | exception e -> check ("dispose raised " ^ Printexc.to_string e) false);
-    equal_string "empty" ~expected:"" (html c))
+    equal_string "empty" ~expected:"" (html c));
+  test "a moved keyed row takes its region's current nodes along" (fun () ->
+    let a = Signal.make 1 and b = Signal.make 10 in
+    let items = Signal.make [ "a"; "b" ] in
+    let c =
+      mount
+        (View.div
+           [
+             View.for_with_key (fun () -> Signal.get items) ~key:Fun.id (fun item ->
+               row (if Signal.peek item = "a" then a else b));
+           ])
+    in
+    Signal.set a 2;
+    Signal.set items [ "b"; "a" ];
+    equal_string "order and content" ~expected:"<div>10<!----><i>x</i>2<!----><i>x</i><!----></div>" (html c))
+

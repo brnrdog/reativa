@@ -93,6 +93,11 @@ let first_child (node : t) : t option =
 
 let remove (node : t) : unit = ignore (Js.Unsafe.meth_call node "remove" [||])
 
+let last_child (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "lastChild" : t Js.opt)
+
+let is_comment (node : t) : bool = (Js.Unsafe.get node "nodeType" : int) = 8
+
 let clone_node (node : t) : t = Js.Unsafe.meth_call node "cloneNode" [| Js.Unsafe.inject Js._true |]
 (* Walking siblings is cheaper than indexing the live childNodes list. *)
 let child_at (node : t) (i : int) : t =
