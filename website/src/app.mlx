@@ -1191,6 +1191,7 @@ let () =
           </a>
           <nav className="topnav" aria_label="Primary">
             <a href="#why">("Why")</a>
+            <a href="#new">("New in 2.0")</a>
             <a href="#examples">("Examples")</a>
             <a href="#start">("Get started")</a>
             <a href="#api">("API")</a>
@@ -1292,6 +1293,32 @@ let () =
             (feature "Markup that infers reactivity"
                "Write JSX-like markup in .mlx or .re files. Literals stay static, inline Signal.get reads are auto-tracked, and event handlers stay plain functions. The PPX wires the updates for you.")
           </div>
+        </section>
+
+        <section id="new" className="section">
+          (section_head "New in 2.0" "Components with a lifecycle, and the tools around them"
+             "Version 2.0 brings reativa level with xote 7.2: ownership, lifecycle and refs, context, error boundaries, portals, resources with suspense, compiled templates, and devtools you can drive from a terminal or an AI agent.")
+          <div className="features">
+            (feature "Lazy, owned components"
+               "A component runs when it is mounted, untracked, under its own owner: every effect, computed and cleanup it creates goes away with it. View.on_mount, View.on_cleanup and element refs hook into that lifecycle.")
+            (feature "Context"
+               "Context.make, Context.provider and Context.use pass a value to everything a component renders - regions, rows and portals included - without threading props.")
+            (feature "Error boundaries and portals"
+               "View.error_boundary swaps in a fallback when rendering or a later effect throws, with a reset. View.portal renders into another container while keeping its place in the tree.")
+            (feature "Resources and suspense"
+               "Resource.make turns a promise from your backend into a Loading / Ready / Failed signal that refetches when its dependencies change. View.suspense shows a fallback while it loads.")
+            (feature "Compiled templates"
+               "The mlx ppx compiles element trees to HTML templates cloned per instance, and keyed lists move only the rows an update displaces: creating a thousand rows is two thousand DOM calls.")
+            (feature "Devtools and reativa-inspect"
+               "Reativa.Devtools records every write, recompute and effect run and explains why a node changed. reativa-inspect drives your app headlessly from the command line, or as an MCP server for coding agents.")
+          </div>
+          <p className="api-note">
+            ("Upgrading from 1.x? Components are now lazy and the API is declared by interface files - ")
+            <a href="https://brnrdog.github.io/reativa/docs/migrating-to-2.md">("read the migration notes")</a>
+            (". Every page also has an agent version, indexed in ")
+            <a href="https://brnrdog.github.io/reativa/llms.txt">("llms.txt")</a>
+            (".")
+          </p>
         </section>
 
         <section id="examples" className="section">
@@ -1451,6 +1478,47 @@ let () =
             (code_panel_ml ~id:"component" ~file:"greeting.mlx"
                ~ocaml:component_code ~reason:component_code_re)
           </article>
+
+          (api_group ~id:"api-lifecycle" ~name:"Lifecycle and refs"
+             ~blurb:"New in 2.0. Components mount lazily under their own owner; these hook into that lifecycle."
+             [
+               api_row "View.on_mount : (unit -> unit) -> unit"
+                 "Run once the current insertion has finished and the component's nodes are in place.";
+               api_row "View.on_cleanup : (unit -> unit) -> unit"
+                 "Run when the current component, row or region is disposed.";
+               api_row "View.Ref.make : unit -> View.Ref.t"
+                 "An element reference, filled through the ref prop and read with View.Ref.current.";
+               api_row "View.error_boundary / View.portal / View.suspense"
+                 "Fallback on errors (with reset), render into another container, show a fallback while resources load. Also as <View.ErrorBoundary>, <View.Portal> and <View.Suspense>.";
+             ])
+
+          (api_group ~id:"api-context" ~name:"Context"
+             ~blurb:"New in 2.0. Values scoped to a subtree, carried by ownership rather than the DOM."
+             [
+               api_row "make : 'a -> 'a Context.t" "A context with a default.";
+               api_row "provider : 'a Context.t -> 'a -> View.t -> View.t"
+                 "Render a view with a value provided (or <Context.Provider context value>).";
+               api_row "use : 'a Context.t -> 'a" "The nearest provided value, read while rendering.";
+             ])
+
+          (api_group ~id:"api-resource" ~name:"Resource"
+             ~blurb:"New in 2.0. Asynchronous data as a signal, over each backend's own promises."
+             [
+               api_row "make : (unit -> 'a Promise.t) -> 'a Resource.t"
+                 "Fetch now and whenever a signal read before the promise changes; stale results are dropped.";
+               api_row "state : 'a Resource.t -> 'a Resource.state"
+                 "Loading (with the previous value), Ready or Failed - tracked.";
+               api_row "refetch / mutate" "Fetch again, or set the value locally.";
+             ])
+
+          (api_group ~id:"api-devtools" ~name:"Devtools"
+             ~blurb:"New in 2.0. What the reactive graph does and why; costs nothing until installed."
+             [
+               api_row "install / expose" "Start tracking; publish a JSON API for reativa-inspect.";
+               api_row "record : (unit -> unit) -> Devtools.trace"
+                 "The writes, recomputes and runs one interaction caused.";
+               api_row "why : int -> Devtools.cause option" "Follow a run back to the signal write that caused it.";
+             ])
 
           (api_group ~id:"api-router" ~name:"Router"
              ~blurb:"Browser SPA navigation: a reactive location signal, history wrappers, link interception and pure route matching. Patterns support static segments, :params and a trailing * wildcard."

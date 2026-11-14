@@ -25,6 +25,10 @@ type event
 (* ----- creating nodes ----- *)
 
 val create_element : string -> t
+
+(* [create_element_ns namespace tag]: an element in another namespace, e.g.
+   SVG's "http://www.w3.org/2000/svg". *)
+val create_element_ns : string -> string -> t
 val create_text_node : string -> t
 
 (* Comment nodes are invisible; the View layer uses them as stable anchors that
@@ -45,6 +49,35 @@ val insert_before : t -> t -> t -> unit
 val remove_child : t -> t -> unit
 val next_sibling : t -> t option
 val is_same_node : t -> t -> bool
+
+(* document.body *)
+val body : unit -> t
+
+(* A detached DocumentFragment: nodes appended to it are moved into place, all
+   at once, when it is inserted. *)
+val create_fragment : unit -> t
+
+val parent_node : t -> t option
+val first_child : t -> t option
+val last_child : t -> t option
+
+(* Whether the node is a comment (the renderer's region anchors are). *)
+val is_comment : t -> bool
+
+(* Detach [node] from its parent, if it has one. *)
+val remove : t -> unit
+
+(* ----- templates ----- *)
+
+(* A deep copy of [node]. *)
+val clone_node : t -> t
+
+(* [child_at node i]: the [i]-th child node (counting text and comments). *)
+val child_at : t -> int -> t
+
+(* Parse an HTML string into a DocumentFragment, through a <template> element
+   (inert: no script runs, no resource loads). *)
+val template_content : string -> t
 
 (* ----- attributes & content ----- *)
 
@@ -125,3 +158,10 @@ val meta_key : event -> bool
 val ctrl_key : event -> bool
 val shift_key : event -> bool
 val alt_key : event -> bool
+
+(* ----- tooling ----- *)
+
+(* [expose_object name props]: set [globalThis[name]] to a JS object with these
+   properties (functions taking and returning strings, numbers or DOM nodes
+   are callable from JS). Used by [Devtools.expose]. *)
+val expose_object : string -> (string * Obj.t) array -> unit

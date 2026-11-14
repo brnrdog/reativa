@@ -155,4 +155,24 @@ let _card_view =
       ~title:"Tasks")
    [@JSX])
 
+(* Optional props, and a trailing [()]: the generated createElement forwards
+   both, and an optional prop can be left out at the call site. *)
+
+module Badge = struct
+  let component = fun ?(tone = "info") ~label () ->
+    ((span ~className:tone ~children:[ label ] ()) [@JSX])
+end
+
+let _badge_default = ((Badge.createElement () ~children:[] ~label:"New") [@JSX])
+let _badge_toned = ((Badge.createElement () ~children:[] ~label:"Old" ~tone:"warn") [@JSX])
+
+(* A component's body is wrapped in View.component, so its value is a view
+   like any other and can be passed around before it is mounted. *)
+let _components : View.t list = [ _greeting_view; _card_view; _badge_default ]
+
+(* A local helper that reads a signal is an eager read too, so this child is
+   a tracked region and updates when [draft] changes. *)
+let shout () = String.uppercase_ascii (Signal.get draft)
+let _shouted = ((p ~children:[ shout () ] ()) [@JSX])
+
 let () = print_endline "mlx inference ok"

@@ -15,6 +15,10 @@ type event
 external create_element : string -> t = "createElement"
   [@@mel.scope "document"]
 
+(* [create_element_ns namespace tag], for SVG and MathML elements. *)
+external create_element_ns : string -> string -> t = "createElementNS"
+  [@@mel.scope "document"]
+
 external create_text_node : string -> t = "createTextNode"
   [@@mel.scope "document"]
 
@@ -40,6 +44,39 @@ external next_sibling : t -> t option = "nextSibling"
   [@@mel.get] [@@mel.return nullable]
 
 external is_same_node : t -> t -> bool = "isSameNode" [@@mel.send]
+
+external body : unit -> t = "getBody" [@@mel.module "./reativa_runtime.js"]
+
+external create_fragment : unit -> t = "createDocumentFragment"
+  [@@mel.scope "document"]
+
+external parent_node : t -> t option = "parentNode"
+  [@@mel.get] [@@mel.return nullable]
+
+external first_child : t -> t option = "firstChild"
+  [@@mel.get] [@@mel.return nullable]
+
+external remove : t -> unit = "remove" [@@mel.send]
+
+external last_child : t -> t option = "lastChild"
+  [@@mel.get] [@@mel.return nullable]
+
+external node_type : t -> int = "nodeType" [@@mel.get]
+let is_comment node = node_type node = 8
+
+(* Deep clone. *)
+external clone_node_ : t -> bool -> t = "cloneNode" [@@mel.send]
+let clone_node node = clone_node_ node true
+
+external first_child_unsafe : t -> t = "firstChild" [@@mel.get]
+external next_sibling_unsafe : t -> t = "nextSibling" [@@mel.get]
+
+(* Walking siblings is cheaper than indexing the live childNodes list. *)
+let child_at node i =
+  let rec walk n i = if i = 0 then n else walk (next_sibling_unsafe n) (i - 1) in
+  walk (first_child_unsafe node) i
+
+external template_content : string -> t = "templateContent" [@@mel.module "./reativa_runtime.js"]
 
 (* ----- attributes & content ----- *)
 
@@ -120,3 +157,8 @@ external meta_key : event -> bool = "metaKey" [@@mel.get]
 external ctrl_key : event -> bool = "ctrlKey" [@@mel.get]
 external shift_key : event -> bool = "shiftKey" [@@mel.get]
 external alt_key : event -> bool = "altKey" [@@mel.get]
+
+(* Set globalThis[name] to an object with the given properties. An array of
+   pairs is an array of two-element arrays under Melange. *)
+external expose_object : string -> (string * Obj.t) array -> unit = "exposeObject"
+  [@@mel.module "./reativa_runtime.js"]

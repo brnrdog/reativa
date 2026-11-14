@@ -1,0 +1,15 @@
+; DOM behaviour tests, run under jsdom (test/dom/run.mjs) on both backends.
+;
+; The suites are plain OCaml written against Reativa and the test-only Probe
+; module (probe/probe.mli). This directory compiles them with Melange; the
+; jsoo/ subdirectory compiles the very same files with js_of_ocaml. Run both
+; with `npm run test:dom`.
+;
+; Melange emits ES modules because the backend's runtime helper
+; (reativa_runtime.js) is one.
+(melange.emit
+ (target output)
+ (alias dom-tests)
+ (modules harness test_view test_ownership test_attributes test_keyed test_features test_templates test_devtools test_panel main)
+ (libraries reativa reativa.devtools reativa_probe_melange)
+ (module_systems es6))

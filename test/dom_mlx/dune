@@ -1,0 +1,13 @@
+; DOM tests written in mlx, so they run the ppx's generated templates. Built
+; with Melange here and with js_of_ocaml in jsoo/; run like test/dom (see
+; the test:dom:mlx npm scripts).
+(copy_files# ../dom/harness.ml)
+
+(melange.emit
+ (target output)
+ (alias dom-mlx-tests)
+ (modules harness test_mlx main)
+ (libraries reativa reativa_probe_melange)
+ (preprocess
+  (pps reativa.mlx_ppx melange.ppx))
+ (module_systems es6))

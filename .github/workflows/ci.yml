@@ -37,6 +37,11 @@ jobs:
       - name: Run native behavioral tests
         run: opam exec -- dune test
 
+      # The printed public signature must match test/api/reativa.api, so an
+      # API change is always a reviewed diff (scripts/check-api.sh --update).
+      - name: Public API unchanged
+        run: opam exec -- scripts/check-api.sh
+
   melange-build:
     name: Melange backend build
     runs-on: ubuntu-latest
@@ -52,7 +57,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies (incl. melange)
         run: |
@@ -63,6 +68,27 @@ jobs:
       # dev-profile build of the whole workspace is covered by build-and-test.
       - name: Build Melange (JS) target
         run: opam exec -- dune build --profile release @melange
+
+      - name: Install npm dependencies (jsdom)
+        run: npm ci
+
+      - name: Generated View.Mlx props are up to date
+        run: node scripts/generate-mlx-props.mjs --check
+
+      - name: DOM tests on Melange (jsdom)
+        run: |
+          opam exec -- dune build @test/dom/dom-tests
+          node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js
+          opam exec -- dune build @test/dom_mlx/dom-mlx-tests
+          node test/dom/run.mjs _build/default/test/dom_mlx/output/test/dom_mlx/main.js
+
+      # The benchmark app's Melange build, bundled the way the Benchmark
+      # workflow does it, so that path does not only run on labelled PRs.
+      - name: Bundle the Melange benchmark app
+        run: |
+          npm --prefix benchmarks ci
+          node benchmarks/build.mjs --apps reativa
+          test -s benchmarks/dist/reativa/index.html
 
       - name: Bundle the demo and check its size
         run: |
@@ -87,7 +113,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies (incl. js_of_ocaml)
         run: |
@@ -109,6 +135,21 @@ jobs:
       # Compile-only: type-checking the PPX inference fixture against the
       # js_of_ocaml backend is the assertion. Its Melange twin is covered by
       # `dune build @melange` in the Melange job.
+      - name: Install npm dependencies (jsdom)
+        run: npm ci
+
+      - name: DOM tests on js_of_ocaml (jsdom)
+        run: |
+          REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js test/dom_mlx/jsoo/main.bc.js
+          node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js
+          node test/dom/run.mjs _build/default/test/dom_mlx/jsoo/main.bc.js
+
+      - name: reativa-inspect (CLI and MCP server) against a fixture app
+        run: |
+          npm --prefix inspect ci
+          REATIVA_JSOO=enabled opam exec -- dune build inspect/test/fixture/app.bc.js
+          node inspect/test/run.mjs
+
       - name: Type-check the mlx inference fixture on js_of_ocaml
         run: |
           REATIVA_JSOO=enabled opam exec -- dune build --profile release \
@@ -155,3 +196,12 @@ jobs:
 
       - name: Install reativa and reativa-jsoo from this checkout
         run: opam install . --with-test
+
+      # Built outside the repository, against the installed packages only.
+      - name: Build a consumer against the installed packages
+        run: |
+          cp -r test/consumer "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          # setup-ocaml's switch is local to the checkout; name it explicitly
+          # since this runs outside it.
+          opam exec --switch="$GITHUB_WORKSPACE" -- dune build

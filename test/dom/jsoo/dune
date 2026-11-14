@@ -1,0 +1,10 @@
+; The js_of_ocaml half of the DOM suites: the same sources as ../, linked into
+; one script (main.bc.js) that test/dom/run.mjs evaluates under jsdom.
+(copy_files# ../*.ml)
+
+(executable
+ (name main)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries reativa reativa.devtools reativa-jsoo reativa_probe_jsoo))

@@ -72,10 +72,14 @@ walks through the same steps in OCaml and in ReasonML.
 
 ## Concepts
 
-Five modules live under the `Reativa` namespace. The signal graph is plain
-OCaml — it runs and tests natively — and only the `View` and `Router` layers
-touch the browser. The full reference is on the
-[docs site](https://brnrdog.github.io/reativa/#api).
+The core lives under the `Reativa` namespace: `Signal`, `Computed`, `Effect`
+and `Owner` for state, `View` for the DOM, `Router` for navigation, and in 2.0
+`Context`, `Resource` and `Devtools`. The signal graph is plain OCaml — it runs
+and tests natively — and only the `View` and `Router` layers touch the
+browser. The public API is exactly what the `.mli` files declare. The full
+reference is on the [docs site](https://brnrdog.github.io/reativa/#api); every
+topic also has an agent-oriented page, indexed in
+[`llms.txt`](https://brnrdog.github.io/reativa/llms.txt).
 
 ### Signal
 
@@ -228,10 +232,71 @@ let view =
   </Card>
 ```
 
-Components are plain functions, so they can also be applied directly —
-`Greeting.component ~name:"OCaml"` — and they carry no lifecycle of their own:
-a component body runs once, when the view is built, and signals do the
-updating from there.
+A component used as a tag is **lazy**: its body runs when the view is
+mounted, untracked, under its own owner, and everything it creates — effects,
+computeds, cleanups — is disposed when the region holding it re-renders or is
+removed. Hook into that with `View.on_mount`, `View.on_cleanup` and element
+refs:
+
+```ocaml
+module Search = struct
+  let component ~query =
+    let field = View.Ref.make () in
+    View.on_mount (fun () -> Option.iter focus (View.Ref.current field));
+    <input ref=field value=(Signal.get query) />
+end
+```
+
+Components are still plain functions: `Greeting.component ~name:"OCaml"`
+applies one directly (eagerly).
+
+### Context, boundaries, portals, resources
+
+```ocaml
+let theme = Context.make "light"               (* Context.provider / Context.use *)
+
+let user = Resource.make (fun () -> fetch_user (Signal.get user_id))
+
+let page =
+  <View.ErrorBoundary fallback=(fun err reset -> <Retry err reset />)>
+    <View.Suspense fallback=(<p>("Loading…")</p>)>
+      <Profile user />
+    </View.Suspense>
+  </View.ErrorBoundary>
+```
+
+`Resource.make` takes the backend's own promises and refetches when a signal
+read before the promise changes; `View.suspense` shows its fallback while
+resources below are loading; `View.portal` renders into another container
+(default `<body>`) while keeping its place in the tree.
+
+### Templates
+
+The mlx ppx compiles element trees to HTML templates — parsed once, cloned per
+instance — with typed holes for the dynamic parts, and keyed lists move only
+the rows an update displaces. Creating a thousand rows costs about two
+thousand DOM calls, as in SolidJS; see [`benchmarks/`](benchmarks/).
+
+### Devtools and reativa-inspect
+
+`Reativa.Devtools` records writes, recomputes and effect runs and explains why
+a node changed (`Devtools.why`, `Devtools.writers_of`).
+[`reativa-inspect`](inspect/) drives a compiled app headlessly and reports what each
+interaction did — from a terminal, or as an MCP server for coding agents:
+
+```
+$ reativa-inspect run app.bc.js --act "click #inc" --why "#value"
+> click #inc
+  1 write(s) (count=1), 1 recompute(s), 1 effect run(s), 0 created, 0 disposed
+  DOM: p#value text
+why #value:
+  text <- effect #4
+    computed label (recomputed)
+    <- signal count (written = 1)
+```
+
+Upgrading from 1.x: see
+[Migrating to 2.0](website/docs/agent/migrating-to-2.md).
 
 ### Router
 
@@ -302,6 +367,9 @@ npm install
 | Command | What it does |
 |---|---|
 | `opam exec -- dune test` | native test suite (signals, router, ppx) |
+| `npm run test:dom` | DOM behaviour tests under jsdom, on both backends |
+| `npm run inspect:test` | reativa-inspect against a fixture app |
+| `scripts/check-api.sh` | check the public API against its snapshot |
 | `npm run demo` + `npm run demo:serve` | build and serve the Melange todo demo |
 | `npm run demo:watch` | rebuild the demo on change (pair with `demo:serve`) |
 | `npm run demo:jsoo` | build the js_of_ocaml demos — see [`examples/jsoo/`](examples/jsoo/) |
@@ -310,6 +378,10 @@ npm install
 
 The docs site and the playground live in [`website/`](website/), which has its
 own [README](website/README.md).
+
+[`AGENTS.md`](AGENTS.md) is the reference for contributors and coding agents:
+architecture, the reactivity and ownership model, testing and pitfalls.
+[`benchmarks/`](benchmarks/) compares both backends with xote and SolidJS.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/) —
 commitlint enforces it on commit, and releases are cut by semantic-release.

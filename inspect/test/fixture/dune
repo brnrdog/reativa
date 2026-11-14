@@ -1,0 +1,7 @@
+; The reativa-inspect test app, linked with js_of_ocaml (REATIVA_JSOO=enabled).
+(executable
+ (name app)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries reativa reativa-jsoo))

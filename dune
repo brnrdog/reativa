@@ -1,0 +1,9 @@
+; npm's node_modules holds no dune projects; skip it.
+(dirs :standard \ node_modules)
+
+; Ship the agent reference with the opam package (share/doc/reativa), so it
+; is next to the library wherever it is installed.
+(install
+ (section doc)
+ (package reativa)
+ (files AGENTS.md))

@@ -1,0 +1,10 @@
+; The same benchmark app linked with js_of_ocaml (built in release profile by
+; benchmarks/build.mjs, so whole-program dead-code elimination applies).
+(copy_files# ../*.ml)
+
+(executable
+ (name bench_app)
+ (modes js)
+ (enabled_if
+  (= %{env:REATIVA_JSOO=} enabled))
+ (libraries reativa reativa-jsoo))

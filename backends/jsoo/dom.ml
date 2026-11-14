@@ -38,6 +38,12 @@ let document () : Js.Unsafe.any = Js.Unsafe.get Js.Unsafe.global "document"
 let create_element (tag : string) : t =
   Js.Unsafe.meth_call (document ()) "createElement" [| Js.Unsafe.inject (Js.string tag) |]
 
+(* [create_element_ns namespace tag], for SVG and MathML elements. *)
+let create_element_ns (ns : string) (tag : string) : t =
+  Js.Unsafe.meth_call (document ())
+    "createElementNS"
+    [| Js.Unsafe.inject (Js.string ns); Js.Unsafe.inject (Js.string tag) |]
+
 let create_text_node (s : string) : t =
   Js.Unsafe.meth_call (document ()) "createTextNode" [| Js.Unsafe.inject (Js.string s) |]
 
@@ -74,6 +80,34 @@ let next_sibling (node : t) : t option =
 
 let is_same_node (a : t) (b : t) : bool =
   Js.to_bool (Js.Unsafe.meth_call a "isSameNode" [| Js.Unsafe.inject b |] : bool Js.t)
+
+let body () : t = Js.Unsafe.get (document ()) "body"
+
+let create_fragment () : t = Js.Unsafe.meth_call (document ()) "createDocumentFragment" [||]
+
+let parent_node (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "parentNode" : t Js.opt)
+
+let first_child (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "firstChild" : t Js.opt)
+
+let remove (node : t) : unit = ignore (Js.Unsafe.meth_call node "remove" [||])
+
+let last_child (node : t) : t option =
+  Js.Opt.to_option (Js.Unsafe.get node "lastChild" : t Js.opt)
+
+let is_comment (node : t) : bool = (Js.Unsafe.get node "nodeType" : int) = 8
+
+let clone_node (node : t) : t = Js.Unsafe.meth_call node "cloneNode" [| Js.Unsafe.inject Js._true |]
+(* Walking siblings is cheaper than indexing the live childNodes list. *)
+let child_at (node : t) (i : int) : t =
+  let rec walk (n : t) i = if i = 0 then n else walk (Js.Unsafe.get n "nextSibling") (i - 1) in
+  walk (Js.Unsafe.get node "firstChild") i
+
+let template_content (html : string) : t =
+  let template = create_element "template" in
+  Js.Unsafe.set template "innerHTML" (Js.string html);
+  Js.Unsafe.get template "content"
 
 (* ----- attributes & content ----- *)
 
@@ -177,3 +211,7 @@ let meta_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "metaKey" : bool
 let ctrl_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "ctrlKey" : bool Js.t)
 let shift_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "shiftKey" : bool Js.t)
 let alt_key (ev : event) : bool = Js.to_bool (Js.Unsafe.get ev "altKey" : bool Js.t)
+
+let expose_object (name : string) (entries : (string * Obj.t) array) : unit =
+  let obj = Js.Unsafe.obj (Array.map (fun (k, v) -> (k, (Obj.magic v : Js.Unsafe.any))) entries) in
+  Js.Unsafe.set Js.Unsafe.global name obj

@@ -17,8 +17,17 @@ let pending_effects : node list ref = ref []
 let pending_computeds : node list ref = ref []
 let flushing = ref false
 
+(* An effect in its first run ([flag_running], set by Effect_core.make) is
+   not queued: at top level a write flushes synchronously, while that first
+   run is still on the stack, and running the effect again inside it would
+   nest a second run whose tracking version the first run's prune then
+   discards, losing the dependency. The request is kept ([flag_rerun]) and
+   honoured once the first run returns. Re-runs only ever happen inside a
+   flush, never nested, so they queue themselves normally and an effect that
+   writes what it read runs again until the value settles. *)
 let add_effect_to_pending node =
-  if not (is_pending node) then begin
+  if is_running node then set_rerun node
+  else if not (is_pending node) then begin
     set_pending node;
     pending_effects := node :: !pending_effects
   end
@@ -141,11 +150,12 @@ let with_tracking node body =
 
 (* Recompute a computed. Only propagates to subscribers when its value
    actually changed (tracked via [version]). *)
-let run_computed_cycle node ~should_clear_pending =
+let run_computed_cycle node ~should_clear_pending ~from_flush =
   let previous_version = node.version in
   if should_clear_pending then clear_pending node;
   with_tracking node (fun () ->
     match node.compute with Some f -> f () | None -> ());
+  if !Trace.enabled then !Trace.hooks.recomputed node;
   clear_dirty node;
   node.last_global_version <- !global_version;
   if node.first_sub <> None && node.version <> previous_version then begin
@@ -157,10 +167,16 @@ let run_computed_cycle node ~should_clear_pending =
           (* lazily mark downstream computeds dirty *)
           set_dirty sub
         else
-          (* queue subscribing effects, unless it is the effect currently
-             running (avoids self-retriggering) *)
+          (* Queue subscribing effects, except the effect currently running.
+             When that effect is reading the computed right now
+             ([ensure_computed_fresh]), it gets the fresh value and must not
+             re-run. When the recompute comes from a flush instead, the
+             effect is in its first run (only a first run can have a flush
+             inside it) and read the old value earlier: its re-run is
+             deferred until that run returns, as [add_effect_to_pending]
+             does for direct notifications. *)
           (match !current_target with
-           | Some cur when cur == sub -> ()
+           | Some cur when cur == sub -> if from_flush && is_running sub then set_rerun sub
            | _ -> add_effect_to_pending sub);
         loop l.next_sub
     in
@@ -169,16 +185,19 @@ let run_computed_cycle node ~should_clear_pending =
 
 let retrack_computed node =
   let old_level = node.level in
-  run_computed_cycle node ~should_clear_pending:true;
+  run_computed_cycle node ~should_clear_pending:true ~from_flush:true;
   if old_level = 0 then node.level <- compute_level node
 
 let retrack_effect node =
-  let old_level = node.level in
   clear_pending node;
-  with_tracking node (fun () ->
-    match node.run with Some f -> f () | None -> ());
-  clear_dirty node;
-  if old_level = 0 then node.level <- compute_level node
+  (* Disposed after it was queued: dequeue it without running. *)
+  if not (is_disposed node) then begin
+    let old_level = node.level in
+    if !Trace.enabled then !Trace.hooks.ran node;
+    with_tracking node (fun () -> match node.run with Some f -> f () | None -> ());
+    clear_dirty node;
+    if old_level = 0 then node.level <- compute_level node
+  end
 
 (* ----- flush ----- *)
 
@@ -258,7 +277,7 @@ let ensure_computed_fresh node =
       clear_dirty node
     else begin
       let old_level = node.level in
-      run_computed_cycle node ~should_clear_pending:false;
+      run_computed_cycle node ~should_clear_pending:false ~from_flush:false;
       if old_level = 0 then node.level <- compute_level node
     end
   end

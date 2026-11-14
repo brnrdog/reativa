@@ -1,0 +1,7 @@
+(copy_files# ../consumer.ml)
+
+(melange.emit
+ (target output)
+ (modules consumer)
+ (libraries reativa)
+ (module_systems es6))

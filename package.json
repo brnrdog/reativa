@@ -5,6 +5,11 @@
   "scripts": {
     "build": "opam exec -- dune build @melange",
     "test": "opam exec -- dune test",
+    "test:dom": "npm run test:dom:melange && npm run test:dom:jsoo && npm run test:dom:mlx",
+    "test:dom:melange": "opam exec -- dune build @test/dom/dom-tests && node test/dom/run.mjs _build/default/test/dom/output/test/dom/main.js",
+    "test:dom:jsoo": "REATIVA_JSOO=enabled opam exec -- dune build test/dom/jsoo/main.bc.js && node test/dom/run.mjs _build/default/test/dom/jsoo/main.bc.js",
+    "test:dom:mlx": "opam exec -- dune build @test/dom_mlx/dom-mlx-tests && node test/dom/run.mjs _build/default/test/dom_mlx/output/test/dom_mlx/main.js && REATIVA_JSOO=enabled opam exec -- dune build test/dom_mlx/jsoo/main.bc.js && node test/dom/run.mjs _build/default/test/dom_mlx/jsoo/main.bc.js",
+    "inspect:test": "npm --prefix inspect install && REATIVA_JSOO=enabled opam exec -- dune build inspect/test/fixture/app.bc.js && node inspect/test/run.mjs",
     "demo": "opam exec -- dune build @melange && npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js",
     "demo:watch": "opam exec -- dune build @melange -w & npx --yes esbuild _build/default/demo/ui/output/demo/ui/todo.js --bundle --format=esm --outfile=demo/ui/bundle.js --watch",
     "demo:serve": "node scripts/serve-demo.mjs --root demo/ui",
@@ -14,7 +19,7 @@
     "demo:jsoo:router:serve": "node scripts/serve-demo.mjs --root examples/jsoo/router",
     "playground": "opam exec -- dune build @melange && vite --config website/vite.config.mjs --open /reativa/playground/",
     "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
-    "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs",
+    "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs && node scripts/build-agent-docs.mjs",
     "docs:preview": "vite preview --config website/vite.config.mjs",
     "prepare": "husky",
     "release": "semantic-release"
@@ -54,6 +59,7 @@
     "@semantic-release/release-notes-generator": "^14.0.1",
     "esbuild": "^0.28.1",
     "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
     "posthog-js": "^1.413.0",
     "semantic-release": "^24.2.0",
     "vite": "^8.1.0"

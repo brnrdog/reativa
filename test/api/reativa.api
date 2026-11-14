@@ -1,0 +1,241 @@
+module Signal : sig
+type 'a t = 'a Reativa__.Signal_core.t
+val make : ?name:string -> ?equals:('a -> 'a -> bool) -> 'a -> 'a t
+val get : 'a t -> 'a
+val peek : 'a t -> 'a
+val set : 'a t -> 'a -> unit
+val update : 'a t -> ('a -> 'a) -> unit
+val name : 'a t -> string option
+val batch : (unit -> 'a) -> 'a
+val untrack : (unit -> 'a) -> 'a
+val subscriber_count : 'a t -> int
+end
+module Computed : sig
+val make : ?name:string -> ?equals:('a -> 'a -> bool) -> (unit -> 'a) -> 'a Reativa__.Signal.t
+val dispose : 'a Reativa__.Signal.t -> unit
+end
+module Effect : sig
+type disposer = Reativa.Effect.disposer = { dispose : unit -> unit; }
+val run : ?name:string -> (unit -> (unit -> unit) option) -> unit
+val run_with_disposer : ?name:string -> (unit -> (unit -> unit) option) -> disposer
+end
+module Owner : sig
+type t = Reativa.Owner.t
+val active : unit -> t option
+val make : ?parent:t option -> unit -> t
+val make_child : unit -> t
+val run : t option -> (unit -> 'a) -> 'a
+val run_in : t -> (unit -> 'a) -> 'a
+val on_cleanup : (unit -> unit) -> unit
+val add_cleanup : t -> (unit -> unit) -> unit
+val reset : t -> unit
+val dispose : t -> unit
+val is_disposed : t -> bool
+type 'a key = 'a Reativa.Owner.key
+val new_key : 'a -> 'a key
+val provide : t -> 'a key -> 'a -> unit
+val lookup : ?from:t option -> 'a key -> 'a
+val set_error_handler : t -> (exn -> unit) -> unit
+val handle_error : ?from:t option -> exn -> unit
+end
+module Dom : sig
+type t = Reativa.Dom.t
+type event = Reativa.Dom.event
+val create_element : string -> t
+val create_element_ns : string -> string -> t
+val create_text_node : string -> t
+val create_comment : string -> t
+val by_id : string -> t option
+val append_child : t -> t -> unit
+val insert_before : t -> t -> t -> unit
+val remove_child : t -> t -> unit
+val next_sibling : t -> t option
+val is_same_node : t -> t -> bool
+val body : unit -> t
+val create_fragment : unit -> t
+val parent_node : t -> t option
+val first_child : t -> t option
+val last_child : t -> t option
+val is_comment : t -> bool
+val remove : t -> unit
+val clone_node : t -> t
+val child_at : t -> int -> t
+val template_content : string -> t
+val set_attribute : t -> string -> string -> unit
+val remove_attribute : t -> string -> unit
+val set_text_content : t -> string -> unit
+val set_value : t -> string -> unit
+val set_checked : t -> bool -> unit
+val add_event_listener : t -> string -> (event -> unit) -> unit
+val prevent_default : event -> unit
+val key : event -> string
+val target : event -> t
+val value : t -> string
+val target_value : event -> string
+val log : 'a -> unit
+val classify : 'a -> [ `Boolean | `Function | `Number | `Object | `Other | `String | `Undefined ]
+val display_string : 'a -> string
+val decode_uri_component : string -> string
+val default_prevented : event -> bool
+val mouse_button : event -> int
+val meta_key : event -> bool
+val ctrl_key : event -> bool
+val shift_key : event -> bool
+val alt_key : event -> bool
+val expose_object : string -> (string * Obj.t) array -> unit
+end
+module View : sig
+type t = Reativa.View.t
+type attr = Reativa.View.attr
+type handler = string * (Reativa__.Dom.event -> unit)
+type 'a value = 'a Reativa.View.value = Static of 'a | Reactive of (unit -> 'a)
+val static : 'a -> 'a value
+val dynamic : (unit -> 'a) -> 'a value
+val signal : 'a Reativa__.Signal.t -> 'a value
+val map_value : ('a -> 'b) -> 'a value -> 'b value
+val value_getter : 'a value -> unit -> 'a
+module Ref = Reativa.View.Ref
+val on_mount : (unit -> unit) -> unit
+val on_cleanup : (unit -> unit) -> unit
+val empty : t
+val text : string value -> t
+val int : int value -> t
+val float : float value -> t
+val dyn_text : (unit -> string) -> t
+val dyn_int : (unit -> int) -> t
+val dyn_float : (unit -> float) -> t
+val fragment : t list -> t
+val element : ?attrs:attr list -> ?events:handler list -> string -> t list -> t
+val component : (unit -> t) -> t
+val dyn : (unit -> t) -> t
+val tracked : (unit -> t) -> t
+val child : 'a -> t
+type view = t
+module Template = Reativa.View.Template
+val template : Template.t -> Template.hole list -> t
+val error_boundary : fallback:(exn -> (unit -> unit) -> t) -> t -> t
+module ErrorBoundary = Reativa.View.ErrorBoundary
+val portal : ?target:Reativa__.Dom.t -> t -> t
+module Portal = Reativa.View.Portal
+val suspense : fallback:t -> t -> t
+module Suspense = Reativa.View.Suspense
+val show : ?fallback:t -> (unit -> bool) -> t -> t
+val maybe : ?fallback:t -> (unit -> 'a option) -> ('a -> t) -> t
+val for_ : (unit -> 'a list) -> ('a -> t) -> t
+val for_with_key : (unit -> 'a list) -> key:('a -> string) -> ('a Reativa__.Signal.t -> t) -> t
+val forWithKey : (unit -> 'a list) -> key:('a -> string) -> ('a Reativa__.Signal.t -> t) -> t
+module Show = Reativa.View.Show
+module Maybe = Reativa.View.Maybe
+module ForEach = Reativa.View.ForEach
+val tag : string -> ?attrs:attr list -> ?events:handler list -> t list -> t
+val div : ?attrs:attr list -> ?events:handler list -> t list -> t
+val span : ?attrs:attr list -> ?events:handler list -> t list -> t
+val p : ?attrs:attr list -> ?events:handler list -> t list -> t
+val h1 : ?attrs:attr list -> ?events:handler list -> t list -> t
+val h2 : ?attrs:attr list -> ?events:handler list -> t list -> t
+val h3 : ?attrs:attr list -> ?events:handler list -> t list -> t
+val ul : ?attrs:attr list -> ?events:handler list -> t list -> t
+val ol : ?attrs:attr list -> ?events:handler list -> t list -> t
+val li : ?attrs:attr list -> ?events:handler list -> t list -> t
+val button : ?attrs:attr list -> ?events:handler list -> t list -> t
+val a : ?attrs:attr list -> ?events:handler list -> t list -> t
+val input : ?attrs:attr list -> ?events:handler list -> unit -> t
+val label : ?attrs:attr list -> ?events:handler list -> t list -> t
+val section : ?attrs:attr list -> ?events:handler list -> t list -> t
+module Attr = Reativa.View.Attr
+module On = Reativa.View.On
+module Mlx = Reativa.View.Mlx
+val mount : Reativa__.Dom.t -> t -> unit
+val mount_by_id : string -> t -> unit
+val mount_disposable : Reativa__.Dom.t -> t -> unit -> unit
+end
+module Router_match : sig
+type t = Reativa.Router_match.t = { pattern : string; pathname : string; params : (string * string) list; }
+val match_path : ?decode:(string -> string) -> string -> string -> t option
+val param : t -> string -> string option
+end
+module Router : sig
+type state = Reativa.Router.state
+type location = Reativa.Router.location = { href : string; origin : string; pathname : string; search : string; hash : string; state : state option; }
+val state : 'a -> state
+val state_value : state -> 'a
+val location : unit -> location Reativa__.Signal.t
+val start : unit -> unit
+val current_signal : unit -> location Reativa__.Signal.t
+val path : location -> string
+val navigate : ?replace:bool -> ?state:state -> string -> unit -> unit
+val replace : ?state:state -> string -> unit -> unit
+val push : ?state:state -> string -> unit -> unit
+val go : int -> unit
+val back : unit -> unit
+val forward : unit -> unit
+val link_value : ?replace:bool -> ?state:state -> ?target:string -> ?attrs:Reativa__.View.attr list -> ?events:Reativa__.View.handler list -> href:string Reativa__.View.value -> Reativa__.View.t list -> Reativa__.View.t
+val link : ?replace:bool -> ?state:state -> ?target:string -> ?attrs:Reativa__.View.attr list -> ?events:Reativa__.View.handler list -> href:string -> Reativa__.View.t list -> Reativa__.View.t
+type route_match = Reativa__.Router_match.t = { pattern : string; pathname : string; params : (string * string) list; }
+type route = Reativa.Router.route
+val route : string -> (route_match -> Reativa__.View.t) -> route
+val match_path : string -> string -> Reativa__.Router_match.t option
+val param : Reativa__.Router_match.t -> string -> string option
+val outlet : ?fallback:(location -> Reativa__.View.t) -> route list -> Reativa__.View.t
+val is_active : ?exact:bool -> string -> bool
+val redirect_value : ?replace:bool -> ?state:state -> string Reativa__.View.value -> Reativa__.View.t
+val redirect : ?replace:bool -> ?state:state -> string -> Reativa__.View.t
+val component : ?fallback:(location -> Reativa__.View.t) -> children:route list -> unit -> Reativa__.View.t
+val createElement : ?fallback:(location -> Reativa__.View.t) -> unit -> children:route list -> Reativa__.View.t
+module Route = Reativa.Router.Route
+module Link = Reativa.Router.Link
+module Redirect = Reativa.Router.Redirect
+end
+module Context : sig
+type 'a t = 'a Reativa.Context.t
+val make : 'a -> 'a t
+val use : 'a t -> 'a
+val provide : 'a t -> 'a -> unit
+val provider : 'a t -> 'a -> Reativa__.View.t -> Reativa__.View.t
+module Provider = Reativa.Context.Provider
+end
+module Resource : sig
+type 'a state = 'a Reativa.Resource.state = Loading of 'a option | Ready of 'a | Failed of exn
+type 'a t = 'a Reativa.Resource.t
+val make : (unit -> 'a Reativa__.Promise.t) -> 'a t
+val state : 'a t -> 'a state
+val peek : 'a t -> 'a state
+val refetch : 'a t -> unit
+val mutate : 'a t -> 'a -> unit
+val value : 'a state -> 'a option
+val is_loading : 'a state -> bool
+val error : 'a state -> exn option
+end
+module Promise : sig
+type 'a t = 'a Reativa.Promise.t exception Rejected of string
+val resolve : 'a -> 'a t
+val reject : exn -> 'a t
+val on_settled : 'a t -> ok:('a -> unit) -> error:(exn -> unit) -> unit
+end
+module Devtools : sig
+type kind = Reativa.Devtools.kind = Signal | Computed | Effect
+type node_info = Reativa.Devtools.node_info = { id : int; kind : kind; name : string option; subscribers : int; dependencies : int list; disposed : bool; }
+type event = Reativa.Devtools.event = Created of { id : int; kind : kind; name : string option; } | Written of { id : int; name : string option; value : string; } | Recomputed of { id : int; name : string option; } | Ran of { id : int; name : string option; } | Disposed of { id : int; name : string option; }
+val install : ?history:int -> unit -> unit
+val uninstall : unit -> unit
+val installed : unit -> bool
+val subscribe : (event -> unit) -> unit -> unit
+val mute : (unit -> 'a) -> 'a
+val history : unit -> event list
+val clear_history : unit -> unit
+val snapshot : unit -> node_info list
+val inspect : int -> node_info option
+val value : int -> string option
+type counts = Reativa.Devtools.counts = { writes : int; recomputes : int; runs : int; created : int; disposed : int; }
+type trace = Reativa.Devtools.trace = { events : event list; counts : counts; }
+val record : (unit -> unit) -> trace
+type action = Reativa.Devtools.action = Written_by_user | Recomputed_from | Ran_after
+type cause = Reativa.Devtools.cause = { node : node_info; action : action; value : string option; because : cause option; }
+val why : int -> cause option
+val effects_writing : Reativa__.Dom.t -> (int * string) list
+val target_of : int -> (Reativa__.Dom.t * string) option
+val writers_of : Reativa__.Dom.t -> int list
+val leaks : unit -> node_info list
+val preview : 'a -> string
+val expose : ?name:string -> unit -> unit
+end 

@@ -1,0 +1,6 @@
+(copy_files# ../consumer.ml)
+
+(executable
+ (name consumer)
+ (modes js)
+ (libraries reativa reativa-jsoo))

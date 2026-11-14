@@ -88,7 +88,7 @@ let test_batch_untrack () =
     Signal.set b 2;
     Signal.set c 3);
   check_eq "batch coalesces to one re-run" !runs (after_initial + 1);
-  check "batched writes applied" (a.value = 1 && b.value = 2 && c.value = 3);
+  check "batched writes applied" (Signal.peek a = 1 && Signal.peek b = 2 && Signal.peek c = 3);
   d.dispose ();
   let r = Signal.batch (fun () -> 1 + 2 + 3) in
   check_eq "batch returns result" r 6;
@@ -182,12 +182,254 @@ let test_computed_equals () =
   check_eq "changed computed re-runs effect" !runs (base + 1);
   d.dispose ()
 
+(* ----- disposal and detaching (rescript-signals 3.1.2 / 3.1.3 semantics) ----- *)
+
+let test_disposal () =
+  print_endline "Disposal";
+  (* Two effects on one signal, each disposing the other when it runs: both
+     are queued by the same write, and whichever runs second must not. *)
+  let s = Signal.make 0 in
+  let runs = ref 0 and cleanups_a = ref 0 and cleanups_b = ref 0 in
+  let other_a = ref (fun () -> ()) and other_b = ref (fun () -> ()) in
+  let a =
+    Effect.run_with_disposer (fun () ->
+      if Signal.get s > 0 then !other_a ();
+      incr runs;
+      Some (fun () -> incr cleanups_a))
+  in
+  let b =
+    Effect.run_with_disposer (fun () ->
+      if Signal.get s > 0 then !other_b ();
+      incr runs;
+      Some (fun () -> incr cleanups_b))
+  in
+  other_a := b.dispose;
+  other_b := a.dispose;
+  check_eq "both ran once on create" !runs 2;
+  Signal.set s 1;
+  check_eq "an effect disposed while queued does not run" !runs 3;
+  a.dispose ();
+  b.dispose ();
+  (* The survivor cleaned up before its re-run and on dispose; the one disposed
+     while queued cleaned up once, and never for a run it did not make. *)
+  check_eq "survivor cleaned up twice" (max !cleanups_a !cleanups_b) 2;
+  check_eq "disposed-while-queued effect cleaned up once" (min !cleanups_a !cleanups_b) 1;
+  (* An unobserved computed lets go of its sources. *)
+  let src = Signal.make 1 in
+  let computes = ref 0 in
+  let c = Computed.make (fun () -> incr computes; Signal.get src * 2) in
+  let e = Effect.run_with_disposer (fun () -> ignore (Signal.get c); None) in
+  check "source has a subscriber while observed" (Signal.subscriber_count src = 1);
+  e.dispose ();
+  check "source is released once the computed is unobserved" (Signal.subscriber_count src = 0);
+  Signal.set src 5;
+  check_eq "a detached computed recomputes on read" (Signal.peek c) 10;
+  let e2 = Effect.run_with_disposer (fun () -> ignore (Signal.get c); None) in
+  Signal.set src 6;
+  check_eq "and tracks again once observed" (Signal.peek c) 12;
+  e2.dispose ();
+  ignore !computes;
+  (* A computed whose first run throws leaves the tracking context intact. *)
+  let tracked = Signal.make 0 in
+  let runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      (try ignore (Computed.make (fun () -> failwith "boom")) with Failure _ -> ());
+      ignore (Signal.get tracked);
+      incr runs;
+      None)
+  in
+  Signal.set tracked 1;
+  check_eq "reads after a throwing computed are still tracked" !runs 2;
+  d.dispose ()
+
+(* ----- ownership ----- *)
+
+let test_ownership () =
+  print_endline "Ownership";
+  let outer = Signal.make 0 and inner = Signal.make 0 in
+  let inner_runs = ref 0 and cleanups = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      ignore (Signal.get outer);
+      Effect.run (fun () ->
+        ignore (Signal.get inner);
+        incr inner_runs;
+        None);
+      Owner.on_cleanup (fun () -> incr cleanups);
+      None)
+  in
+  Signal.set inner 1;
+  check_eq "nested effect runs" !inner_runs 2;
+  Signal.set outer 1;
+  check_eq "outer re-run cleaned up the previous run" !cleanups 1;
+  check_eq "and recreated the nested effect" !inner_runs 3;
+  Signal.set inner 2;
+  check_eq "only the current nested effect runs" !inner_runs 4;
+  d.dispose ();
+  check_eq "dispose cleans up" !cleanups 2;
+  Signal.set inner 3;
+  check_eq "nested effect disposed with its owner" !inner_runs 4;
+  (* an owner disposes what was created under it *)
+  let root = Owner.make ~parent:None () in
+  let s = Signal.make 0 and runs = ref 0 in
+  Owner.run_in root (fun () -> Effect.run (fun () -> ignore (Signal.get s); incr runs; None));
+  Owner.dispose root;
+  Signal.set s 1;
+  check_eq "owner disposal disposes its effects" !runs 1;
+  (* context lookups walk up the owner tree *)
+  let key = Owner.new_key "default" in
+  let parent = Owner.make ~parent:None () in
+  Owner.provide parent key "provided";
+  let child = Owner.make ~parent:(Some parent) () in
+  check "default outside any provider" (Owner.lookup ~from:None key = "default");
+  check "nearest provider wins" (Owner.lookup ~from:(Some child) key = "provided");
+  (* errors go to the nearest handler *)
+  let caught = ref "" in
+  let boundary = Owner.make ~parent:None () in
+  Owner.set_error_handler boundary (function Failure m -> caught := m | e -> raise e);
+  let trigger = Signal.make 0 in
+  Owner.run_in boundary (fun () ->
+    Effect.run (fun () -> if Signal.get trigger > 0 then failwith "boom" else None));
+  Signal.set trigger 1;
+  check "effect error reaches the handler" (!caught = "boom")
+
+(* ----- nodes created during another node's first run ----- *)
+
+let test_nested_creation () =
+  print_endline "Nodes created during a first run";
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let outer_runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      ignore (Signal.get other);
+      Effect.run (fun () -> ignore (Signal.get count); None);
+      ignore (Signal.get count);
+      incr outer_runs;
+      None)
+  in
+  Signal.set count 1;
+  Signal.set count 2;
+  check_eq "outer effect keeps its dependency" !outer_runs 3;
+  d.dispose ();
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let outer_runs = ref 0 in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      ignore (Signal.get other);
+      let c = Computed.make (fun () -> Signal.get count + 1) in
+      ignore (Signal.peek c);
+      ignore (Signal.get count);
+      incr outer_runs;
+      None)
+  in
+  Signal.set count 1;
+  Signal.set count 2;
+  check_eq "outer effect keeps its dependency (computed)" !outer_runs 3;
+  d.dispose ();
+  let other = Signal.make 0 in
+  let count = Signal.make 0 in
+  let c =
+    Computed.make (fun () ->
+      ignore (Signal.get other);
+      Effect.run (fun () -> ignore (Signal.get count); None);
+      Signal.get count)
+  in
+  Signal.set count 5;
+  check_eq "computed keeps its dependency" (Signal.peek c) 5;
+  (* An effect that reads, then writes, the same signal during its first run.
+     At top level the write flushes synchronously, while the first run is
+     still going. The effect must not re-run nested inside that first run
+     (the nested run re-marks the link and the first run's prune then drops
+     it): it re-runs once the first run has returned, and keeps the
+     dependency. *)
+  let s = Signal.make 0 in
+  let seen = ref [] in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get s in
+      seen := v :: !seen;
+      if v < 1 then Signal.set s 1;
+      None)
+  in
+  check "re-runs after its first run, with the value it wrote" (List.rev !seen = [ 0; 1 ]);
+  Signal.set s 5;
+  check "keeps its dependency on what it wrote" (List.rev !seen = [ 0; 1; 5 ]);
+  d.dispose ();
+  (* The same through another effect: A's first run writes [t], B reacts by
+     writing [s], which A read. A re-runs after its first run, not inside
+     it, and keeps its dependency on [s]. *)
+  let s = Signal.make 0 and t = Signal.make 0 in
+  let b =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get t in
+      if v > 0 then Signal.set s v;
+      None)
+  in
+  let a_seen = ref [] in
+  let a =
+    Effect.run_with_disposer (fun () ->
+      a_seen := Signal.get s :: !a_seen;
+      Signal.set t 1;
+      None)
+  in
+  check "an indirect write re-runs the first run once it returns" (List.rev !a_seen = [ 0; 1 ]);
+  Signal.set s 7;
+  check "and the dependency survives" (List.rev !a_seen = [ 0; 1; 7 ]);
+  a.dispose ();
+  b.dispose ();
+  (* The same through a computed with [~equals], which queues its effects only
+     after it recomputes: the first run's write still re-runs the effect
+     once that run returns. *)
+  let s = Signal.make 0 in
+  let c = Computed.make ~equals:( = ) (fun () -> Signal.get s * 2) in
+  let rendered = ref [] in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get c in
+      rendered := v :: !rendered;
+      if v = 0 then Signal.set s 1;
+      None)
+  in
+  check "a write that reaches it through an ~equals computed re-runs it" (List.rev !rendered = [ 0; 2 ]);
+  Signal.set s 3;
+  check "and the dependency on the computed survives" (List.rev !rendered = [ 0; 2; 6 ]);
+  d.dispose ();
+  (* Reading a stale computed recomputes it inside the reading effect; that
+     must not count as a request to re-run the effect. *)
+  let s = Signal.make 1 in
+  let c = Computed.make ~equals:( = ) (fun () -> Signal.get s + 1) in
+  Signal.set s 2;
+  let runs = ref 0 in
+  let d = Effect.run_with_disposer (fun () -> ignore (Signal.get c); incr runs; None) in
+  check_eq "reading a stale computed in a first run does not re-run the effect" !runs 1;
+  d.dispose ();
+  (* Re-runs happen inside a flush, never nested: an effect that writes what
+     it read there runs again until the value settles, as on main. *)
+  let s = Signal.make 0 in
+  let rendered = ref [] in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get s in
+      if v > 10 then Signal.set s 10;
+      rendered := v :: !rendered;
+      None)
+  in
+  Signal.set s 15;
+  check "a re-run that clamps its own input converges" (List.rev !rendered = [ 0; 15; 10 ]);
+  d.dispose ()
+
 let () =
   test_signal ();
+  test_ownership ();
+  test_disposal ();
   test_effect ();
   test_batch_untrack ();
   test_computed ();
   test_diamond ();
   test_computed_equals ();
+  test_nested_creation ();
   Printf.printf "\n%d/%d checks passed\n" (!total - !failures) !total;
   if !failures > 0 then exit 1
