@@ -533,28 +533,32 @@ let no_self_nesting = [ "a"; "button"; "form"; "li"; "dt"; "dd"; "p"; "h1"; "h2"
 
 exception Not_templatable
 
-let escape_text s =
+(* Markup for a template is emitted as a plain OCaml string literal, which
+   Melange reads byte by byte. So everything outside ASCII, written as
+   {js|...|js} for its characters or not, goes into the markup as an HTML
+   character reference: the literal stays ASCII, and the template parser turns
+   the reference back into the character, the same on every backend. *)
+let escape ~quote s =
   let b = Buffer.create (String.length s) in
-  String.iter
-    (function
-      | '&' -> Buffer.add_string b "&amp;"
-      | '<' -> Buffer.add_string b "&lt;"
-      | '>' -> Buffer.add_string b "&gt;"
-      | c -> Buffer.add_char b c)
-    s;
+  let rec go i =
+    if i < String.length s then
+      match s.[i] with
+      | '&' -> Buffer.add_string b "&amp;"; go (i + 1)
+      | '<' -> Buffer.add_string b "&lt;"; go (i + 1)
+      | '>' -> Buffer.add_string b "&gt;"; go (i + 1)
+      | '"' when quote -> Buffer.add_string b "&quot;"; go (i + 1)
+      | c when Char.code c < 128 -> Buffer.add_char b c; go (i + 1)
+      | _ ->
+          (* An invalid sequence decodes to U+FFFD, as a browser would show it. *)
+          let d = Stdlib.String.get_utf_8_uchar s i in
+          Printf.bprintf b "&#x%X;" (Stdlib.Uchar.to_int (Stdlib.Uchar.utf_decode_uchar d));
+          go (i + Stdlib.Uchar.utf_decode_length d)
+  in
+  go 0;
   Buffer.contents b
 
-let escape_attribute s =
-  let b = Buffer.create (String.length s) in
-  String.iter
-    (function
-      | '&' -> Buffer.add_string b "&amp;"
-      | '"' -> Buffer.add_string b "&quot;"
-      | '<' -> Buffer.add_string b "&lt;"
-      | '>' -> Buffer.add_string b "&gt;"
-      | c -> Buffer.add_char b c)
-    s;
-  Buffer.contents b
+let escape_text s = escape ~quote:false s
+let escape_attribute s = escape ~quote:true s
 
 type tnode =
   | Ttext of string
@@ -813,16 +817,6 @@ let mapper =
       | _ -> expr
   end
 
-(* A template's markup gathers literal text and attributes, some of which may
-   have been written as {js|...|js} for their non-ASCII characters. Melange
-   reads a plain string literal byte by byte, so such markup is emitted as a
-   {js|...|js} literal too; to OCaml, and so to js_of_ocaml, that is still the
-   same UTF-8 string. *)
-let html_literal ~loc html =
-  if String.exists (fun c -> Char.code c >= 128) html then
-    Builder.pexp_constant ~loc (Pconst_string (html, loc, Some "js"))
-  else Builder.estring ~loc html
-
 let hoisted_bindings () =
   List.rev_map
     (fun (name, html) ->
@@ -830,7 +824,7 @@ let hoisted_bindings () =
       let binding =
         Builder.value_binding ~loc
           ~pat:(Builder.ppat_var ~loc (located ~loc name))
-          ~expr:(Builder.pexp_apply ~loc (reativa_ident ~loc "Template.make") [ (Nolabel, html_literal ~loc html) ])
+          ~expr:(Builder.pexp_apply ~loc (reativa_ident ~loc "Template.make") [ (Nolabel, Builder.estring ~loc html) ])
       in
       (* A file with an interface does not export these; never warn about them. *)
       let silence =
