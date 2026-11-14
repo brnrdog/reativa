@@ -331,7 +331,7 @@ let rendering () =
     code "conditional.mlx" control_ml control_re;
     Demo (Examples.show_demo ());
     P
-      "That means a condition reading a busy signal, such as `Signal.get count > 5`, rebuilds on every change of `count`. Deriving it first, with `Computed.make (fun () -> Signal.get count > 5)`, and reading the computed in the condition avoids that, because a boolean computed only notifies when it flips.";
+      "That means a condition reading a busy signal, such as `Signal.get count > 5`, rebuilds on every change of `count`. Deriving the condition as a computed first, `Computed.make (fun () -> ...)`, and reading that computed in `View.Show` avoids it, because a boolean computed only notifies when it flips.";
     H2 ("regions", "Regions for everything else");
     P
       "When the structure depends on state in a way Show and Maybe do not cover, `View.tracked` rebuilds a region from a function each time a signal it read changes. Matching on a variant signal is the typical case.";
