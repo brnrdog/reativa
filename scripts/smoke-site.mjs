@@ -52,20 +52,26 @@ for (const name of [
   Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
 }
 
-// Record the template skeletons each page parses, to name the culprit when a
-// page fails (a hole whose path is not in its parsed skeleton, say).
-const parsed = [];
-const innerHTML = Object.getOwnPropertyDescriptor(window.Element.prototype, "innerHTML");
-Object.defineProperty(window.HTMLTemplateElement.prototype, "innerHTML", {
+// When a page fails, name the template it was filling: each template's
+// skeleton is cloned right before its holes are resolved, so the last clone
+// of a template's content is the one to look at.
+const sources = new WeakMap();
+const contentGetter = Object.getOwnPropertyDescriptor(window.HTMLTemplateElement.prototype, "content").get;
+Object.defineProperty(window.HTMLTemplateElement.prototype, "content", {
   configurable: true,
   get() {
-    return innerHTML.get.call(this);
-  },
-  set(html) {
-    parsed.push(html);
-    innerHTML.set.call(this, html);
+    const fragment = contentGetter.call(this);
+    if (!sources.has(fragment)) sources.set(fragment, this.innerHTML);
+    return fragment;
   },
 });
+let lastCloned = "";
+const cloneNode = window.Node.prototype.cloneNode;
+window.Node.prototype.cloneNode = function (deep) {
+  const copy = cloneNode.call(this, deep);
+  if (sources.has(this)) lastCloned = sources.get(this);
+  return copy;
+};
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const $ = (selector) => window.document.querySelector(selector);
@@ -94,7 +100,6 @@ const routes = [...otherRoutes, ...docPages.map((p) => p.path), "/docs/no-such-p
 
 for (const route of routes) {
   const before = errors.length;
-  const parsedBefore = parsed.length;
   await visit(route);
   const page = docPages.find((p) => p.path === route);
   if (page) {
@@ -110,10 +115,7 @@ for (const route of routes) {
     check(route, $(".not-found") !== null, "not-found page missing");
   }
   check(route, errors.length === before, `raised: ${errors.slice(before).join(" | ")}`);
-  if (errors.length !== before) {
-    console.log(`templates parsed while rendering ${route}:`);
-    for (const html of parsed.slice(parsedBefore)) console.log(`  ${html}`);
-  }
+  if (errors.length !== before) console.log(`last template cloned on ${route}: ${lastCloned}`);
   if (snapshots) {
     const html = gzipSync(window.document.documentElement.outerHTML).toString("base64");
     console.log(`SNAPSHOT ${route} ${html}`);
