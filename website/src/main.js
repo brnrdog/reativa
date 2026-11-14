@@ -1,10 +1,11 @@
-// Entry point: importing the compiled reativa app mounts the page
-// synchronously, so the highlighter below runs over already-rendered code.
+// Entry point: importing the compiled reativa app mounts the site, routed
+// in place by reativa's own Router, so pages come and go without a reload.
 import "../../_build/default/website/src/output/website/src/app.js";
 
-// Code panels are static views (they never re-render), so a single pass after
-// mount is enough. The highlighters themselves live in highlight.js, shared
-// with the playground editor.
+// Code panels are static views, colored once when they appear. Pages mount
+// as you navigate, so a MutationObserver colors each new block; a block that
+// has been colored is marked and skipped. The highlighters themselves live in
+// highlight.js, shared with the playground editor.
 import {
   highlightOCaml,
   highlightReason,
@@ -21,11 +22,31 @@ const HIGHLIGHTERS = [
   ["pre.shell code", highlightShell],
 ];
 
-for (const [selector, highlight] of HIGHLIGHTERS) {
-  document.querySelectorAll(selector).forEach((code) => {
-    code.replaceChildren(highlight(code.textContent));
-  });
+const app = document.getElementById("app");
+
+function highlightAll() {
+  for (const [selector, highlight] of HIGHLIGHTERS) {
+    app.querySelectorAll(selector).forEach((code) => {
+      if (code.dataset.highlighted) return;
+      code.dataset.highlighted = "1";
+      code.replaceChildren(highlight(code.textContent));
+    });
+  }
 }
+
+highlightAll();
+
+// Batched to one pass per frame: a page mounts in one go, and coloring a
+// block is itself a mutation the observer sees (and skips).
+let queued = false;
+new MutationObserver(() => {
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    highlightAll();
+  });
+}).observe(app, { childList: true, subtree: true });
 
 // ----- analytics -----
 //
@@ -75,22 +96,51 @@ document.addEventListener("click", (event) => {
   }
 });
 
-// How far down the page people actually get. Each section reports once, the
-// first time it reaches the middle band of the viewport — a threshold in
-// percent would never fire for the sections that are taller than the screen.
-if (typeof IntersectionObserver === "function") {
-  const observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        observer.unobserve(entry.target);
-        track("docs_section_viewed", { section: entry.target.id });
-      }
-    },
-    { rootMargin: "-25% 0px -25% 0px" },
-  );
+// Route changes. The app navigates with history.pushState, which fires no
+// event, so it is wrapped; back and forward arrive as popstate. Only a new
+// pathname counts: following an #anchor on the same page is not a pageview.
+// PostHog records the first pageview itself (capture_pageview in
+// analytics.js); these are the in-app ones.
+let lastPath = location.pathname;
+const onRoute = () => {
+  if (location.pathname === lastPath) return;
+  lastPath = location.pathname;
+  track("$pageview", { $current_url: location.href });
+  // Give the new page a tick to mount before looking for its sections.
+  setTimeout(observeSections, 0);
+};
+const pushState = history.pushState.bind(history);
+history.pushState = (...args) => {
+  pushState(...args);
+  onRoute();
+};
+window.addEventListener("popstate", onRoute);
 
-  document
-    .querySelectorAll("main.page > section[id]")
-    .forEach((section) => observer.observe(section));
+// How far down a page people actually get. Each section reports once per
+// visit to its page, the first time it reaches the middle band of the
+// viewport; a threshold in percent would never fire for the sections that are
+// taller than the screen.
+const sectionObserver =
+  typeof IntersectionObserver === "function"
+    ? new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            sectionObserver.unobserve(entry.target);
+            track("docs_section_viewed", {
+              section: entry.target.id,
+              page: location.pathname,
+            });
+          }
+        },
+        { rootMargin: "-25% 0px -25% 0px" },
+      )
+    : null;
+
+function observeSections() {
+  if (!sectionObserver) return;
+  sectionObserver.disconnect();
+  app.querySelectorAll("section[id], .docs-content h2[id]").forEach((el) => sectionObserver.observe(el));
 }
+
+observeSections();

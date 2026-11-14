@@ -1,0 +1,1018 @@
+(* The example programs: their source, in both syntaxes, and the live demos
+   that run that same code on the site. A demo is a function, so every visit
+   to a page mounts a fresh view. *)
+
+open Reativa
+open Reativa.View.Mlx
+
+let set_interval = Site.set_interval
+let clear_interval = Site.clear_interval
+
+(* ================================================================== *)
+(* Example 1 — counter: signals and computed values                    *)
+(* ================================================================== *)
+
+let count = Signal.make 0
+let doubled = Computed.make (fun () -> Signal.get count * 2)
+
+let counter_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let count = Signal.make 0
+let doubled = Computed.make (fun () -> Signal.get count * 2)
+
+let () =
+  View.mount_by_id "app"
+    <div className="counter">
+      <p className="value">(Signal.get count)</p>
+      <p>("doubled is ") (Signal.get doubled)</p>
+      <div className="row">
+        <button onClick=(fun _ -> Signal.update count (fun n -> n - 1))>
+          ("-1")
+        </button>
+        <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
+          ("+1")
+        </button>
+        <button onClick=(fun _ -> Signal.set count 0)>("Reset")</button>
+      </div>
+    </div>|}
+
+let counter_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let count = Signal.make(0);
+let doubled = Computed.make(() => Signal.get(count) * 2);
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="counter">
+      <p className="value"> {Signal.get(count)} </p>
+      <p> {"doubled is "} {Signal.get(doubled)} </p>
+      <div className="row">
+        <button onClick={_ => Signal.update(count, n => n - 1)}>
+          {"-1"}
+        </button>
+        <button onClick={_ => Signal.update(count, n => n + 1)}>
+          {"+1"}
+        </button>
+        <button onClick={_ => Signal.set(count, 0)}> {"Reset"} </button>
+      </div>
+    </div>,
+  );|}
+
+let counter_demo () =
+  <div className="counter-demo">
+    <p className="big-value">(Signal.get count)</p>
+    <p className="demo-sub">
+      ("doubled is ") <strong>(Signal.get doubled)</strong>
+    </p>
+    <div className="btn-row">
+      <button
+        className="btn small"
+        onClick=(fun _ -> Signal.update count (fun n -> n - 1))
+      >
+        ("-1")
+      </button>
+      <button
+        className="btn small"
+        onClick=(fun _ -> Signal.update count (fun n -> n + 1))
+      >
+        ("+1")
+      </button>
+      <button className="btn small ghost" onClick=(fun _ -> Signal.set count 0)>
+        ("Reset")
+      </button>
+    </div>
+  </div>
+
+(* ================================================================== *)
+(* Example 2 — todos: keyed lists, forms and reactive inputs           *)
+(* ================================================================== *)
+
+type todo = { todo_id : int; title : string; done_ : bool }
+
+let todos =
+  Signal.make
+    [
+      { todo_id = 1; title = "Read the signals guide"; done_ = true };
+      { todo_id = 2; title = "Build something reactive"; done_ = false };
+    ]
+
+let next_id = Signal.make 3
+let draft = Signal.make ""
+
+let remaining =
+  Computed.make (fun () ->
+    Signal.get todos |> List.filter (fun t -> not t.done_) |> List.length)
+
+let add_todo ev =
+  Dom.prevent_default ev;
+  let title = String.trim (Signal.peek draft) in
+  if title <> "" then begin
+    let todo_id = Signal.peek next_id in
+    Signal.update todos (fun items ->
+      items @ [ { todo_id; title; done_ = false } ]);
+    Signal.set next_id (todo_id + 1);
+    Signal.set draft ""
+  end
+
+let toggle_todo id =
+  Signal.update todos (fun items ->
+    List.map
+      (fun t -> if t.todo_id = id then { t with done_ = not t.done_ } else t)
+      items)
+
+let todos_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+type todo = { id : int; title : string; done_ : bool }
+
+let todos =
+  Signal.make
+    [
+      { id = 1; title = "Read the signals guide"; done_ = true };
+      { id = 2; title = "Build something reactive"; done_ = false };
+    ]
+
+let next_id = Signal.make 3
+let draft = Signal.make ""
+
+let remaining =
+  Computed.make (fun () ->
+    Signal.get todos |> List.filter (fun t -> not t.done_) |> List.length)
+
+let add_todo ev =
+  Dom.prevent_default ev;
+  let title = String.trim (Signal.peek draft) in
+  if title <> "" then begin
+    let id = Signal.peek next_id in
+    Signal.update todos (fun items -> items @ [ { id; title; done_ = false } ]);
+    Signal.set next_id (id + 1);
+    Signal.set draft ""
+  end
+
+let toggle id =
+  Signal.update todos (fun items ->
+    List.map
+      (fun t -> if t.id = id then { t with done_ = not t.done_ } else t)
+      items)
+
+let () =
+  View.mount_by_id "app"
+    <div className="todos">
+      <form onSubmit=add_todo>
+        <input
+          placeholder="What needs doing?"
+          value=(Signal.get draft)
+          onInput=(fun ev -> Signal.set draft (Dom.target_value ev))
+        />
+        <button disabled=(String.trim (Signal.get draft) = "")>("Add")</button>
+      </form>
+
+      <ul>
+        <View.ForEach
+          items=(fun () -> Signal.get todos)
+          key=(fun t -> string_of_int t.id)
+          render=(fun t ->
+            <li>
+              <label>
+                <input
+                  type_="checkbox"
+                  checked=(t.done_)
+                  onChange=(fun _ -> toggle t.id)
+                />
+                <span>(t.title)</span>
+              </label>
+            </li>)
+        />
+      </ul>
+
+      <p>(Signal.get remaining) (" left to do")</p>
+    </div>|}
+
+let todos_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+type todo = {
+  id: int,
+  title: string,
+  done_: bool,
+};
+
+let todos =
+  Signal.make([
+    {id: 1, title: "Read the signals guide", done_: true},
+    {id: 2, title: "Build something reactive", done_: false},
+  ]);
+
+let next_id = Signal.make(3);
+let draft = Signal.make("");
+
+let remaining =
+  Computed.make(() =>
+    Signal.get(todos) |> List.filter(t => !t.done_) |> List.length
+  );
+
+let add_todo = ev => {
+  Dom.prevent_default(ev);
+  let title = String.trim(Signal.peek(draft));
+  if (title != "") {
+    let id = Signal.peek(next_id);
+    Signal.update(todos, items => items @ [{id, title, done_: false}]);
+    Signal.set(next_id, id + 1);
+    Signal.set(draft, "");
+  };
+};
+
+let toggle = id =>
+  Signal.update(todos, items =>
+    List.map(t => t.id == id ? {...t, done_: !t.done_} : t, items)
+  );
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="todos">
+      <form onSubmit=add_todo>
+        <input
+          placeholder="What needs doing?"
+          value={Signal.get(draft)}
+          onInput={ev => Signal.set(draft, Dom.target_value(ev))}
+        />
+        <button disabled={String.trim(Signal.get(draft)) == ""}>
+          {"Add"}
+        </button>
+      </form>
+
+      <ul>
+        <View.ForEach
+          items={() => Signal.get(todos)}
+          key={t => string_of_int(t.id)}
+          render={t =>
+            <li>
+              <label>
+                <input
+                  type_="checkbox"
+                  checked={t.done_}
+                  onChange={_ => toggle(t.id)}
+                />
+                <span> {t.title} </span>
+              </label>
+            </li>
+          }
+        />
+      </ul>
+
+      <p> {Signal.get(remaining)} {" left to do"} </p>
+    </div>,
+  );|}
+
+let todos_demo () =
+  <div className="todo-demo">
+    <form className="todo-form" onSubmit=add_todo>
+      <input
+        className="field"
+        placeholder="What needs doing?"
+        value=(Signal.get draft)
+        onInput=(fun ev -> Signal.set draft (Dom.target_value ev))
+      />
+      <button
+        className="btn small"
+        disabled=(String.trim (Signal.get draft) = "")
+      >
+        ("Add")
+      </button>
+    </form>
+    <ul className="todo-items">
+      <View.ForEach
+        items=(fun () -> Signal.get todos)
+        key=(fun t -> string_of_int t.todo_id)
+        render=(fun t ->
+          <li className="todo-item">
+            <label className=(if t.done_ then "todo-label done" else "todo-label")>
+              <input
+                type_="checkbox"
+                checked=(t.done_)
+                onChange=(fun _ -> toggle_todo t.todo_id)
+              />
+              <span>(t.title)</span>
+            </label>
+          </li>)
+      />
+    </ul>
+    <p className="demo-sub">(Signal.get remaining) (" left to do")</p>
+  </div>
+
+(* ================================================================== *)
+(* Example 3 — conditional rendering with Show and Maybe               *)
+(* ================================================================== *)
+
+let logged_in = Signal.make false
+let topic : string option Signal.t = Signal.make None
+
+let show_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let logged_in = Signal.make false
+let topic : string option Signal.t = Signal.make None
+
+let () =
+  View.mount_by_id "app"
+    <div className="panel">
+      <div className="row">
+        <button onClick=(fun _ -> Signal.update logged_in not)>
+          (if Signal.get logged_in then "Sign out" else "Sign in")
+        </button>
+        <button onClick=(fun _ -> Signal.set topic (Some "signals"))>
+          ("Pick a topic")
+        </button>
+        <button onClick=(fun _ -> Signal.set topic None)>("Clear")</button>
+      </div>
+
+      <View.Show
+        condition=(fun () -> Signal.get logged_in)
+        fallback=(<p>("Signed out. Sign in to see your greeting.")</p>)
+      >
+        <p>("Welcome back!")</p>
+      </View.Show>
+
+      <View.Maybe
+        value=(fun () -> Signal.get topic)
+        fallback=(<p>("No topic selected.")</p>)
+        render=(fun topic ->
+          <p>("Reading about ") <strong>(topic)</strong> (".")</p>)
+      />
+    </div>|}
+
+let show_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let logged_in = Signal.make(false);
+let topic: Signal.t(option(string)) = Signal.make(None);
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="panel">
+      <div className="row">
+        <button onClick={_ => Signal.update(logged_in, b => !b)}>
+          {Signal.get(logged_in) ? "Sign out" : "Sign in"}
+        </button>
+        <button onClick={_ => Signal.set(topic, Some("signals"))}>
+          {"Pick a topic"}
+        </button>
+        <button onClick={_ => Signal.set(topic, None)}> {"Clear"} </button>
+      </div>
+
+      <View.Show
+        condition={() => Signal.get(logged_in)}
+        fallback={<p> {"Signed out. Sign in to see your greeting."} </p>}>
+        <p> {"Welcome back!"} </p>
+      </View.Show>
+
+      <View.Maybe
+        value={() => Signal.get(topic)}
+        fallback={<p> {"No topic selected."} </p>}
+        render={topic =>
+          <p> {"Reading about "} <strong> {topic} </strong> {"."} </p>
+        }
+      />
+    </div>,
+  );|}
+
+let show_demo () =
+  <div className="show-demo">
+    <div className="btn-row">
+      <button className="btn small" onClick=(fun _ -> Signal.update logged_in not)>
+        (if Signal.get logged_in then "Sign out" else "Sign in")
+      </button>
+      <button
+        className="btn small ghost"
+        onClick=(fun _ -> Signal.set topic (Some "signals"))
+      >
+        ("Pick a topic")
+      </button>
+      <button className="btn small ghost" onClick=(fun _ -> Signal.set topic None)>
+        ("Clear")
+      </button>
+    </div>
+    <View.Show
+      condition=(fun () -> Signal.get logged_in)
+      fallback=(<p className="status muted">("Signed out. Sign in to see your greeting.")</p>)
+    >
+      <p className="status">("Welcome back!")</p>
+    </View.Show>
+    <View.Maybe
+      value=(fun () -> Signal.get topic)
+      fallback=(<p className="status muted">("No topic selected.")</p>)
+      render=(fun topic ->
+        <p className="status">("Reading about ") <strong>(topic)</strong> (".")</p>)
+    />
+  </div>
+
+(* ================================================================== *)
+(* Example 4 — stopwatch: effects with cleanup                         *)
+(* ================================================================== *)
+
+let tenths = Signal.make 0
+let running = Signal.make false
+
+let () =
+  Effect.run (fun () ->
+    if Signal.get running then begin
+      let id =
+        set_interval (fun () -> Signal.update tenths (fun n -> n + 1)) 100
+      in
+      Some (fun () -> clear_interval id)
+    end
+    else None)
+
+let stopwatch_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+external set_interval : (unit -> unit) -> int -> float = "setInterval"
+external clear_interval : float -> unit = "clearInterval"
+
+let tenths = Signal.make 0
+let running = Signal.make false
+
+(* The effect re-runs when [running] flips. Its cleanup stops the
+   previous interval first - that is the whole lifecycle. *)
+let () =
+  Effect.run (fun () ->
+    if Signal.get running then begin
+      let id =
+        set_interval (fun () -> Signal.update tenths (fun n -> n + 1)) 100
+      in
+      Some (fun () -> clear_interval id)
+    end
+    else None)
+
+let () =
+  View.mount_by_id "app"
+    <div className="stopwatch">
+      <p className="time">
+        (let n = Signal.get tenths in
+         Printf.sprintf "%d.%ds" (n / 10) (n mod 10))
+      </p>
+      <div className="row">
+        <button onClick=(fun _ -> Signal.update running not)>
+          (if Signal.get running then "Pause" else "Start")
+        </button>
+        <button onClick=(fun _ -> Signal.set tenths 0)>("Reset")</button>
+      </div>
+    </div>|}
+
+let stopwatch_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+external set_interval: (unit => unit, int) => float = "setInterval";
+external clear_interval: float => unit = "clearInterval";
+
+let tenths = Signal.make(0);
+let running = Signal.make(false);
+
+/* The effect re-runs when [running] flips. Its cleanup stops the
+   previous interval first - that is the whole lifecycle. */
+let () =
+  Effect.run(() =>
+    if (Signal.get(running)) {
+      let id = set_interval(() => Signal.update(tenths, n => n + 1), 100);
+      Some(() => clear_interval(id));
+    } else {
+      None;
+    }
+  );
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="stopwatch">
+      <p className="time">
+        {let n = Signal.get(tenths);
+         Printf.sprintf("%d.%ds", n / 10, n mod 10)}
+      </p>
+      <div className="row">
+        <button onClick={_ => Signal.update(running, b => !b)}>
+          {Signal.get(running) ? "Pause" : "Start"}
+        </button>
+        <button onClick={_ => Signal.set(tenths, 0)}> {"Reset"} </button>
+      </div>
+    </div>,
+  );|}
+
+let stopwatch_demo () =
+  <div className="stopwatch-demo">
+    <p className="big-value">
+      (let n = Signal.get tenths in
+       Printf.sprintf "%d.%ds" (n / 10) (n mod 10))
+    </p>
+    <div className="btn-row">
+      <button className="btn small" onClick=(fun _ -> Signal.update running not)>
+        (if Signal.get running then "Pause" else "Start")
+      </button>
+      <button className="btn small ghost" onClick=(fun _ -> Signal.set tenths 0)>
+        ("Reset")
+      </button>
+    </div>
+  </div>
+
+(* ================================================================== *)
+(* Example 5 — weather: fetching async data into signals               *)
+(* ================================================================== *)
+
+type response
+type payload
+type current
+
+external fetch : string -> response Js.Promise.t = "fetch"
+external json : response -> payload Js.Promise.t = "json" [@@mel.send]
+external current_weather : payload -> current = "current_weather" [@@mel.get]
+external temperature : current -> float = "temperature" [@@mel.get]
+external windspeed : current -> float = "windspeed" [@@mel.get]
+external random : unit -> float = "random" [@@mel.scope "Math"]
+
+type city = { name : string; lat : string; lon : string }
+
+let cities =
+  [|
+    { name = "Lisbon"; lat = "38.72"; lon = "-9.14" };
+    { name = "Tokyo"; lat = "35.68"; lon = "139.69" };
+    { name = "Nairobi"; lat = "-1.29"; lon = "36.82" };
+    { name = "Reykjavik"; lat = "64.15"; lon = "-21.94" };
+    { name = "Sydney"; lat = "-33.87"; lon = "151.21" };
+    { name = "Cusco"; lat = "-13.53"; lon = "-71.97" };
+  |]
+
+type weather_state =
+  | Idle
+  | Loading of city
+  | Loaded of city * float * float
+  | Failed of city
+
+let weather = Signal.make Idle
+
+let fetch_weather _ =
+  let city =
+    cities.(int_of_float (random () *. float_of_int (Array.length cities)))
+  in
+  Signal.set weather (Loading city);
+  let url =
+    Printf.sprintf
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true"
+      city.lat city.lon
+  in
+  ignore
+    (fetch url
+    |> Js.Promise.then_ json
+    |> Js.Promise.then_ (fun payload ->
+         let current = current_weather payload in
+         Signal.set weather
+           (Loaded (city, temperature current, windspeed current));
+         Js.Promise.resolve ())
+    |> Js.Promise.catch (fun _ ->
+         Signal.set weather (Failed city);
+         Js.Promise.resolve ()))
+
+let weather_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+(* Bindings for fetch and the shape of the Open-Meteo response. *)
+type response
+type payload
+type current
+
+external fetch : string -> response Js.Promise.t = "fetch"
+external json : response -> payload Js.Promise.t = "json" [@@mel.send]
+external current_weather : payload -> current = "current_weather" [@@mel.get]
+external temperature : current -> float = "temperature" [@@mel.get]
+external windspeed : current -> float = "windspeed" [@@mel.get]
+external random : unit -> float = "random" [@@mel.scope "Math"]
+
+type city = { name : string; lat : string; lon : string }
+
+let cities =
+  [|
+    { name = "Lisbon"; lat = "38.72"; lon = "-9.14" };
+    { name = "Tokyo"; lat = "35.68"; lon = "139.69" };
+    { name = "Nairobi"; lat = "-1.29"; lon = "36.82" };
+    { name = "Reykjavik"; lat = "64.15"; lon = "-21.94" };
+    { name = "Sydney"; lat = "-33.87"; lon = "151.21" };
+    { name = "Cusco"; lat = "-13.53"; lon = "-71.97" };
+  |]
+
+type state =
+  | Idle
+  | Loading of city
+  | Loaded of city * float * float
+  | Failed of city
+
+let weather = Signal.make Idle
+
+let fetch_weather _ =
+  let city =
+    cities.(int_of_float (random () *. float_of_int (Array.length cities)))
+  in
+  Signal.set weather (Loading city);
+  let url =
+    Printf.sprintf
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true"
+      city.lat city.lon
+  in
+  ignore
+    (fetch url
+    |> Js.Promise.then_ json
+    |> Js.Promise.then_ (fun payload ->
+         let current = current_weather payload in
+         Signal.set weather
+           (Loaded (city, temperature current, windspeed current));
+         Js.Promise.resolve ())
+    |> Js.Promise.catch (fun _ ->
+         Signal.set weather (Failed city);
+         Js.Promise.resolve ()))
+
+let () =
+  View.mount_by_id "app"
+    <div className="weather">
+      <button onClick=fetch_weather>("Check a random city")</button>
+      (View.tracked (fun () ->
+         match Signal.get weather with
+         | Idle -> <p>("Real weather, one click away.")</p>
+         | Loading city -> <p>(Printf.sprintf "Checking %s..." city.name)</p>
+         | Failed city ->
+           <p>(Printf.sprintf "Could not reach the service for %s." city.name)</p>
+         | Loaded (city, temp, wind) ->
+           <div>
+             <h3>(city.name)</h3>
+             <p>(temp) (" C now, wind ") (wind) (" km/h")</p>
+           </div>))
+    </div>|}
+
+let weather_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+/* Bindings for fetch and the shape of the Open-Meteo response. */
+type response;
+type payload;
+type current;
+
+external fetch: string => Js.Promise.t(response) = "fetch";
+[@mel.send] external json: response => Js.Promise.t(payload) = "json";
+[@mel.get] external current_weather: payload => current = "current_weather";
+[@mel.get] external temperature: current => float = "temperature";
+[@mel.get] external windspeed: current => float = "windspeed";
+[@mel.scope "Math"] external random: unit => float = "random";
+
+type city = {
+  name: string,
+  lat: string,
+  lon: string,
+};
+
+let cities = [|
+  {name: "Lisbon", lat: "38.72", lon: "-9.14"},
+  {name: "Tokyo", lat: "35.68", lon: "139.69"},
+  {name: "Nairobi", lat: "-1.29", lon: "36.82"},
+  {name: "Reykjavik", lat: "64.15", lon: "-21.94"},
+  {name: "Sydney", lat: "-33.87", lon: "151.21"},
+  {name: "Cusco", lat: "-13.53", lon: "-71.97"},
+|];
+
+type state =
+  | Idle
+  | Loading(city)
+  | Loaded(city, float, float)
+  | Failed(city);
+
+let weather = Signal.make(Idle);
+
+let fetch_weather = _ => {
+  let city =
+    cities[int_of_float(random() *. float_of_int(Array.length(cities)))];
+  Signal.set(weather, Loading(city));
+  let url =
+    Printf.sprintf(
+      "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&current_weather=true",
+      city.lat,
+      city.lon,
+    );
+  ignore(
+    fetch(url)
+    |> Js.Promise.then_(json)
+    |> Js.Promise.then_(payload => {
+         let current = current_weather(payload);
+         Signal.set(
+           weather,
+           Loaded(city, temperature(current), windspeed(current)),
+         );
+         Js.Promise.resolve();
+       })
+    |> Js.Promise.catch(_ => {
+         Signal.set(weather, Failed(city));
+         Js.Promise.resolve();
+       }),
+  );
+};
+
+let () =
+  View.mount_by_id(
+    "app",
+    <div className="weather">
+      <button onClick=fetch_weather> {"Check a random city"} </button>
+      {View.tracked(() =>
+         switch (Signal.get(weather)) {
+         | Idle => <p> {"Real weather, one click away."} </p>
+         | Loading(city) =>
+           <p> {Printf.sprintf("Checking %s...", city.name)} </p>
+         | Failed(city) =>
+           <p>
+             {Printf.sprintf("Could not reach the service for %s.", city.name)}
+           </p>
+         | Loaded(city, temp, wind) =>
+           <div>
+             <h3> {city.name} </h3>
+             <p> {temp} {" C now, wind "} {wind} {" km/h"} </p>
+           </div>
+         }
+       )}
+    </div>,
+  );|}
+
+let weather_demo () =
+  <div className="weather-demo">
+    <button className="btn small" onClick=fetch_weather>
+      ("Check a random city")
+    </button>
+    (View.tracked (fun () ->
+       match Signal.get weather with
+       | Idle ->
+         <p className="status muted">("Real weather, one click away.")</p>
+       | Loading city ->
+         <p className="status muted">(Printf.sprintf "Checking %s..." city.name)</p>
+       | Failed city ->
+         <p className="status muted">
+           (Printf.sprintf "Could not reach the service for %s." city.name)
+         </p>
+       | Loaded (city, temp, wind) ->
+         <div className="weather-card">
+           <h3>(city.name)</h3>
+           <p className="weather-line">
+             <strong>(temp)</strong>
+             (" C now, wind ")
+             <strong>(wind)</strong>
+             (" km/h")
+           </p>
+         </div>))
+  </div>
+
+(* ================================================================== *)
+(* Static code snippets                                                *)
+(* ================================================================== *)
+
+let hero_name = Signal.make "world"
+
+let hero_shout =
+  Computed.make ~equals:String.equal (fun () ->
+    String.uppercase_ascii (Signal.get hero_name))
+
+(* The two counters under the hero demo. They are instrumentation, not part
+   of the program shown above it: one counts writes to the name signal, the
+   other counts the times the greeting's text node had to change. *)
+let name_writes = Signal.make 0
+let greeting_updates = Signal.make 0
+
+let () =
+  let first = ref true in
+  Effect.run (fun () ->
+    ignore (Signal.get hero_shout);
+    if !first then first := false
+    else Signal.update greeting_updates (fun n -> n + 1);
+    None)
+
+let on_hero_input ev =
+  Signal.set hero_name (Dom.target_value ev);
+  Signal.update name_writes (fun n -> n + 1)
+
+(* The graph in "How it works": a signal, a computed, and the text nodes that
+   read them. *)
+let graph_count = Signal.make 2
+let graph_double = Computed.make (fun () -> Signal.get graph_count * 2)
+
+let hero_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let name = Signal.make "world"
+let shout =
+  Computed.make ~equals:String.equal (fun () ->
+    String.uppercase_ascii (Signal.get name))
+
+let () =
+  View.mount_by_id "app"
+    <section>
+      <input
+        value=(Signal.get name)
+        onInput=(fun ev -> Signal.set name (Dom.target_value ev))
+      />
+      <h1>("Hello, ") (Signal.get shout) ("!")</h1>
+    </section>|}
+
+let hero_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let name = Signal.make("world");
+let shout =
+  Computed.make(~equals=String.equal, () =>
+    String.uppercase_ascii(Signal.get(name))
+  );
+
+let () =
+  View.mount_by_id(
+    "app",
+    <section>
+      <input
+        value={Signal.get(name)}
+        onInput={ev => Signal.set(name, Dom.target_value(ev))}
+      />
+      <h1> {"Hello, "} {Signal.get(shout)} {"!"} </h1>
+    </section>,
+  );|}
+
+let install_code = {|opam pin add reativa https://github.com/brnrdog/reativa.git|}
+
+let install_code_re =
+  {|opam pin add reativa https://github.com/brnrdog/reativa.git
+opam install reason|}
+
+let dune_project_code =
+  {|(lang dune 3.16)
+
+; Needed by the melange.emit stanza; a js_of_ocaml-only project can drop it.
+(using melange 0.1)
+
+(dialect
+ (name mlx)
+ (implementation
+  (extension mlx)
+  (merlin_reader mlx)
+  (preprocess
+   (run mlx-pp %{input-file}))))|}
+
+let dune_project_code_re =
+  {|(lang dune 3.16)
+
+; Needed by the melange.emit stanza; a js_of_ocaml-only project can drop it.
+(using melange 0.1)
+
+; Nothing else to declare: dune reads .re files out of the box
+; once the reason package is in your switch.|}
+
+let dune_melange_code =
+  {|(melange.emit
+ (target output)
+ (libraries reativa)
+ (preprocess
+  (pps reativa.mlx_ppx melange.ppx))
+ (module_systems es6))|}
+
+let dune_jsoo_code =
+  {|(executables
+ (names app)
+ (modes js)
+ (libraries reativa reativa-jsoo)
+ (preprocess
+  (pps reativa.mlx_ppx)))|}
+
+(* The two backends side by side: the stanza is the only thing that differs
+   between them, so neither gets to be the one on the page. *)
+let backend_panels () =
+  <div className="step-panels">
+    <div className="step-panel">
+      <span className="step-panel-label">("Melange")</span>
+      (Ui.code_panel ~id:"dune-melange" ~file:"src/dune" ~lang:"dune"
+         dune_melange_code)
+    </div>
+    <div className="step-panel">
+      <span className="step-panel-label">("js_of_ocaml")</span>
+      (Ui.code_panel ~id:"dune-jsoo" ~file:"src/dune" ~lang:"dune" dune_jsoo_code)
+    </div>
+  </div>
+
+let hello_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let () =
+  View.mount_by_id "app"
+    <main>
+      <h1>("Hello from reativa!")</h1>
+      <p>("This view mounted once - now wire in some signals.")</p>
+    </main>|}
+
+let hello_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let () =
+  View.mount_by_id(
+    "app",
+    <main>
+      <h1> {"Hello from reativa!"} </h1>
+      <p> {"This view mounted once - now wire in some signals."} </p>
+    </main>,
+  );|}
+
+let component_code =
+  {|module Greeting = struct
+  let component = fun ~name ->
+    <h2>("Hello, ") (name) ("!")</h2>
+end
+
+let view = <Greeting name="OCaml" />|}
+
+let component_code_re =
+  {|module Greeting = {
+  let component = (~name) => <h2> {"Hello, "} {name} {"!"} </h2>;
+};
+
+let view = <Greeting name="OCaml" />;|}
+
+let router_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let () =
+  View.mount_by_id "app"
+    <main>
+      <nav>
+        <Link href="/">("Home")</Link>
+        <Link href="/users/42">("Ada")</Link>
+      </nav>
+
+      <Router>
+        <Route path="/">
+          <h1>("Home")</h1>
+        </Route>
+
+        <Route
+          path="/users/:id"
+          render=(fun matched ->
+            <h1>
+              ("User ")
+              (Option.value ~default:"?" (Router.param matched "id"))
+            </h1>)
+        />
+
+        <Route path="/old">
+          <Redirect to_="/" />
+        </Route>
+      </Router>
+    </main>|}
+
+let router_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let () =
+  View.mount_by_id(
+    "app",
+    <main>
+      <nav>
+        <Link href="/"> {"Home"} </Link>
+        <Link href="/users/42"> {"Ada"} </Link>
+      </nav>
+
+      <Router>
+        <Route path="/">
+          <h1> {"Home"} </h1>
+        </Route>
+
+        <Route
+          path="/users/:id"
+          render={matched =>
+            <h1>
+              {"User "}
+              {Option.value(~default="?", Router.param(matched, "id"))}
+            </h1>
+          }
+        />
+
+        <Route path="/old">
+          <Redirect to_="/" />
+        </Route>
+      </Router>
+    </main>,
+  );|}
+

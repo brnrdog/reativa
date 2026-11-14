@@ -1,0 +1,321 @@
+(* The home page: what reativa is, how it works, what sets it apart, one
+   example running live, and the way into the docs. Everything longer lives
+   on its own page. *)
+
+open Reativa
+open Reativa.View.Mlx
+
+let text = Ui.text
+
+(* ----- snippets for the "Why reativa" cards ----- *)
+
+let once_code =
+  {|let counter () =
+  <button onClick=(fun _ -> Signal.update count succ)>
+    ("Clicked ") (Signal.get count) (" times")
+  </button>
+(* Called once. A click rewrites one text node. *)|}
+
+let once_code_re =
+  {|let counter = () =>
+  <button onClick={_ => Signal.update(count, succ)}>
+    {"Clicked "} {Signal.get(count)} {" times"}
+  </button>;
+/* Called once. A click rewrites one text node. */|}
+
+let native_test_code =
+  {|let count = Signal.make 1
+let double = Computed.make (fun () -> Signal.get count * 2)
+
+let () =
+  Signal.set count 21;
+  assert (Signal.peek double = 42)|}
+
+let native_test_code_re =
+  {|let count = Signal.make(1);
+let double = Computed.make(() => Signal.get(count) * 2);
+
+let () = {
+  Signal.set(count, 21);
+  assert(Signal.peek(double) == 42);
+};|}
+
+(* Output from inspect/README.md, trimmed. *)
+let inspect_output =
+  {|$ reativa-inspect run app.bc.js --act "click #inc" --why "#value"
+> click #inc
+  1 write(s) (count=1), 1 recompute(s), 1 effect run(s)
+  DOM: p#value text
+why #value:
+  text <- effect #4
+    computed label (recomputed)
+    <- signal count (written = 1)|}
+
+(* ----- live pieces ----- *)
+
+let hero_demo () =
+  <div className="hero-demo">
+    (Ui.code_ml ~id:"hero" ~file:"hello.mlx" ~ocaml:Examples.hero_code
+       ~reason:Examples.hero_code_re)
+    <div className="hero-live">
+      <span className="demo-tag">("Running on this page")</span>
+      <div className="hero-live-row">
+        <input
+          className="field"
+          aria_label="Your name"
+          value=(Signal.get Examples.hero_name)
+          onInput=Examples.on_hero_input
+        />
+        <p className="hero-live-out">
+          ("Hello, ") <strong>(Signal.get Examples.hero_shout)</strong> ("!")
+        </p>
+      </div>
+      <dl className="meter">
+        <div className="meter-item">
+          <dt>("signal writes")</dt>
+          <dd>(Signal.get Examples.name_writes)</dd>
+        </div>
+        <div className="meter-item">
+          <dt>("text node updates")</dt>
+          <dd>(Signal.get Examples.greeting_updates)</dd>
+        </div>
+      </dl>
+      <p className="hero-note">
+        ("The input and the greeting are the code above, running live. Each keystroke writes one signal and rewrites one text node; the view itself was built once, when the page loaded.")
+      </p>
+    </div>
+  </div>
+
+(* A signal, a computed, and the text nodes that read them. *)
+let graph () =
+  <div className="graph">
+    <div className="graph-row">
+      <div className="graph-node">
+        <span className="graph-kind">("Signal")</span>
+        <span className="graph-name">("count")</span>
+        <span className="graph-value">(Signal.get Examples.graph_count)</span>
+      </div>
+      <div className="graph-node">
+        <span className="graph-kind">("Computed")</span>
+        <span className="graph-name">("count * 2")</span>
+        <span className="graph-value">(Signal.get Examples.graph_double)</span>
+      </div>
+      <div className="graph-node">
+        <span className="graph-kind">("Text node")</span>
+        <span className="graph-name">("<strong>")</span>
+        <span className="graph-value">(Signal.get Examples.graph_double)</span>
+      </div>
+    </div>
+    <div className="graph-foot">
+      <div className="btn-row">
+        <button
+          className="btn small primary"
+          onClick=(fun _ -> Signal.update Examples.graph_count (fun n -> n + 1))
+        >
+          ("count + 1")
+        </button>
+        <button className="btn small ghost" onClick=(fun _ -> Signal.set Examples.graph_count 2)>
+          ("Reset")
+        </button>
+      </div>
+      <p>("Every number here is its own text node, subscribed to the value it shows.")</p>
+    </div>
+  </div>
+
+(* ----- the page ----- *)
+
+let page () =
+  <div className="home">
+    <section className="hero">
+      <div className="hero-copy">
+        (Site.link ~className:"hero-pill" "/docs/whats-new"
+           [
+             <span className="pill-tag">("2.0")</span>;
+             text "Lifecycle, context, resources and devtools";
+           ])
+        <h1>
+          ("Web interfaces in OCaml that update ")
+          <span className="accent">("only what changed.")</span>
+        </h1>
+        <p className="lede">
+          ("reativa is a small UI library for OCaml and ReasonML. State lives in signals, views are real DOM nodes, and each component runs once. When a signal changes, the text, attribute or list row that reads it is updated, and nothing else. There is no virtual DOM to diff.")
+        </p>
+        <div className="hero-actions">
+          (Site.link ~className:"btn primary" "/docs/quick-start" [ text "Get started" ])
+          (Site.link ~className:"btn ghost" "/docs" [ text "Read the docs" ])
+        </div>
+        <ul className="hero-facts">
+          <li>("OCaml & ReasonML")</li>
+          <li>("Melange or js_of_ocaml")</li>
+          <li>("No virtual DOM")</li>
+          <li>("MIT licensed")</li>
+        </ul>
+      </div>
+      (hero_demo ())
+    </section>
+
+    <section id="how" className="section">
+      (Ui.section_head "How it works" "A graph of signals, wired straight to the DOM"
+         "Three ideas cover most of reativa. Once they click, the rest of the API reads like ordinary OCaml.")
+      <div className="how">
+        <div className="how-copy">
+          <ol className="how-steps">
+            <li>
+              <strong>("Signals hold state.")</strong>
+              (" ") <code>("Signal.make 0")</code>
+              (" is a value you read with ") <code>("Signal.get")</code>
+              (" and write with ") <code>("Signal.set")</code> (".")
+            </li>
+            <li>
+              <strong>("Computeds derive from them.")</strong>
+              (" A computed recomputes lazily, and only after a signal it read has changed.")
+            </li>
+            <li>
+              <strong>("Views subscribe where they read.")</strong>
+              (" A ") <code>("Signal.get")</code>
+              (" inside markup makes that one text node or attribute a subscriber. A write updates it directly.")
+            </li>
+          </ol>
+          <p>
+            ("The nodes that depend on a signal subscribed to it themselves, so there is no tree to compare and no component to re-run.")
+          </p>
+          (Ui.more_link "/docs/thinking-in-signals" "Thinking in signals")
+        </div>
+        (graph ())
+      </div>
+    </section>
+
+    <section id="why" className="section">
+      (Ui.section_head "Why reativa" "What makes it different"
+         "reativa takes the fine-grained model SolidJS made popular and fits it to OCaml: typed end to end, testable without a browser, and compiled by the tool you already use.")
+      <div className="why-grid">
+        <article className="why-card wide">
+          <span className="why-icon">("1x")</span>
+          <h3>("Components run once")</h3>
+          <p>
+            ("A component is a function that builds DOM nodes. It runs when it is mounted and never again. Later changes go straight to the nodes that read a signal, so there is no render cycle to optimise and nothing to memoise.")
+          </p>
+          (Ui.mini_pair ~ocaml:once_code ~reason:once_code_re)
+          (Ui.more_link "/docs/thinking-in-signals" "How components run")
+        </article>
+        <article className="why-card wide">
+          <span className="why-icon">("</>")</span>
+          <h3>("The markup knows what is reactive")</h3>
+          <p>
+            ("In ") <code>(".mlx")</code> (" and ") <code>(".re")</code>
+            (" files, the ppx reads the shape of each expression and wires it for you. The static parts of a tree are compiled to an HTML template, cloned for every instance.")
+          </p>
+          <ul className="infer">
+            <li><code>("(\"Clicked \")")</code><span>("set once")</span></li>
+            <li>
+              <code>("(Signal.get count)")</code>
+              <span className="live">("tracked")</span>
+            </li>
+            <li>
+              <code>("onClick=(fun _ -> ...)")</code>
+              <span>("plain handler")</span>
+            </li>
+          </ul>
+          (Ui.more_link "/docs/learn/markup" "Markup and components")
+        </article>
+        <article className="why-card">
+          <span className="why-icon">("ml")</span>
+          <h3>("OCaml or ReasonML")</h3>
+          <p>
+            ("One library, one ppx, two syntaxes. Every snippet on this site comes in both; use the switch at the top.")
+          </p>
+          <div className="mini-stack">
+            <div>
+              <span className="mini-label">("greeting.mlx")</span>
+              <pre className="mini ocaml"><code>("<h1>(\"Hi, \") (name)</h1>")</code></pre>
+            </div>
+            <div>
+              <span className="mini-label">("greeting.re")</span>
+              <pre className="mini reason"><code>("<h1> {\"Hi, \"} {name} </h1>")</code></pre>
+            </div>
+          </div>
+        </article>
+        <article className="why-card">
+          <span className="why-icon">("js")</span>
+          <h3>("Melange or js_of_ocaml")</h3>
+          <p>
+            ("Compile to ES modules with Melange and bundle with Vite, or to one self-contained script with js_of_ocaml. Your views stay the same; only the dune stanza changes.")
+          </p>
+          <ul className="chips">
+            <li><strong>("Melange")</strong> ("ES modules")</li>
+            <li><strong>("js_of_ocaml")</strong> ("one .js file")</li>
+          </ul>
+          (Ui.more_link "/docs/backends" "Backends")
+        </article>
+        <article className="why-card">
+          <span className="why-icon">("ok")</span>
+          <h3>("State you can test natively")</h3>
+          <p>
+            ("The signal graph is plain OCaml with no browser in sight, so ")
+            <code>("dune test")</code>
+            (" runs it as a native program.")
+          </p>
+          (Ui.mini_pair ~ocaml:native_test_code ~reason:native_test_code_re)
+          (Ui.more_link "/docs/testing" "Testing")
+        </article>
+        <article className="why-card full">
+          <div className="why-text">
+            <span className="why-icon">("?")</span>
+            <h3>("Ask why something changed")</h3>
+            <p>
+              <code>("Reativa.Devtools")</code>
+              (" records every write, recompute and effect run, and follows any update back to the signal write that caused it. ")
+              <strong>("reativa-inspect")</strong>
+              (" brings that to the terminal: it loads your compiled app in jsdom, clicks and types for you, and reports what changed. It also runs as an MCP server, so a coding agent can check its own work.")
+            </p>
+            (Ui.more_link "/docs/devtools" "Devtools and reativa-inspect")
+          </div>
+          <pre className="mini"><code>(inspect_output)</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <section id="example" className="section">
+      (Ui.section_head "Example" "A counter, running live"
+         "State is a signal, derived state is a computed, and the buttons are plain event handlers. The demo beside the code is that same program, running on this page.")
+      <div className="example-panes">
+        (Ui.code_ml ~id:"home-counter" ~file:"counter.mlx" ~ocaml:Examples.counter_code
+           ~reason:Examples.counter_code_re)
+        <aside className="example-demo">
+          <span className="demo-tag">("Live demo")</span>
+          <div className="demo-stage">(Examples.counter_demo ())</div>
+        </aside>
+      </div>
+      <p className="section-foot">(Ui.more_link "/examples" "More examples: lists, effects, async data")</p>
+    </section>
+
+    <section id="start" className="section">
+      <div className="start-band">
+        <div className="start-copy">
+          <p className="kicker">("Get started")</p>
+          <h2>("From an empty switch to a mounted view")</h2>
+          <p className="lede">
+            ("Pin reativa into your opam switch, declare the mlx dialect in dune-project, pick Melange or js_of_ocaml, and mount. The quick start walks through it in four short steps.")
+          </p>
+          <div className="hero-actions">
+            (Site.link ~className:"btn primary" "/docs/quick-start" [ text "Quick start" ])
+            (Site.link ~className:"btn ghost" "/docs" [ text "Is reativa a good fit?" ])
+          </div>
+        </div>
+        (Ui.code_setup ~id:"install" ~file:"shell" ~lang:"shell" ~ocaml:Examples.install_code
+           ~reason:Examples.install_code_re)
+      </div>
+    </section>
+
+    <section className="cta">
+      <div className="cta-card">
+        <span className="cta-mark" />
+        <h2>("Give your OCaml a reactive front end.")</h2>
+        <p>("Typed from the signal to the DOM node, and compiled by the tools you already use.")</p>
+        <div className="cta-actions">
+          (Site.link ~className:"btn primary" "/docs/quick-start" [ text "Get started" ])
+          <a className="btn ghost-on-dark" href=(Site.github)>("View on GitHub")</a>
+        </div>
+      </div>
+    </section>
+  </div>
