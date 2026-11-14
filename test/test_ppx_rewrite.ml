@@ -239,10 +239,10 @@ let () =
     ~has:[ "1 &lt; 2 &amp; 3</p>"; "title=" ]
     ~lacks:[];
 
-  check_generated "markup with non-ASCII text is a {js|...|js} literal, for Melange"
-    {| let v = ((p ~children:[{js|café|js}] ()) [@JSX]) |}
-    ~has:[ "Reativa.View.Template.make {js|<p>café</p>|js}" ]
-    ~lacks:[];
+  check_generated "non-ASCII characters become character references"
+    {| let v = ((p ~title:{js|é|js} ~children:["a\\b "; {js|café → ✓|js}] ()) [@JSX]) |}
+    ~has:[ {|"<p title=\"&#xE9;\">a\\b caf&#xE9; &#x2192; &#x2713;</p>"|} ]
+    ~lacks:[ "{js|" ];
 
   check_generated "an unknown prop keeps the element on the View.Mlx path"
     {| let v = ((div ~notAProp:1 ()) [@JSX]) |}

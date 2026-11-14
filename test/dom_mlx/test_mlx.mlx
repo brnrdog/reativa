@@ -16,8 +16,12 @@ let register () =
     let c = mount <section id="s" className="box"><h1>("Title")</h1><p>("a & b")<br />("c")</p></section> in
     equal_string "markup" ~expected:{|<section id="s" class="box"><h1>Title</h1><p>a &amp; b<br>c</p></section>|} (html c));
   test "non-ASCII text and attributes keep their characters" (fun () ->
-    let c = mount <p title={js|café|js}>({js|© 2.0 → ok|js})</p> in
-    equal_string "markup" ~expected:{js|<p title="café">© 2.0 → ok</p>|js} (html c));
+    let c = mount <p title={js|café|js}>("C:\\dir ") ({js|© 2.0 → ok|js})</p> in
+    (* the backslash stays out of the {js|...|js} literals: Melange reads
+       escapes in those *)
+    equal_string "markup"
+      ~expected:({js|<p title="café">C:|js} ^ "\\dir " ^ {js|© 2.0 → ok</p>|js})
+      (html c));
   test "literal toggles and ints" (fun () ->
     let c = mount <input type_="text" tabIndex=3 required=true disabled=false /> in
     equal_string "markup" ~expected:{|<input type="text" tabindex="3" required="">|} (html c));
