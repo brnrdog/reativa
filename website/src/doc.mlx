@@ -1,0 +1,58 @@
+(* A docs page is a list of blocks. Writing pages as data keeps them short and
+   uniform, and lets the layout derive the "On this page" list from the
+   headings. Text blocks take the inline markup of Ui.inline: `code`,
+   **bold** and [label](target). *)
+
+open Reativa
+open Reativa.View.Mlx
+
+type block =
+  | H2 of string * string  (** anchor id, title *)
+  | H3 of string * string
+  | P of string
+  | Bullets of string list
+  | Numbered of string list
+  | Code of { file : string; ocaml : string; reason : string }
+      (** the same program in both syntaxes *)
+  | Setup of { file : string; lang : string; ocaml : string; reason : string }
+      (** a non-OCaml file whose content depends on the syntax (dune, shell) *)
+  | Plain of { file : string; lang : string; source : string }
+      (** a non-OCaml file that is the same either way *)
+  | Note of string
+  | Caution of string
+  | Terms of (string * string) list  (** term in code font, then its meaning *)
+  | Demo of View.t
+  | Raw of View.t
+
+let li s = View.element "li" (Ui.inline s)
+
+let render = function
+  | H2 (id, title) -> <h2 id=(id)>(title)</h2>
+  | H3 (id, title) -> <h3 id=(id)>(title)</h3>
+  | P s -> Ui.prose s
+  | Bullets items -> View.element "ul" (List.map li items)
+  | Numbered items -> View.element "ol" (List.map li items)
+  | Code { file; ocaml; reason } -> Ui.code_ml ~id:file ~file ~ocaml ~reason
+  | Setup { file; lang; ocaml; reason } -> Ui.code_setup ~id:file ~file ~lang ~ocaml ~reason
+  | Plain { file; lang; source } -> Ui.code_panel ~id:file ~file ~lang source
+  | Note s -> <aside className="callout">(Ui.prose s)</aside>
+  | Caution s -> <aside className="callout caution">(Ui.prose s)</aside>
+  | Terms items ->
+      View.element "dl"
+        ~attrs:[ View.Attr.className (View.static "terms") ]
+        (List.map
+           (fun (term, meaning) ->
+             <div className="term">
+               <dt><code>(term)</code></dt>
+               <dd>(View.fragment (Ui.inline meaning))</dd>
+             </div>)
+           items)
+  | Demo view ->
+      <div className="doc-demo">
+        <span className="demo-tag">("Live demo")</span>
+        <div className="demo-stage">(view)</div>
+      </div>
+  | Raw view -> view
+
+let headings blocks =
+  List.filter_map (function H2 (id, title) -> Some (id, title) | _ -> None) blocks

@@ -2,7 +2,20 @@
 ; emitted entry from _build and publishes the static site from website/.
 (melange.emit
  (target output)
- (modules app)
+ (modules
+  app
+  site
+  ui
+  doc
+  examples
+  home
+  examples_page
+  docs_index
+  docs_layout
+  docs_start
+  docs_learn
+  docs_platform
+  docs_reference)
  (libraries reativa)
  (preprocess
   (pps reativa.mlx_ppx melange.ppx))

@@ -533,28 +533,32 @@ let no_self_nesting = [ "a"; "button"; "form"; "li"; "dt"; "dd"; "p"; "h1"; "h2"
 
 exception Not_templatable
 
-let escape_text s =
+(* Markup for a template is emitted as a plain OCaml string literal, which
+   Melange reads byte by byte. So everything outside ASCII, written as
+   {js|...|js} for its characters or not, goes into the markup as an HTML
+   character reference: the literal stays ASCII, and the template parser turns
+   the reference back into the character, the same on every backend. *)
+let escape ~quote s =
   let b = Buffer.create (String.length s) in
-  String.iter
-    (function
-      | '&' -> Buffer.add_string b "&amp;"
-      | '<' -> Buffer.add_string b "&lt;"
-      | '>' -> Buffer.add_string b "&gt;"
-      | c -> Buffer.add_char b c)
-    s;
+  let rec go i =
+    if i < String.length s then
+      match s.[i] with
+      | '&' -> Buffer.add_string b "&amp;"; go (i + 1)
+      | '<' -> Buffer.add_string b "&lt;"; go (i + 1)
+      | '>' -> Buffer.add_string b "&gt;"; go (i + 1)
+      | '"' when quote -> Buffer.add_string b "&quot;"; go (i + 1)
+      | c when Char.code c < 128 -> Buffer.add_char b c; go (i + 1)
+      | _ ->
+          (* An invalid sequence decodes to U+FFFD, as a browser would show it. *)
+          let d = Stdlib.String.get_utf_8_uchar s i in
+          Printf.bprintf b "&#x%X;" (Stdlib.Uchar.to_int (Stdlib.Uchar.utf_decode_uchar d));
+          go (i + Stdlib.Uchar.utf_decode_length d)
+  in
+  go 0;
   Buffer.contents b
 
-let escape_attribute s =
-  let b = Buffer.create (String.length s) in
-  String.iter
-    (function
-      | '&' -> Buffer.add_string b "&amp;"
-      | '"' -> Buffer.add_string b "&quot;"
-      | '<' -> Buffer.add_string b "&lt;"
-      | '>' -> Buffer.add_string b "&gt;"
-      | c -> Buffer.add_char b c)
-    s;
-  Buffer.contents b
+let escape_text s = escape ~quote:false s
+let escape_attribute s = escape ~quote:true s
 
 type tnode =
   | Ttext of string
@@ -584,11 +588,31 @@ let rec render_node b = function
 let hoisted : (string * string) list ref = ref []
 let hoisted_by_html : (string, string) Hashtbl.t = Hashtbl.create 16
 
+(* The hoisted bindings are ordinary top-level values, so a module without an
+   interface exports them, and opening it brings them into scope. Their names
+   carry the module's own name ("__reativa_template_card_0" in card.mlx), so
+   an [open Card] further down another file cannot shadow that file's. *)
+let unit_prefix = ref ""
+
+let prefix_of_file fname =
+  (* [basename ""] is "."; a parse from a string has no file name. *)
+  match Stdlib.Filename.remove_extension (Stdlib.Filename.basename fname) with
+  | "" | "." | "_none_" -> ""
+  | name ->
+      Stdlib.String.map
+        (fun c ->
+          match c with
+          | 'a' .. 'z' | '0' .. '9' | '_' -> c
+          | 'A' .. 'Z' -> Stdlib.Char.lowercase_ascii c
+          | _ -> '_')
+        name
+      ^ "_"
+
 let hoist html =
   match Hashtbl.find_opt hoisted_by_html html with
   | Some name -> name
   | None ->
-      let name = Printf.sprintf "__reativa_template_%d" (List.length !hoisted) in
+      let name = Printf.sprintf "__reativa_template_%s%d" !unit_prefix (List.length !hoisted) in
       hoisted := (name, html) :: !hoisted;
       Hashtbl.replace hoisted_by_html html name;
       name
@@ -865,6 +889,8 @@ let silence_mlx_opens =
 
 let rewrite structure =
   collect_reactive_names structure;
+  unit_prefix :=
+    (match structure with item :: _ -> prefix_of_file item.pstr_loc.loc_start.pos_fname | [] -> "");
   hoisted := [];
   Hashtbl.reset hoisted_by_html;
   let structure = mapper#structure structure in

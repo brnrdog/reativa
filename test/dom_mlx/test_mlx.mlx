@@ -6,6 +6,10 @@ open Reativa
 open Reativa.View.Mlx
 open Harness
 
+(* Brings Opened's hoisted templates into scope; every template below would
+   render Opened's skeletons if their names could collide. *)
+open Opened
+
 module Badge = struct
   let component ~label = <span className="badge">(label)</span>
 end
@@ -15,6 +19,18 @@ let register () =
   test "a static tree renders as written" (fun () ->
     let c = mount <section id="s" className="box"><h1>("Title")</h1><p>("a & b")<br />("c")</p></section> in
     equal_string "markup" ~expected:{|<section id="s" class="box"><h1>Title</h1><p>a &amp; b<br>c</p></section>|} (html c));
+  test "non-ASCII text and attributes keep their characters" (fun () ->
+    let c = mount <p title={js|café|js}>("C:\\dir ") ({js|© 2.0 → ok|js})</p> in
+    (* the backslash stays out of the {js|...|js} literals: Melange reads
+       escapes in those *)
+    equal_string "markup"
+      ~expected:({js|<p title="café">C:|js} ^ "\\dir " ^ {js|© 2.0 → ok</p>|js})
+      (html c));
+  test "an opened mlx module's templates do not shadow this file's" (fun () ->
+    let c = mount <div>(banner)<p className="own">("mine")</p>(note)</div> in
+    equal_string "markup"
+      ~expected:{|<div><h3 class="opened">from Opened</h3><p class="own">mine</p><em>an unrelated skeleton</em></div>|}
+      (html c));
   test "literal toggles and ints" (fun () ->
     let c = mount <input type_="text" tabIndex=3 required=true disabled=false /> in
     equal_string "markup" ~expected:{|<input type="text" tabindex="3" required="">|} (html c));

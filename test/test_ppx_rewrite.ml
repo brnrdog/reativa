@@ -2,7 +2,10 @@
    compare against the expected source. Both sides are parsed and printed with
    the same printer, so the comparison is about structure, not formatting. *)
 
-let parse source = Ppxlib.Parse.implementation (Lexing.from_string source)
+let parse ?(file = "") source =
+  let lexbuf = Lexing.from_string source in
+  if file <> "" then Lexing.set_filename lexbuf file;
+  Ppxlib.Parse.implementation lexbuf
 let print structure = Ppxlib.Pprintast.string_of_structure structure
 
 let failures = ref 0
@@ -27,8 +30,8 @@ let contains haystack needle =
 
 (* For generated code whose exact printing depends on the ppxlib version (how
    nested [fun]s are merged): check the parts that matter. *)
-let check_generated name input ~has ~lacks =
-  let actual = print (Reativa_mlx_ppx.rewrite (parse input)) in
+let check_generated ?file name input ~has ~lacks =
+  let actual = print (Reativa_mlx_ppx.rewrite (parse ?file input)) in
   let squash s = String.concat "" (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s))) in
   let actual_s = squash actual in
   let missing = List.filter (fun s -> not (contains actual_s (squash s))) has in
@@ -238,6 +241,19 @@ let () =
     {| let v = ((p ~title:"a&b" ~children:["1 < 2 & 3"] ()) [@JSX]) |}
     ~has:[ "1 &lt; 2 &amp; 3</p>"; "title=" ]
     ~lacks:[];
+
+  check_generated ~file:"src/Card-view.mlx"
+    "templates are named after their module, so an opened module's cannot shadow them"
+    {| let v = ((p ~children:["x"] ()) [@JSX]) |}
+    ~has:
+      [ "let __reativa_template_card_view_0 = Reativa.View.Template.make";
+        "Reativa.View.template __reativa_template_card_view_0" ]
+    ~lacks:[ "__reativa_template_0" ];
+
+  check_generated "non-ASCII characters become character references"
+    {| let v = ((p ~title:{js|é|js} ~children:["a\\b "; {js|café → ✓|js}] ()) [@JSX]) |}
+    ~has:[ {|"<p title=\"&#xE9;\">a\\b caf&#xE9; &#x2192; &#x2713;</p>"|} ]
+    ~lacks:[ "{js|" ];
 
   check_generated "an unknown prop keeps the element on the View.Mlx path"
     {| let v = ((div ~notAProp:1 ()) [@JSX]) |}

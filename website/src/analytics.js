@@ -30,10 +30,10 @@ if (KEY) {
       posthog.init(KEY, {
         api_host: HOST,
 
-        // Static pages with no client-side router, so one pageview per
-        // document load is the whole story. The modern default
-        // ('history_change') would count every in-page anchor — #why,
-        // #examples, #api — as another pageview.
+        // One pageview per document load here; main.js reports the in-app
+        // route changes itself, by pathname. The modern default
+        // ('history_change') would also count every in-page #anchor as
+        // another pageview.
         capture_pageview: true,
         capture_pageleave: true,
 
