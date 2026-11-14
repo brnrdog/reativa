@@ -1,0 +1,699 @@
+(* Learn: signals, computeds, effects, markup, rendering, lists, lifecycle,
+   context, boundaries and portals, async data, routing. The facts follow the
+   agent pages in website/docs/agent; text is plain ASCII. *)
+
+open Doc
+
+let code file ocaml reason = Code { file; ocaml; reason }
+
+(* ----- Signals ----- *)
+
+let make_ml =
+  {|open Reativa
+
+let count = Signal.make 0
+let user_name = Signal.make ~name:"user-name" "Ada"
+
+(* Records are rebuilt on every change: compare them structurally. *)
+let settings = Signal.make ~equals:( = ) { theme = "dark"; compact = false }|}
+
+let make_re =
+  {|open Reativa;
+
+let count = Signal.make(0);
+let user_name = Signal.make(~name="user-name", "Ada");
+
+/* Records are rebuilt on every change: compare them structurally. */
+let settings = Signal.make(~equals=(==), {theme: "dark", compact: false});|}
+
+let read_ml =
+  {|(* Subscribes the computed (or effect, or text node) that is running. *)
+let greeting = Computed.make (fun () -> "Hello, " ^ Signal.get user_name)
+
+(* Reads the value now, subscribes nothing. *)
+let log_count () = print_endline (string_of_int (Signal.peek count))|}
+
+let read_re =
+  {|/* Subscribes the computed (or effect, or text node) that is running. */
+let greeting = Computed.make(() => "Hello, " ++ Signal.get(user_name));
+
+/* Reads the value now, subscribes nothing. */
+let log_count = () => print_endline(string_of_int(Signal.peek(count)));|}
+
+let write_ml =
+  {|Signal.set count 10;
+Signal.update count (fun n -> n + 1);
+
+(* Two writes, one round of updates. *)
+Signal.batch (fun () ->
+  Signal.set user_name "Grace";
+  Signal.set count 0)|}
+
+let write_re =
+  {|Signal.set(count, 10);
+Signal.update(count, n => n + 1);
+
+/* Two writes, one round of updates. */
+Signal.batch(() => {
+  Signal.set(user_name, "Grace");
+  Signal.set(count, 0);
+});|}
+
+let signals () =
+  [
+    P
+      "A signal holds one piece of state. It remembers who reads it and tells them when its value actually changes. Most of an app's state starts as a signal.";
+    H2 ("create", "Create a signal");
+    P
+      "`Signal.make` takes the starting value. `~name` labels it for the [devtools](/docs/devtools); `~equals` decides what counts as a change.";
+    code "state.mlx" make_ml make_re;
+    H2 ("read", "Read a signal");
+    P
+      "There are two ways to read, and the difference is whether the reader should run again later.";
+    Bullets
+      [
+        "`Signal.get` reads and subscribes. Use it in markup, in a computed and in an effect: that code re-runs when the signal changes.";
+        "`Signal.peek` reads without subscribing. Use it for a one-off value: in an event handler, for logging, or for a value an effect needs but should not react to. `Signal.untrack f` runs a whole function without subscribing.";
+      ];
+    code "read.mlx" read_ml read_re;
+    H2 ("write", "Write a signal");
+    P
+      "`Signal.set` replaces the value; `Signal.update` computes the next value from the current one. Subscribers run right after the write, so the page is up to date as soon as `set` returns. To make several writes count as one, wrap them in `Signal.batch`.";
+    code "write.mlx" write_ml write_re;
+    H2 ("equality", "When a write counts");
+    P
+      "A write notifies only when `equals old new` is false. The default is physical equality (`==`), which is right for numbers, booleans and values you replace wholesale. For records or lists you rebuild on every change, pass `~equals:( = )` so that an identical value does not wake anything up.";
+    Caution
+      "A signal written by an effect that also reads it loops until `equals` says the value stopped changing. Derive values with a [computed](/docs/learn/computeds) instead.";
+  ]
+
+(* ----- Computeds ----- *)
+
+let computed_ml =
+  {|let first = Signal.make "Ada"
+let last = Signal.make "Lovelace"
+
+let full = Computed.make (fun () -> Signal.get first ^ " " ^ Signal.get last)
+let initials =
+  Computed.make ~equals:String.equal (fun () ->
+    String.sub (Signal.get first) 0 1 ^ String.sub (Signal.get last) 0 1)|}
+
+let computed_re =
+  {|let first = Signal.make("Ada");
+let last = Signal.make("Lovelace");
+
+let full = Computed.make(() => Signal.get(first) ++ " " ++ Signal.get(last));
+let initials =
+  Computed.make(~equals=String.equal, () =>
+    String.sub(Signal.get(first), 0, 1) ++ String.sub(Signal.get(last), 0, 1)
+  );|}
+
+let computeds () =
+  [
+    P
+      "A computed is a read-only signal whose value comes from other signals. You write how to compute it once; reativa keeps it current.";
+    H2 ("derive", "Derive a value");
+    P
+      "`Computed.make` takes a function. Every `Signal.get` it makes is a dependency, discovered as it runs: there is no list to keep in sync. Read a computed like any signal, with `Signal.get` or `Signal.peek`.";
+    code "names.mlx" computed_ml computed_re;
+    H2 ("lazy", "Lazy and glitch-free");
+    Bullets
+      [
+        "A computed recomputes on the first read after a dependency changed, not on every write. Read it twice and it computes once.";
+        "Updates run in dependency order, so nothing ever sees a mix of old and new values. If `full` depends on `first` and `last`, a batch that changes both recomputes `full` once.";
+        "A computed that nothing reads detaches from its sources and costs nothing until it is read again.";
+      ];
+    H2 ("equals", "Stop work early with equals");
+    P
+      "Like a signal, a computed takes `~equals`. In the example, `initials` only notifies its readers when the two letters change, so renaming Ada to Alice updates `full` but leaves whatever shows `initials` alone.";
+    H2 ("dispose", "Disposing");
+    P
+      "A computed created inside a component is disposed with it. One created at the top level lives for the page; `Computed.dispose` detaches it by hand if you need to.";
+    Note
+      "If the value depends only on other values, make it a computed. Reach for an [effect](/docs/learn/effects) when you need to do something outside the graph.";
+  ]
+
+(* ----- Effects ----- *)
+
+let effect_ml =
+  {|let () =
+  Effect.run (fun () ->
+    Dom.set_attribute root "data-theme" (Signal.get theme);
+    None)
+
+(* An interval that follows a signal, stopped before each re-run. *)
+let () =
+  Effect.run (fun () ->
+    if Signal.get running then begin
+      let id = set_interval (fun () -> Signal.update ticks succ) 1000 in
+      Some (fun () -> clear_interval id)
+    end
+    else None)|}
+
+let effect_re =
+  {|let () =
+  Effect.run(() => {
+    Dom.set_attribute(root, "data-theme", Signal.get(theme));
+    None;
+  });
+
+/* An interval that follows a signal, stopped before each re-run. */
+let () =
+  Effect.run(() =>
+    if (Signal.get(running)) {
+      let id = set_interval(() => Signal.update(ticks, succ), 1000);
+      Some(() => clear_interval(id));
+    } else {
+      None;
+    }
+  );|}
+
+let effects () =
+  [
+    P
+      "An effect is code that runs outside the signal graph: talking to the DOM directly, a timer, local storage, a log. It runs once right away, then again whenever a signal it read changes.";
+    H2 ("run", "Run an effect");
+    P
+      "`Effect.run` takes a function that returns an optional cleanup. Return `None` when there is nothing to undo, or `Some f` to have `f` run before the next run and when the effect is disposed.";
+    code "effects.mlx" effect_ml effect_re;
+    Demo (Examples.stopwatch_demo ());
+    P
+      "The stopwatch above is the second effect: Start and Pause flip `running`, and the cleanup always stops the old interval before a new one starts. Its full source is on the [Examples](/examples) page.";
+    H2 ("lifetime", "How long an effect lives");
+    Bullets
+      [
+        "An effect created inside a component is disposed with that component. One created at the top level lives for the page; `Effect.run_with_disposer` returns `{ dispose }` to stop it by hand.";
+        "Before each re-run, everything the previous run created is disposed, nested effects included.";
+        "A disposed effect never runs again, and its cleanup runs exactly once.";
+      ];
+    H2 ("when-not", "When not to use one");
+    Bullets
+      [
+        "To show a value: read it in markup. The text node is already an effect.";
+        "To derive a value: use a [computed](/docs/learn/computeds). Writing a signal from an effect that reads it is a loop.";
+        "To respond to a click: do the work in the handler.";
+      ];
+  ]
+
+(* ----- Markup and components ----- *)
+
+let markup_ml =
+  {|open Reativa
+open Reativa.View.Mlx
+
+module Card = struct
+  let component ~title ?(tone = "plain") ~children =
+    <section className=("card " ^ tone)>
+      <h3>(title)</h3>
+      (View.fragment children)
+    </section>
+end
+
+let app =
+  <Card title="Tasks" tone="info">
+    <p>("Remaining: ") (List.length (Signal.get todos))</p>
+    <button disabled=(Signal.get busy) onClick=(fun _ -> save ())>
+      ("Save")
+    </button>
+  </Card>|}
+
+let markup_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+module Card = {
+  let component = (~title, ~tone="plain", ~children) =>
+    <section className={"card " ++ tone}>
+      <h3> title </h3>
+      {View.fragment(children)}
+    </section>;
+};
+
+let app =
+  <Card title="Tasks" tone="info">
+    <p> {"Remaining: "} {List.length(Signal.get(todos))} </p>
+    <button disabled={Signal.get(busy)} onClick={_ => save()}>
+      {"Save"}
+    </button>
+  </Card>;|}
+
+let markup () =
+  [
+    P
+      "Views are written as JSX-like markup: in `.mlx` files for OCaml syntax, or in ReasonML `.re` files. Both go through the same ppx, `reativa.mlx_ppx`, and produce the same views.";
+    code "card.mlx" markup_ml markup_re;
+    H2 ("elements", "Elements and props");
+    P
+      "Lowercase tags are HTML (and SVG) elements. Their props are typed: about 110 attributes and 55 events, from `className` and `href` to `onInput` and `onKeyDown`. Words OCaml reserves get an underscore: `type_`, `for_`. Anything else goes through `attrs=[...]`, and `ref=` gives you the node (see [Lifecycle and refs](/docs/learn/lifecycle)).";
+    H2 ("inference", "What the ppx makes reactive");
+    P
+      "You never wrap values by hand in markup. The ppx looks at the shape of each prop and child:";
+    Terms
+      [
+        ("\"Hello\", 42", "A literal is static: set once, at creation.");
+        ("(Signal.get name)", "An expression with an eager read is wrapped in a thunk and tracked. That node updates when `name` changes.");
+        ("(label ())", "A call to a helper in the same file whose body reads a signal is tracked too.");
+        ("(fun () -> ...)", "An explicit thunk stays dynamic, tracked the same way.");
+        ("(fun _ -> ...)", "Reads inside a nested function, like an event handler, are left alone. Handlers are never tracked.");
+        ("Signal.peek x", "Never counts as a read; an expression that only peeks stays static.");
+      ];
+    Caution
+      "Inference is syntactic. A read hidden in a function defined in another module is not seen, so that value is set once. Wrap the call in a thunk: `(fun () -> Other.label ())`.";
+    H2 ("children", "Children");
+    P
+      "String and number literals become text. Any other child goes through `View.child`, which renders strings, ints, floats, views and thunks of those. Booleans and options are not children: use [View.Show and View.Maybe](/docs/learn/rendering) to render something conditionally.";
+    H2 ("components", "Components");
+    P
+      "A component is a module with a `component` function; its labelled arguments are its props, optional arguments may be left out, and `~children` receives what is nested inside the tag. Capitalised tags are components, so `<Card title=\"Tasks\">` calls `Card.component`.";
+    Bullets
+      [
+        "The body runs when the component is mounted, once, untracked, under its own [owner](/docs/learn/lifecycle): what it creates is cleaned up with it.";
+        "A `Signal.get` in the body is read once, at mount. Read inline in the markup to stay reactive.";
+        "Props are type-checked like any function call: a missing or misspelled prop is a compile error.";
+      ];
+    H2 ("templates", "Compiled templates");
+    P
+      "The ppx compiles each element tree to an HTML template: the static skeleton is parsed once and cloned for every instance, and only the dynamic parts (holes) are filled in. You do not write anything differently for it. Pass `-no-templates` to the ppx to compare against the plain constructors.";
+  ]
+
+(* ----- Rendering ----- *)
+
+let rendering_ml =
+  {|<div className=(if Signal.get selected then "row on" else "row")>
+  <span>(Signal.get label)</span>
+  <input
+    value=(Signal.get draft)
+    onInput=(fun ev -> Signal.set draft (Dom.target_value ev))
+  />
+</div>|}
+
+let rendering_re =
+  {|<div className={Signal.get(selected) ? "row on" : "row"}>
+  <span> {Signal.get(label)} </span>
+  <input
+    value={Signal.get(draft)}
+    onInput={ev => Signal.set(draft, Dom.target_value(ev))}
+  />
+</div>|}
+
+let control_ml =
+  {|<View.Show
+  condition=(fun () -> Signal.get logged_in)
+  fallback=(<p>("Signed out.")</p>)>
+  <p>("Welcome back!")</p>
+</View.Show>
+
+<View.Maybe
+  value=(fun () -> Signal.get topic)
+  fallback=(<p>("No topic selected.")</p>)
+  render=(fun topic -> <p>("Reading about ") (topic)</p>)
+/>|}
+
+let control_re =
+  {|<View.Show
+  condition={() => Signal.get(logged_in)}
+  fallback={<p> {"Signed out."} </p>}>
+  <p> {"Welcome back!"} </p>
+</View.Show>
+
+<View.Maybe
+  value={() => Signal.get(topic)}
+  fallback={<p> {"No topic selected."} </p>}
+  render={topic => <p> {"Reading about "} topic </p>}
+/>|}
+
+let tracked_ml =
+  {|(View.tracked (fun () ->
+   match Signal.get weather with
+   | Idle -> <p>("Real weather, one click away.")</p>
+   | Loading city -> <p>("Checking ") (city.name) ("...")</p>
+   | Loaded (city, temp) -> <p>(city.name) (": ") (temp) (" C")</p>
+   | Failed _ -> <p>("Could not reach the service.")</p>))|}
+
+let tracked_re =
+  {|{View.tracked(() =>
+  switch (Signal.get(weather)) {
+  | Idle => <p> {"Real weather, one click away."} </p>
+  | Loading(city) => <p> {"Checking "} {city.name} {"..."} </p>
+  | Loaded(city, temp) => <p> {city.name} {": "} temp {" C"} </p>
+  | Failed(_) => <p> {"Could not reach the service."} </p>
+  }
+)}|}
+
+let rendering () =
+  [
+    P
+      "Most of a page is static. The rest falls into two kinds of updates: **leaves**, a text node or attribute rewritten in place, and **regions**, a part of the view rebuilt when its shape changes.";
+    H2 ("text-and-attributes", "Text, attributes and events");
+    P
+      "Read a signal inline and that one text node or attribute follows it. Equal values are not written again. `value` and `checked` are set as DOM properties, so a field bound to a signal shows the signal's value even after the user typed into it. Event props take plain functions.";
+    code "row.mlx" rendering_ml rendering_re;
+    H2 ("show-and-maybe", "Show one thing or another");
+    P
+      "`View.Show` renders its children while a condition holds, else the fallback. `View.Maybe` renders from the `Some` branch of an option. Each is a small region, rebuilt whenever a signal its thunk reads changes.";
+    code "conditional.mlx" control_ml control_re;
+    Demo (Examples.show_demo ());
+    P
+      "A condition that reads a busy signal, like `Signal.get count > 5`, rebuilds on every change of `count`. Derive it first, `let big = Computed.make (fun () -> Signal.get count > 5)`, and read `big` in the condition: a boolean computed only notifies when it flips.";
+    H2 ("regions", "Regions for anything else");
+    P
+      "When the structure depends on state in a way Show and Maybe do not cover, `View.tracked` rebuilds a region from a function each time a signal it read changes. A `match` on a variant signal is the common case.";
+    code "weather.mlx" tracked_ml tracked_re;
+    Bullets
+      [
+        "Keep regions small: focus, selection and scroll inside them do not survive a rebuild.";
+        "A region whose old and new content are both a single text node updates that node in place.";
+        "Prefer a leaf when only text or an attribute changes. A `View.tracked` around a large tree to update one number rebuilds the whole tree.";
+      ];
+    H2 ("svg", "SVG");
+    P
+      "Elements inside `<svg>` are created in the SVG namespace, in markup and templates alike; `<foreignObject>` switches back to HTML.";
+  ]
+
+(* ----- Lists ----- *)
+
+let list_ml =
+  {|<ul>
+  <View.ForEach
+    items=(fun () -> Signal.get todos)
+    key=(fun t -> string_of_int t.id)
+    render=(fun t ->
+      <li className=(if t.done_ then "done" else "")>(t.title)</li>)
+  />
+</ul>|}
+
+let list_re =
+  {|<ul>
+  <View.ForEach
+    items={() => Signal.get(todos)}
+    key={t => string_of_int(t.id)}
+    render={t =>
+      <li className={t.done_ ? "done" : ""}> {t.title} </li>
+    }
+  />
+</ul>|}
+
+let keyed_ml =
+  {|(View.for_with_key (fun () -> Signal.get todos)
+   ~key:(fun t -> string_of_int t.id)
+   (fun todo ->
+     <li className=(if (Signal.get todo).done_ then "done" else "")>
+       ((Signal.get todo).title)
+     </li>))|}
+
+let keyed_re =
+  {|{View.for_with_key(
+  () => Signal.get(todos),
+  ~key=t => string_of_int(t.id),
+  todo =>
+    <li className={Signal.get(todo).done_ ? "done" : ""}>
+      {Signal.get(todo).title}
+    </li>,
+)}|}
+
+let lists () =
+  [
+    P
+      "A list comes from a signal holding a list. reativa renders a row per item, and when the list changes it keeps, moves, adds and removes rows to match.";
+    H2 ("foreach", "Render a list");
+    P
+      "`View.ForEach` takes the items as a thunk, a `key` and a `render` function. Give it a key whenever the list can change: the key is how a row is recognised after an update.";
+    code "todos.mlx" list_ml list_re;
+    Demo (Examples.todos_demo ());
+    H2 ("keys", "What a key buys");
+    Bullets
+      [
+        "A row whose key survives an update keeps its DOM nodes, so focus and text selection stay put.";
+        "Rows that keep their relative order do not move. Swapping two rows of a thousand moves two; removing one moves none.";
+        "New rows are created in order and inserted with one DOM call per run of consecutive new rows.";
+        "Clearing a list that is its parent's only content empties the parent in one write.";
+      ];
+    Caution
+      "Keys must be unique strings: a duplicate key raises `Failure`. Do not use the index as the key of a list that reorders, or rows keep the wrong DOM.";
+    H2 ("signal-rows", "Rows that update in place");
+    P
+      "With `ForEach`, a row whose item changed is rebuilt. `View.for_with_key` instead hands each row a signal of its item, so a surviving row stays mounted and only the parts that read the item update:";
+    code "todos.mlx" keyed_ml keyed_re;
+    H2 ("unkeyed", "Without a key");
+    P
+      "`View.ForEach` without `key` (or `View.for_`) rebuilds every row on every change. That is fine for short lists that rarely change, and wasteful for anything else.";
+    Note
+      "A row's render function runs untracked, under the row's own owner: signals read there are read once, and effects created there are disposed with the row.";
+  ]
+
+(* ----- Lifecycle and refs ----- *)
+
+let lifecycle_ml =
+  {|module Search = struct
+  let component ~query =
+    let input = View.Ref.make () in
+    View.on_mount (fun () ->
+      Option.iter focus (View.Ref.current input));
+    let timer = start_polling query in
+    View.on_cleanup (fun () -> stop_polling timer);
+    <input ref=input value=(Signal.get query) />
+end|}
+
+let lifecycle_re =
+  {|module Search = {
+  let component = (~query) => {
+    let input = View.Ref.make();
+    View.on_mount(() => Option.iter(focus, View.Ref.current(input)));
+    let timer = start_polling(query);
+    View.on_cleanup(() => stop_polling(timer));
+    <input ref=input value={Signal.get(query)} />;
+  };
+};|}
+
+let disposable_ml =
+  {|let unmount = View.mount_disposable container <Widget /> in
+(* later: dispose every effect and remove the nodes *)
+unmount ()|}
+
+let disposable_re =
+  {|let unmount = View.mount_disposable(container, <Widget />);
+/* later: dispose every effect and remove the nodes */
+unmount();|}
+
+let lifecycle () =
+  [
+    P
+      "Everything reactive is created under an **owner** and cleaned up with it. Components, effect runs, list rows, regions, boundaries, portals and mount roots are owners. You rarely touch owners directly; you feel them as things that clean up after themselves.";
+    H2 ("when", "When a component runs");
+    P
+      "A component runs when its tag is mounted, not when the view value is built. It runs once, untracked, under a new owner. When the region holding it re-renders or goes away (a `View.Show` branch switches, a list row is removed), that owner is disposed: every effect, computed and cleanup created in the component goes with it.";
+    H2 ("hooks", "on_mount and on_cleanup");
+    code "search.mlx" lifecycle_ml lifecycle_re;
+    Bullets
+      [
+        "`View.on_mount f` runs `f` once the nodes of the current insertion are in place, so it can measure or focus them. It does not run if the component was disposed first.";
+        "`View.on_cleanup f` runs `f` when the current owner is disposed: stop timers, close sockets, remove listeners.";
+      ];
+    H2 ("refs", "Refs");
+    P
+      "A ref gives you a component's DOM node. Make one with `View.Ref.make ()`, pass it as `ref=` and read it with `View.Ref.current`. It is filled when the element is created and cleared when its owner is disposed. `View.Ref.from_callback f` calls `f` with the node instead.";
+    Caution
+      "Do not read the DOM in a component body: the nodes do not exist yet. Use `View.on_mount`.";
+    H2 ("mount", "Mounting and unmounting");
+    P
+      "`View.mount` and `View.mount_by_id` mount for the life of the page. To mount a widget into a page you do not otherwise control, and remove it later, use `View.mount_disposable`:";
+    code "widget.mlx" disposable_ml disposable_re;
+  ]
+
+(* ----- Context ----- *)
+
+let context_ml =
+  {|let theme = Context.make (Signal.make "light")
+
+module ThemeToggle = struct
+  let component () =
+    let t = Context.use theme in
+    <button
+      onClick=(fun _ ->
+        Signal.update t (fun s -> if s = "light" then "dark" else "light"))>
+      (Signal.get t)
+    </button>
+end
+
+let app = Context.provider theme (Signal.make "dark") <ThemeToggle />|}
+
+let context_re =
+  {|let theme = Context.make(Signal.make("light"));
+
+module ThemeToggle = {
+  let component = () => {
+    let t = Context.use(theme);
+    <button
+      onClick={_ =>
+        Signal.update(t, s => s == "light" ? "dark" : "light")}>
+      {Signal.get(t)}
+    </button>;
+  };
+};
+
+let app = Context.provider(theme, Signal.make("dark"), <ThemeToggle />);|}
+
+let context () =
+  [
+    P
+      "Context hands a value to everything a component renders, however deep, without passing it through every prop on the way. Themes, the signed-in user and a store are the usual cases.";
+    code "theme.mlx" context_ml context_re;
+    H2 ("api", "Make, provide, use");
+    Bullets
+      [
+        "`Context.make default` creates a context. `Context.use c` returns the nearest provided value, or the default.";
+        "`Context.provider c value view` renders `view` with `value` provided; `<Context.Provider context value>` is the markup form. Inside a component body, `Context.provide c value` does the same for everything that component renders.";
+        "A provider reaches everything below it, regions, list rows and portals included, and never its siblings. The nearest provider wins.";
+      ];
+    H2 ("changing", "Values that change");
+    P
+      "A context value is passed once. To share state that changes, provide a signal, as in the example: readers subscribe to the signal as usual.";
+    Caution
+      "Call `Context.use` while rendering, in a component body or an effect created there. Event handlers run outside the owner tree and see the default; read the context in the body and capture it.";
+  ]
+
+(* ----- Error boundaries and portals ----- *)
+
+let boundary_ml =
+  {|<View.ErrorBoundary
+  fallback=(fun err reset ->
+    <div role="alert">
+      <p>("Something went wrong: ") (Printexc.to_string err)</p>
+      <button onClick=(fun _ -> reset ())>("Retry")</button>
+    </div>)>
+  <Dashboard />
+</View.ErrorBoundary>|}
+
+let boundary_re =
+  {|<View.ErrorBoundary
+  fallback={(err, reset) =>
+    <div role="alert">
+      <p> {"Something went wrong: "} {Printexc.to_string(err)} </p>
+      <button onClick={_ => reset()}> {"Retry"} </button>
+    </div>
+  }>
+  <Dashboard />
+</View.ErrorBoundary>|}
+
+let portal_ml =
+  {|<View.Show condition=(fun () -> Signal.get open_)>
+  <View.Portal>
+    <div className="modal">
+      <p>("Saved.")</p>
+      <button onClick=(fun _ -> Signal.set open_ false)>("Close")</button>
+    </div>
+  </View.Portal>
+</View.Show>|}
+
+let portal_re =
+  {|<View.Show condition={() => Signal.get(open_)}>
+  <View.Portal>
+    <div className="modal">
+      <p> {"Saved."} </p>
+      <button onClick={_ => Signal.set(open_, false)}> {"Close"} </button>
+    </div>
+  </View.Portal>
+</View.Show>|}
+
+let boundaries () =
+  [
+    H2 ("boundaries", "Error boundaries");
+    P
+      "An error boundary renders its child, and swaps in a fallback if rendering the child raises, or if an effect below it raises later. The fallback receives the exception and a `reset` function that renders the child again from scratch.";
+    code "dashboard.mlx" boundary_ml boundary_re;
+    Bullets
+      [
+        "Caught: exceptions while rendering (component bodies included) and exceptions from effects owned below the boundary.";
+        "Not caught: exceptions in event handlers, which are not effects, and errors raised by the fallback itself, which go to the next boundary up.";
+        "A failed render leaves no half-built nodes behind: what was inserted is removed before the fallback renders.";
+        "With no boundary above it, an exception propagates from `mount`, or from the `Signal.set` that triggered it.";
+      ];
+    H2 ("portals", "Portals");
+    P
+      "A portal renders its children into another container, `<body>` by default or the `target` you pass, while they stay where you wrote them in every other way: owned by the surrounding component, and seeing its context. Modals, toasts and tooltips are the usual cases.";
+    code "modal.mlx" portal_ml portal_re;
+    Bullets
+      [
+        "The portal's nodes are removed when its owner is disposed: here, when the `View.Show` branch switches off.";
+        "DOM events bubble through the target's ancestors, not through the place the portal was written.";
+      ];
+  ]
+
+(* ----- Async data ----- *)
+
+let resource_ml =
+  {|let user_id = Signal.make 1
+let user = Resource.make (fun () -> fetch_user (Signal.get user_id))
+
+let profile =
+  <View.Suspense fallback=(<p>("Loading...")</p>)>
+    (match Resource.state user with
+     | Resource.Ready u -> <h2>(u.name)</h2>
+     | Failed e -> <p>("Error: ") (Printexc.to_string e)</p>
+     | Loading _ -> View.empty)
+  </View.Suspense>|}
+
+let resource_re =
+  {|let user_id = Signal.make(1);
+let user = Resource.make(() => fetch_user(Signal.get(user_id)));
+
+let profile =
+  <View.Suspense fallback={<p> {"Loading..."} </p>}>
+    {switch (Resource.state(user)) {
+     | Resource.Ready(u) => <h2> {u.name} </h2>
+     | Failed(e) => <p> {"Error: "} {Printexc.to_string(e)} </p>
+     | Loading(_) => View.empty
+     }}
+  </View.Suspense>;|}
+
+let async_data () =
+  [
+    P
+      "A resource turns a function returning a promise into a signal of its state: loading, ready or failed. It fetches right away, and again whenever a signal it read changes.";
+    code "profile.mlx" resource_ml resource_re;
+    H2 ("state", "Resource state");
+    Bullets
+      [
+        "`Resource.state r` is `Loading prev`, `Ready v` or `Failed exn`, and is tracked like any read. While refetching, `Loading (Some v)` still carries the previous value, so you can keep showing it.";
+        "`Resource.refetch r` fetches again; `Resource.mutate r v` sets the value locally, for an optimistic update.";
+        "A result that arrives after a newer fetch started, or after the resource was disposed, is dropped. A slow answer to an old request never overwrites a newer one.";
+      ];
+    Caution
+      "Only signals read **before** the promise is returned are dependencies. A read inside a `then` callback happens later and is not tracked; read it first.";
+    H2 ("suspense", "Suspense");
+    P
+      "`View.Suspense` shows its fallback while any resource created below it is loading. Its children are still built right away, off-page, and moved into place when nothing is pending; their effects and `on_mount` run as usual.";
+    H2 ("promises", "Promises on each backend");
+    P
+      "A resource takes the backend's own promises: with Melange, a `Js.Promise.t` from your bindings; with js_of_ocaml, a JavaScript promise. Both are `'a Promise.t` to reativa, and `Promise.resolve` and `Promise.reject` build them in OCaml. A rejection that is not an OCaml exception arrives as `Promise.Rejected message`.";
+    Note
+      "The [weather example](/examples) fetches with a plain variant signal instead, which is all a resource does for you, written out by hand.";
+  ]
+
+(* ----- Routing ----- *)
+
+let routing () =
+  [
+    P
+      "The router maps the browser's URL to views over the History API: links navigate without reloading the page, and back and forward work as expected.";
+    code "router.mlx" Examples.router_code Examples.router_code_re;
+    H2 ("routes", "Routes");
+    Bullets
+      [
+        "`<Router>` renders the first `<Route>` whose `path` matches the current location.";
+        "Patterns are static segments, `:params` and a trailing `*` wildcard. `Router.param m \"id\"` reads a param from the match passed to `render`.";
+        "`<Redirect to_=\"/\">` navigates when it renders.";
+      ];
+    H2 ("navigation", "Links and navigation");
+    Bullets
+      [
+        "`<Link href>` navigates in place on a plain left click. Modified clicks (to open a new tab), other targets and links to other sites are left to the browser.";
+        "`Router.navigate path ()` navigates from code; `~replace:true` replaces the history entry instead of pushing one. `Router.back`, `forward` and `go` wrap the History API.";
+        "`Router.is_active href` tells whether the current location matches, for styling the current link.";
+      ];
+    H2 ("location", "The location signal");
+    P
+      "`Router.location ()` is a signal of the current location: pathname, search, hash and history state. Read it in markup or a computed to follow navigation, like any other signal. `Router.match_path` is the pure matcher, usable (and tested) natively.";
+    Note
+      "Routing needs a server that answers every route with your `index.html`. Any SPA dev server does; on static hosting, copy `index.html` to each route or to a fallback page. This site, served from GitHub Pages and routed by reativa, does both.";
+  ]

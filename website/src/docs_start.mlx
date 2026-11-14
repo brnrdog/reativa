@@ -1,0 +1,224 @@
+(* Get started: Introduction, Quick start, Thinking in signals. Text is plain
+   ASCII (Melange reads plain string literals byte by byte). *)
+
+open Doc
+
+(* ----- Introduction ----- *)
+
+let intro_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let count = Signal.make 0
+
+let () =
+  View.mount_by_id "app"
+    <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
+      ("Clicked ") (Signal.get count) (" times")
+    </button>|}
+
+let intro_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let count = Signal.make(0);
+
+let () =
+  View.mount_by_id(
+    "app",
+    <button onClick={_ => Signal.update(count, n => n + 1)}>
+      {"Clicked "} {Signal.get(count)} {" times"}
+    </button>,
+  );|}
+
+let intro () =
+  [
+    H2 ("what", "What reativa is");
+    P
+      "reativa is a UI library for OCaml and ReasonML. You keep state in **signals**, derive values from them with **computeds**, and write views as JSX-like markup that becomes real DOM nodes. A view is built once. After that, a change to a signal updates only the text, attributes and list rows that read it.";
+    Code { file = "counter.mlx"; ocaml = intro_code; reason = intro_code_re };
+    P
+      "That is a whole program. The button is created once, when it is mounted. `(Signal.get count)` inside the markup is the only part that depends on `count`, so a click rewrites that one text node and nothing else.";
+    H2 ("feel", "What writing it feels like");
+    Bullets
+      [
+        "**No re-rendering.** A component's function runs once, when it is mounted. There are no render cycles to reason about, nothing to memoise and no dependency arrays to keep in sync.";
+        "**Reactivity you can read.** A `Signal.get` inside markup is a subscription. The ppx sees it and wires that node for you; literals and everything else are set once.";
+        "**Typed all the way.** Signals, props and events are ordinary OCaml types, checked by the compiler you already use. A component's props are labelled arguments.";
+        "**Your compiler, your syntax.** Compile with Melange or js_of_ocaml, write `.mlx` or ReasonML `.re`. The library and the markup are the same.";
+      ];
+    H2 ("fit", "Is reativa a good fit?");
+    P "A straight answer, so you don't have to find out the hard way.";
+    H3 ("fit-yes", "Reach for it when");
+    Bullets
+      [
+        "**You already write OCaml or ReasonML** and want the front end checked by the same compiler.";
+        "**Your UI changes in small, frequent ways:** live values, forms, long lists, where updating single nodes pays off.";
+        "**You want an API you can read in an afternoon.** Every module is described by its `.mli` file; the [API reference](/docs/api) fits on one page.";
+        "**You want to test state without a browser.** The signal graph runs natively under `dune test`.";
+      ];
+    H3 ("fit-caveats", "Keep in mind");
+    Bullets
+      [
+        "**It is young.** Expect far fewer ready-made components, guides and integrations than in the React or Solid worlds.";
+        "**It renders in the browser only.** There is no server-side rendering or hydration today.";
+        "**Inference is syntactic.** A `Signal.get` hidden inside a function from another module is not detected; wrap that read in a thunk. See [Markup and components](/docs/learn/markup).";
+        "**The API still moves.** 2.0 changed how components run; [What's new in 2.0](/docs/whats-new) covers what to update.";
+      ];
+    H2 ("next", "Where to go next");
+    Bullets
+      [
+        "[Quick start](/docs/quick-start): install reativa and mount a view.";
+        "[Thinking in signals](/docs/thinking-in-signals): the one idea the rest of the library follows from.";
+        "[Examples](/examples): five small programs, running live.";
+        "[API reference](/docs/api): every module on one page.";
+      ];
+    Note
+      "Using a coding agent? Every topic also has a complete, agent-oriented version in Markdown, indexed in [llms.txt](https://brnrdog.github.io/reativa/llms.txt).";
+  ]
+
+(* ----- Quick start ----- *)
+
+let build_melange =
+  {|# Melange: emit ES modules, then bundle the entry with Vite or esbuild
+dune build @melange
+# the entry is _build/default/<dir>/output/<dir>/app.js|}
+
+let build_jsoo =
+  {|# js_of_ocaml: one self-contained script, no bundler
+dune build ./app.bc.js
+# load it with <script src="app.bc.js"></script>|}
+
+let quick_start () =
+  [
+    P
+      "Four steps take you from an empty opam switch to a view on the page. The first two follow the syntax picked at the top of the page; the rest is the same for OCaml and ReasonML.";
+    H2 ("install", "1. Install the library");
+    P
+      "reativa needs OCaml 4.14 or later and dune 3.16 or later, and brings in mlx and ppxlib. Pin it from GitHub into your switch. ReasonML also needs the `reason` package, so dune can read `.re` files.";
+    Setup
+      { file = "shell"; lang = "shell"; ocaml = Examples.install_code; reason = Examples.install_code_re };
+    H2 ("dune", "2. Set up dune");
+    P
+      "The markup comes from a dialect: mlx turns `.mlx` files into regular OCaml and is declared once in `dune-project`. Dune reads `.re` files out of the box. Both feed the same ppx, `reativa.mlx_ppx`.";
+    Setup
+      {
+        file = "dune-project";
+        lang = "dune";
+        ocaml = Examples.dune_project_code;
+        reason = Examples.dune_project_code_re;
+      };
+    H2 ("backend", "3. Pick a backend");
+    P
+      "Melange compiles each module to an ES module under `_build`; bundle them with Vite or esbuild. js_of_ocaml links one self-contained script, no bundler needed; it lives in a second package, so pin `reativa-jsoo` from the same repository. Your views are identical either way: only the stanza differs. [Backends](/docs/backends) has the details.";
+    Raw (Examples.backend_panels ());
+    H2 ("first-view", "4. Write your first view");
+    P
+      "Mount into any element, here `<div id=\"app\"></div>` in your `index.html`. A static view like this one is created once and never touched again.";
+    Code { file = "app.mlx"; ocaml = Examples.hello_code; reason = Examples.hello_code_re };
+    P "Then build it:";
+    Plain { file = "shell"; lang = "shell"; source = build_melange };
+    Plain { file = "shell"; lang = "shell"; source = build_jsoo };
+    H2 ("next", "Next steps");
+    Bullets
+      [
+        "Add state: [Signals](/docs/learn/signals) and [Computeds](/docs/learn/computeds).";
+        "Read why a component runs only once: [Thinking in signals](/docs/thinking-in-signals).";
+        "Copy a working program from the [Examples](/examples).";
+      ];
+  ]
+
+(* ----- Thinking in signals ----- *)
+
+let once_code =
+  {|open Reativa
+open Reativa.View.Mlx
+
+let count = Signal.make 0
+
+module Counter = struct
+  let component () =
+    print_endline "Counter runs";   (* printed once, at mount *)
+    <div>
+      <p>("Count: ") (Signal.get count)</p>
+      <button onClick=(fun _ -> Signal.update count (fun n -> n + 1))>
+        ("+1")
+      </button>
+    </div>
+end
+
+let () = View.mount_by_id "app" <Counter />|}
+
+let once_code_re =
+  {|open Reativa;
+open Reativa.View.Mlx;
+
+let count = Signal.make(0);
+
+module Counter = {
+  let component = () => {
+    print_endline("Counter runs"); /* printed once, at mount */
+    <div>
+      <p> {"Count: "} {Signal.get(count)} </p>
+      <button onClick={_ => Signal.update(count, n => n + 1)}>
+        {"+1"}
+      </button>
+    </div>;
+  };
+};
+
+let () = View.mount_by_id("app", <Counter />);|}
+
+let region_code =
+  {|(* A leaf: this text node is rewritten in place. *)
+<p>("Signed in as ") (Signal.get user_name)</p>
+
+(* A region: the whole branch is rebuilt when logged_in flips. *)
+<View.Show
+  condition=(fun () -> Signal.get logged_in)
+  fallback=(<LoginForm />)>
+  <Dashboard />
+</View.Show>|}
+
+let region_code_re =
+  {|/* A leaf: this text node is rewritten in place. */
+<p> {"Signed in as "} {Signal.get(user_name)} </p>
+
+/* A region: the whole branch is rebuilt when logged_in flips. */
+<View.Show
+  condition={() => Signal.get(logged_in)}
+  fallback={<LoginForm />}>
+  <Dashboard />
+</View.Show>|}
+
+let thinking () =
+  [
+    P
+      "Most UI libraries re-run your component when its state changes, then work out what to patch. reativa does not. Each component runs **once**, when it is mounted, and builds real DOM nodes. The parts of those nodes that read a signal subscribe to it, and a write updates exactly those parts.";
+    H2 ("runs-once", "A component runs once");
+    Code { file = "counter.mlx"; ocaml = once_code; reason = once_code_re };
+    P
+      "Click the button as often as you like: `Counter runs` is printed once. The click writes `count`; the only subscriber is the text node after `Count: `, so that is the only thing that changes.";
+    H2 ("graph", "Signals, computeds and the DOM");
+    P
+      "Behind every page is a small graph. **Signals** are the sources. **Computeds** derive from signals and other computeds, lazily and only when something changed. At the edges are **effects**: the text nodes and attributes your markup created, and any `Effect.run` of your own.";
+    Demo (Home.graph ());
+    P
+      "Each number above is its own text node. Press `count + 1`: one signal write, one recompute, three text updates, and no other work.";
+    H2 ("leaves-and-regions", "Leaves and regions");
+    P
+      "An update lands in one of two kinds of place. A **leaf** is a text node or an attribute; it is rewritten in place. A **region** is a part of the view whose shape depends on state, like the branch of a `View.Show` or the rows of a list; it is rebuilt when that state changes.";
+    Code { file = "account.mlx"; ocaml = region_code; reason = region_code_re };
+    P
+      "Prefer leaves: an inline read in markup costs one text write. Reach for a region when the structure itself changes, and keep it small, since local DOM state inside it (focus, scroll) does not survive a rebuild.";
+    H2 ("consequences", "What follows from it");
+    Bullets
+      [
+        "**Read where you render.** `Signal.get` inside markup subscribes that node. The same read in an event handler subscribes nothing: handlers are not tracked.";
+        "**Derive with computeds, not effects.** A value that depends on other values is a `Computed`. An effect that writes a signal it also reads is a loop.";
+        "**A component body is not tracked.** It runs once, so a `Signal.get` there is read once. Read inline in the markup, or wrap the part that must rebuild in `View.tracked`.";
+        "**Nothing to diff.** Updates go to the nodes that asked for them, so their cost follows how much changed, not how big the page is.";
+      ];
+    P
+      "The [Glossary](/docs/glossary) defines each of these terms exactly. Next, meet the pieces one by one, starting with [Signals](/docs/learn/signals).";
+  ]

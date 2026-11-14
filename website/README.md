@@ -16,6 +16,32 @@ npm run docs:preview   # serve the static build
 `.github/workflows/pages.yml` builds and deploys the site on every push to
 `main`.
 
+## Pages and routes
+
+The site is a single reativa app routed by `Reativa.Router`: a home page,
+`/examples`, and the docs under `/docs`. The base path (`/reativa`) lives in
+`src/site.ml`; routes in the code are written without it.
+
+| File | Holds |
+| --- | --- |
+| `docs.pages.mjs` | the registry: every docs page's section, title, path, lead, body function and agent page |
+| `src/docs_index.ml` | generated from the registry by `scripts/generate-docs-index.mjs`; do not edit |
+| `src/docs_start.mlx`, `docs_learn.mlx`, `docs_platform.mlx`, `docs_reference.mlx` | the docs pages, written as `Doc.block` lists |
+| `src/doc.mlx`, `src/ui.mlx` | blocks, code panels and the inline markup of page text (`` `code` ``, `**bold**`, `[label](/route)`) |
+| `src/docs_layout.mlx` | sidebar, previous/next, "On this page" |
+| `src/home.mlx`, `src/examples_page.mlx`, `src/examples.mlx` | the home page, `/examples`, and the example programs and demos |
+| `src/app.mlx` | header, footer and the route outlet |
+
+To add a docs page: write a function returning `Doc.block list` in one of
+the docs modules, add an entry to `docs` in `docs.pages.mjs`, and run
+`node scripts/generate-docs-index.mjs`. Text in OCaml string literals must be
+plain ASCII (Melange reads plain literals byte by byte); use `{js|...|js}` for
+anything else.
+
+GitHub Pages serves files, not routes, so `scripts/build-site-routes.mjs`
+(part of `docs:build`) copies `index.html` to every route and to `404.html`.
+`scripts/smoke-site.mjs` renders every route under jsdom in CI.
+
 ## Playground (local only)
 
 The playground is **not part of the published site**: compiling needs the OCaml
