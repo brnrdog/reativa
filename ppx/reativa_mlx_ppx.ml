@@ -595,10 +595,10 @@ let hoisted_by_html : (string, string) Hashtbl.t = Hashtbl.create 16
 let unit_prefix = ref ""
 
 let prefix_of_file fname =
-  match Stdlib.Filename.basename fname with
-  | "" | "_none_" -> ""
-  | base ->
-      let name = Stdlib.Filename.remove_extension base in
+  (* [basename ""] is "."; a parse from a string has no file name. *)
+  match Stdlib.Filename.remove_extension (Stdlib.Filename.basename fname) with
+  | "" | "." | "_none_" -> ""
+  | name ->
       Stdlib.String.map
         (fun c ->
           match c with
