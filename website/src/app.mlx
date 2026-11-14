@@ -151,14 +151,25 @@ let section_head kicker title lede =
     <p className="lede">(lede)</p>
   </header>
 
-let feature title body =
-  <article className="feature">
-    <h3>(title)</h3>
-    <p>(body)</p>
-  </article>
+(* Examples are shown one at a time. Every one of them is mounted, so the
+   highlighter in main.js colors them all in its single pass; the active tab
+   only flips which article carries [is-active]. *)
+let active_example = Signal.make "counter"
 
-let example ~id ~title ~intro ~file ~code ~code_re demo =
-  <article id=(id) className="example">
+let example_tab ~tab label =
+  <button
+    className=(if Signal.get active_example = tab then "example-tab is-active" else "example-tab")
+    aria_pressed=(if Signal.get active_example = tab then "true" else "false")
+    onClick=(fun _ -> Signal.set active_example tab)
+  >
+    (label)
+  </button>
+
+let example ~id ~tab ~title ~intro ~file ~code ~code_re demo =
+  <article
+    id=(id)
+    className=(if Signal.get active_example = tab then "example is-active" else "example")
+  >
     <div className="example-info">
       <h3>(title)</h3>
       <p>(intro)</p>
@@ -170,6 +181,20 @@ let example ~id ~title ~intro ~file ~code ~code_re demo =
         <div className="demo-stage">(demo)</div>
       </aside>
     </div>
+  </article>
+
+(* A short snippet inside a card, in both syntaxes; the header switch picks
+   which one shows. *)
+let mini_pair ~ocaml ~reason =
+  <div className=(if Signal.get syntax = Reason then "mini-pair is-reason" else "mini-pair")>
+    <pre className="mini syntax-ml ocaml"><code>(ocaml)</code></pre>
+    <pre className="mini syntax-re reason"><code>(reason)</code></pre>
+  </div>
+
+let new_item title body =
+  <article className="new-item">
+    <h3>(title)</h3>
+    <p>(body)</p>
   </article>
 
 let api_row signature description =
@@ -187,12 +212,10 @@ let api_group ~id ~name ~blurb rows =
 
 let step number title body content =
   <article className="step">
-    <div className="step-head">
-      <span className="step-num">(number)</span>
-      <div className="step-copy">
-        <h3>(title)</h3>
-        <p>(body)</p>
-      </div>
+    <span className="step-num">(number)</span>
+    <div className="step-copy">
+      <h3>(title)</h3>
+      <p>(body)</p>
     </div>
     (content)
   </article>
@@ -972,14 +995,40 @@ let weather_demo =
 let hero_name = Signal.make "world"
 
 let hero_shout =
-  Computed.make (fun () -> String.uppercase_ascii (Signal.get hero_name))
+  Computed.make ~equals:String.equal (fun () ->
+    String.uppercase_ascii (Signal.get hero_name))
+
+(* The two counters under the hero demo. They are instrumentation, not part
+   of the program shown above it: one counts writes to the name signal, the
+   other counts the times the greeting's text node had to change. *)
+let name_writes = Signal.make 0
+let greeting_updates = Signal.make 0
+
+let () =
+  let first = ref true in
+  Effect.run (fun () ->
+    ignore (Signal.get hero_shout);
+    if !first then first := false
+    else Signal.update greeting_updates (fun n -> n + 1);
+    None)
+
+let on_hero_input ev =
+  Signal.set hero_name (Dom.target_value ev);
+  Signal.update name_writes (fun n -> n + 1)
+
+(* The graph in "How it works": a signal, a computed, and the text nodes that
+   read them. *)
+let graph_count = Signal.make 2
+let graph_double = Computed.make (fun () -> Signal.get graph_count * 2)
 
 let hero_code =
   {|open Reativa
 open Reativa.View.Mlx
 
 let name = Signal.make "world"
-let shout = Computed.make (fun () -> String.uppercase_ascii (Signal.get name))
+let shout =
+  Computed.make ~equals:String.equal (fun () ->
+    String.uppercase_ascii (Signal.get name))
 
 let () =
   View.mount_by_id "app"
@@ -996,7 +1045,10 @@ let hero_code_re =
 open Reativa.View.Mlx;
 
 let name = Signal.make("world");
-let shout = Computed.make(() => String.uppercase_ascii(Signal.get(name)));
+let shout =
+  Computed.make(~equals=String.equal, () =>
+    String.uppercase_ascii(Signal.get(name))
+  );
 
 let () =
   View.mount_by_id(
@@ -1176,6 +1228,50 @@ let () =
     </main>,
   );|}
 
+(* Snippets for the "Why reativa" cards. *)
+
+let once_code =
+  {|let counter () =
+  <button onClick=(fun _ -> Signal.update count succ)>
+    ("Clicked ") (Signal.get count) (" times")
+  </button>
+(* Called once. A click rewrites one text node. *)|}
+
+let once_code_re =
+  {|let counter = () =>
+  <button onClick={_ => Signal.update(count, succ)}>
+    {"Clicked "} {Signal.get(count)} {" times"}
+  </button>;
+/* Called once. A click rewrites one text node. */|}
+
+let native_test_code =
+  {|let count = Signal.make 1
+let double = Computed.make (fun () -> Signal.get count * 2)
+
+let () =
+  Signal.set count 21;
+  assert (Signal.peek double = 42)|}
+
+let native_test_code_re =
+  {|let count = Signal.make(1);
+let double = Computed.make(() => Signal.get(count) * 2);
+
+let () = {
+  Signal.set(count, 21);
+  assert(Signal.peek(double) == 42);
+};|}
+
+(* Output from inspect/README.md, trimmed. *)
+let inspect_output =
+  {|$ reativa-inspect run app.bc.js --act "click #inc" --why "#value"
+> click #inc
+  1 write(s) (count=1), 1 recompute(s), 1 effect run(s)
+  DOM: p#value text
+why #value:
+  text <- effect #4
+    computed label (recomputed)
+    <- signal count (written = 1)|}
+
 (* ================================================================== *)
 (* The page                                                            *)
 (* ================================================================== *)
@@ -1190,8 +1286,8 @@ let () =
             <span className="brand-name">("reativa")</span>
           </a>
           <nav className="topnav" aria_label="Primary">
-            <a href="#why">("Why")</a>
-            <a href="#new">("New in 2.0")</a>
+            <a href="#how">("How it works")</a>
+            <a href="#why">("Why reativa")</a>
             <a href="#examples">("Examples")</a>
             <a href="#start">("Get started")</a>
             <a href="#api">("API")</a>
@@ -1228,333 +1324,542 @@ let () =
       <main className="page">
         <section id="top" className="hero">
           <div className="hero-copy">
-            <p className="hero-badge">({js|OCaml · ReasonML|js})</p>
+            <a className="hero-pill" href="#new">
+              <span className="pill-tag">("2.0")</span>
+              ({js|Lifecycle, context, resources and devtools →|js})
+            </a>
             <h1>
-              ("Reactive web interfaces, ")
-              <span className="accent">("in OCaml and ReasonML.")</span>
+              ("Web interfaces in OCaml that update ")
+              <span className="accent">("only what changed.")</span>
             </h1>
             <p className="lede">
-              ("reativa is a small UI library where state lives in signals and views are real DOM nodes. Write it in OCaml or ReasonML - the same library, the same markup, the same reactive app. Everything mounts once; after that, only the text, attributes and regions that read a changed signal update. No virtual DOM, no diffing.")
+              ("reativa is a small UI library for OCaml and ReasonML. State lives in signals, views are real DOM nodes, and each component runs once. When a signal changes, the text, attribute or list row that reads it is updated, and nothing else. There is no virtual DOM to diff.")
             </p>
             <div className="hero-actions">
               <a className="btn primary" href="#start">("Get started")</a>
-              <a className="btn ghost" href="#examples">("See it live")</a>
+              <a className="btn ghost" href="#examples">("See the examples")</a>
             </div>
-            <ul className="hero-badges">
+            <ul className="hero-facts">
+              <li>("OCaml & ReasonML")</li>
+              <li>("Melange or js_of_ocaml")</li>
               <li>("No virtual DOM")</li>
               <li>("MIT licensed")</li>
-              <li>("Melange or js_of_ocaml")</li>
             </ul>
           </div>
-          <div className="hero-code">
+          <div className="hero-demo">
             (code_panel_ml ~id:"hero" ~file:"hello.mlx" ~ocaml:hero_code
                ~reason:hero_code_re)
             <div className="hero-live">
-              <span className="demo-tag">("Live demo")</span>
+              <span className="demo-tag">("Running on this page")</span>
               <div className="hero-live-row">
                 <input
                   className="field"
                   aria_label="Your name"
                   value=(Signal.get hero_name)
-                  onInput=(fun ev -> Signal.set hero_name (Dom.target_value ev))
+                  onInput=on_hero_input
                 />
                 <p className="hero-live-out">
                   ("Hello, ") <strong>(Signal.get hero_shout)</strong> ("!")
                 </p>
               </div>
+              <dl className="meter">
+                <div className="meter-item">
+                  <dt>("signal writes")</dt>
+                  <dd>(Signal.get name_writes)</dd>
+                </div>
+                <div className="meter-item">
+                  <dt>("text node updates")</dt>
+                  <dd>(Signal.get greeting_updates)</dd>
+                </div>
+              </dl>
               <p className="hero-note">
-                ("This exact code is running here. Typing updates one text node - nothing else re-renders.")
+                ("The input and the greeting are the code above, running live. Each keystroke writes one signal and rewrites one text node; the view itself was built once, when the page loaded.")
               </p>
             </div>
           </div>
         </section>
 
-        <section className="tools-strip" aria_label="Built on">
-          <span className="tools-strip-label">("Built on the tools you know")</span>
-          <span className="tools-sep" />
-          <ul className="tools-list">
-            <li>("OCaml")</li>
-            <li>("ReasonML")</li>
-            <li>("mlx")</li>
-            <li>("dune")</li>
-            <li>("Melange")</li>
-            <li>("js_of_ocaml")</li>
-          </ul>
+        <section id="how" className="section">
+          (section_head "How it works" "A graph of signals, wired straight to the DOM"
+             "Three ideas cover most of reativa. Once they click, the rest of the API reads like ordinary OCaml.")
+          <div className="how">
+            <div className="how-copy">
+              <ol className="how-steps">
+                <li>
+                  <strong>("Signals hold state.")</strong>
+                  (" ") <code>("Signal.make 0")</code>
+                  (" is a value you read with ") <code>("Signal.get")</code>
+                  (" and write with ") <code>("Signal.set")</code> (".")
+                </li>
+                <li>
+                  <strong>("Computeds derive from them.")</strong>
+                  (" A computed recomputes lazily, and only after a signal it read has changed.")
+                </li>
+                <li>
+                  <strong>("Views subscribe where they read.")</strong>
+                  (" A ") <code>("Signal.get")</code>
+                  (" inside markup makes that one text node or attribute a subscriber. A write updates it directly.")
+                </li>
+              </ol>
+              <p>
+                ("The nodes that depend on a signal subscribed to it themselves, so there is no tree to compare and no component to re-run.")
+              </p>
+            </div>
+            <div className="graph">
+              <div className="graph-row">
+                <div className="graph-node">
+                  <span className="graph-kind">("Signal")</span>
+                  <span className="graph-name">("count")</span>
+                  <span className="graph-value">(Signal.get graph_count)</span>
+                </div>
+                <div className="graph-node">
+                  <span className="graph-kind">("Computed")</span>
+                  <span className="graph-name">("count * 2")</span>
+                  <span className="graph-value">(Signal.get graph_double)</span>
+                </div>
+                <div className="graph-node">
+                  <span className="graph-kind">("Text node")</span>
+                  <span className="graph-name">("<strong>")</span>
+                  <span className="graph-value">(Signal.get graph_double)</span>
+                </div>
+              </div>
+              <div className="graph-foot">
+                <div className="btn-row">
+                  <button
+                    className="btn small primary"
+                    onClick=(fun _ -> Signal.update graph_count (fun n -> n + 1))
+                  >
+                    ("count + 1")
+                  </button>
+                  <button className="btn small ghost" onClick=(fun _ -> Signal.set graph_count 2)>
+                    ("Reset")
+                  </button>
+                </div>
+                <p>("Every number here is its own text node, subscribed to the value it shows.")</p>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="why" className="section">
-          (section_head "Why reativa" "Fine-grained by construction"
-             "The reactive model popularised by SolidJS, in idiomatic OCaml: a signal graph drives surgical DOM updates.")
-          <div className="features">
-            (feature "Mount once, update in place"
-               "A view builds real DOM nodes exactly once. Afterwards, effects patch the specific text node, attribute or region that read a changed signal - there is no tree to diff.")
-            (feature "Typed all the way down"
-               "Signals, computeds and effects are ordinary typed values, whether you write OCaml or ReasonML. The whole graph runs and tests natively with dune - the browser only enters the picture in the View layer.")
-            (feature "Markup that infers reactivity"
-               "Write JSX-like markup in .mlx or .re files. Literals stay static, inline Signal.get reads are auto-tracked, and event handlers stay plain functions. The PPX wires the updates for you.")
+          (section_head "Why reativa" "What makes it different"
+             "reativa takes the fine-grained model SolidJS made popular and fits it to OCaml: typed end to end, testable without a browser, and compiled by the tool you already use.")
+          <div className="why-grid">
+            <article className="why-card wide">
+              <span className="why-icon">({js|1×|js})</span>
+              <h3>("Components run once")</h3>
+              <p>
+                ("A component is a function that builds DOM nodes. It runs when it is mounted and never again. Later changes go straight to the nodes that read a signal, so there is no render cycle to optimise and nothing to memoise.")
+              </p>
+              (mini_pair ~ocaml:once_code ~reason:once_code_re)
+            </article>
+            <article className="why-card wide">
+              <span className="why-icon">("</>")</span>
+              <h3>("The markup knows what is reactive")</h3>
+              <p>
+                ("In ") <code>(".mlx")</code> (" and ") <code>(".re")</code>
+                (" files, the ppx reads the shape of each expression and wires it for you. The static parts of a tree are compiled to an HTML template, cloned for every instance.")
+              </p>
+              <ul className="infer">
+                <li><code>("(\"Clicked \")")</code><span>("set once")</span></li>
+                <li>
+                  <code>("(Signal.get count)")</code>
+                  <span className="live">("tracked")</span>
+                </li>
+                <li>
+                  <code>({js|onClick=(fun _ -> …)|js})</code>
+                  <span>("plain handler")</span>
+                </li>
+              </ul>
+            </article>
+            <article className="why-card">
+              <span className="why-icon">("ml")</span>
+              <h3>("OCaml or ReasonML")</h3>
+              <p>
+                ("One library, one ppx, two syntaxes. Every snippet on this site comes in both; use the switch at the top.")
+              </p>
+              <div className="mini-stack">
+                <div>
+                  <span className="mini-label">("greeting.mlx")</span>
+                  <pre className="mini ocaml"><code>("<h1>(\"Hi, \") (name)</h1>")</code></pre>
+                </div>
+                <div>
+                  <span className="mini-label">("greeting.re")</span>
+                  <pre className="mini reason"><code>("<h1> {\"Hi, \"} {name} </h1>")</code></pre>
+                </div>
+              </div>
+            </article>
+            <article className="why-card">
+              <span className="why-icon">("js")</span>
+              <h3>("Melange or js_of_ocaml")</h3>
+              <p>
+                ("Compile to ES modules with Melange and bundle with Vite, or to one self-contained script with js_of_ocaml. Your views stay the same; only the dune stanza changes.")
+              </p>
+              <ul className="chips">
+                <li><strong>("Melange")</strong> ("ES modules")</li>
+                <li><strong>("js_of_ocaml")</strong> ("one .js file")</li>
+              </ul>
+            </article>
+            <article className="why-card">
+              <span className="why-icon">({js|✓|js})</span>
+              <h3>("State you can test natively")</h3>
+              <p>
+                ("The signal graph is plain OCaml with no browser in sight, so ")
+                <code>("dune test")</code>
+                (" runs it as a native program.")
+              </p>
+              (mini_pair ~ocaml:native_test_code ~reason:native_test_code_re)
+            </article>
+            <article className="why-card full">
+              <div className="why-text">
+                <span className="why-icon">("?")</span>
+                <h3>("Ask why something changed")</h3>
+                <p>
+                  <code>("Reativa.Devtools")</code>
+                  (" records every write, recompute and effect run, and follows any update back to the signal write that caused it. ")
+                  <strong>("reativa-inspect")</strong>
+                  (" brings that to the terminal: it loads your compiled app in jsdom, clicks and types for you, and reports what changed. It also runs as an MCP server, so a coding agent can check its own work.")
+                </p>
+              </div>
+              <pre className="mini"><code>(inspect_output)</code></pre>
+            </article>
           </div>
-        </section>
-
-        <section id="new" className="section">
-          (section_head "New in 2.0" "Components with a lifecycle, and the tools around them"
-             "Version 2.0 brings reativa level with xote 7.2: ownership, lifecycle and refs, context, error boundaries, portals, resources with suspense, compiled templates, and devtools you can drive from a terminal or an AI agent.")
-          <div className="features">
-            (feature "Lazy, owned components"
-               "A component runs when it is mounted, untracked, under its own owner: every effect, computed and cleanup it creates goes away with it. View.on_mount, View.on_cleanup and element refs hook into that lifecycle.")
-            (feature "Context"
-               "Context.make, Context.provider and Context.use pass a value to everything a component renders - regions, rows and portals included - without threading props.")
-            (feature "Error boundaries and portals"
-               "View.error_boundary swaps in a fallback when rendering or a later effect throws, with a reset. View.portal renders into another container while keeping its place in the tree.")
-            (feature "Resources and suspense"
-               "Resource.make turns a promise from your backend into a Loading / Ready / Failed signal that refetches when its dependencies change. View.suspense shows a fallback while it loads.")
-            (feature "Compiled templates"
-               "The mlx ppx compiles element trees to HTML templates cloned per instance, and keyed lists move only the rows an update displaces: creating a thousand rows is two thousand DOM calls.")
-            (feature "Devtools and reativa-inspect"
-               "Reativa.Devtools records every write, recompute and effect run and explains why a node changed. reativa-inspect drives your app headlessly from the command line, or as an MCP server for coding agents.")
-          </div>
-          <p className="api-note">
-            ("Upgrading from 1.x? Components are now lazy and the API is declared by interface files - ")
-            <a href="https://brnrdog.github.io/reativa/docs/migrating-to-2.md">("read the migration notes")</a>
-            (". Every page also has an agent version, indexed in ")
-            <a href="https://brnrdog.github.io/reativa/llms.txt">("llms.txt")</a>
-            (".")
-          </p>
         </section>
 
         <section id="examples" className="section">
-          (section_head "Examples" "Full code, running live"
-             "Each block below is a complete program - copy it into an .mlx or .re file and it compiles as-is. Toggle the header switch to read every snippet in OCaml or ReasonML; both are first-class, and the site remembers your choice. The demo beside each one is that same code running on this page, because this site is itself built with reativa.")
+          (section_head "Examples" "Small programs, running live"
+             "Each tab is a complete program you can paste into an .mlx or .re file and compile. The demo beside it is that same code running on this page, because the whole site is a reativa app.")
+          <div className="example-tabs" aria_label="Examples">
+            (example_tab ~tab:"counter" "Counter")
+            (example_tab ~tab:"todos" "Todo list")
+            (example_tab ~tab:"show" ({js|Show & Maybe|js}))
+            (example_tab ~tab:"stopwatch" "Stopwatch")
+            (example_tab ~tab:"weather" "Weather")
+          </div>
           <div className="examples">
-            (example ~id:"example-counter" ~title:"Counter"
-               ~intro:"State is a Signal, derived state is a Computed. Reading them inline in markup makes that exact node reactive - the PPX auto-tracks eager Signal.get reads."
+            (example ~id:"example-counter" ~tab:"counter" ~title:"Counter"
+               ~intro:"State is a Signal; derived state is a Computed. Reading either inside markup makes that exact text node reactive, and the buttons are plain event handlers."
                ~file:"counter.mlx" ~code:counter_code ~code_re:counter_code_re
                counter_demo)
-            (example ~id:"example-todos" ~title:"Todo list"
-               ~intro:"View.ForEach reconciles a keyed list: rows keep their DOM nodes when items move or change elsewhere. The input is bound to a signal, so resetting it clears the field instantly."
+            (example ~id:"example-todos" ~tab:"todos" ~title:"Todo list"
+               ~intro:"View.ForEach with a key reconciles the list: rows keep their DOM nodes when items are added, toggled or moved. The input is bound to a signal, so clearing the signal clears the field."
                ~file:"todos.mlx" ~code:todos_code ~code_re:todos_code_re
                todos_demo)
-            (example ~id:"example-show" ~title:"Conditional rendering"
-               ~intro:"View.Show swaps a region on a boolean condition; View.Maybe renders the Some branch of an option. Both only rebuild when the branch actually changes."
+            (example ~id:"example-show" ~tab:"show" ~title:"Conditional rendering"
+               ~intro:"View.Show switches on a boolean and View.Maybe on an option. Each rebuilds its region only when the branch changes, not on every write."
                ~file:"conditional.mlx" ~code:show_code ~code_re:show_code_re
                show_demo)
-            (example ~id:"example-stopwatch" ~title:"Stopwatch"
-               ~intro:"Effect.run re-runs when a tracked read changes and can return a cleanup. Flipping the signal starts or stops the interval - the cleanup always runs before the next effect."
+            (example ~id:"example-stopwatch" ~tab:"stopwatch" ~title:"Stopwatch"
+               ~intro:"An Effect re-runs when a signal it read changes, and can return a cleanup. Start and Pause flip a signal; the cleanup clears the old interval before the next run."
                ~file:"stopwatch.mlx" ~code:stopwatch_code
                ~code_re:stopwatch_code_re stopwatch_demo)
-            (example ~id:"example-weather" ~title:"Fetch the weather"
-               ~intro:"Async data is just another signal write. A variant signal models idle, loading, loaded and failed; clicking fetches a random city from the free Open-Meteo API, and View.tracked re-renders the region on each state change."
+            (example ~id:"example-weather" ~tab:"weather" ~title:"Fetch the weather"
+               ~intro:"An async result is just another signal write. A variant signal tracks idle, loading, loaded and failed; the button fetches a random city from the free Open-Meteo API, and View.tracked rebuilds the region for each state."
                ~file:"weather.mlx" ~code:weather_code ~code_re:weather_code_re
                weather_demo)
           </div>
         </section>
 
         <section id="start" className="section">
-          (section_head "Get started" "From zero to a mounted view"
-             "Write your views in OCaml or ReasonML, then compile them to JavaScript with Melange or js_of_ocaml. Four short steps - the first two follow the syntax you picked in the header.")
+          (section_head "Get started" "From an empty switch to a mounted view"
+             "Four steps. The first two follow the syntax picked at the top of the page.")
           <div className="steps">
             (step "1" "Install the library"
-               "reativa targets OCaml 4.14+ and dune 3.16+, and pulls in melange, mlx and ppxlib. Pin it straight from GitHub into your switch; ReasonML also needs the reason package for dune to read .re files."
+               "reativa needs OCaml 4.14+ and dune 3.16+, and brings in melange, mlx and ppxlib. Pin it from GitHub into your switch; ReasonML also needs the reason package so dune can read .re files."
                (code_panel_setup ~id:"install" ~file:"shell" ~lang:"shell"
                   ~ocaml:install_code ~reason:install_code_re))
             (step "2" "Set up dune"
-               "JSX-like markup comes from a dialect: mlx preprocesses .mlx into regular OCaml and is declared once in dune-project, while ReasonML's .re is built into dune already. Both feed the same PPX."
+               "The markup comes from a dialect: mlx turns .mlx files into regular OCaml and is declared once in dune-project. Dune reads .re files out of the box. Both feed the same ppx."
                (code_panel_setup ~id:"dune-project" ~file:"dune-project"
                   ~lang:"dune" ~ocaml:dune_project_code
                   ~reason:dune_project_code_re))
-            (step "3" "Pick a backend and emit JavaScript"
-               "Melange writes per-module ES under _build with dune build @melange - bundle it with esbuild or Vite. js_of_ocaml links one self-contained script with no bundler at all; it lives in a second package, so pin reativa-jsoo from the same repo. The views, the markup and the PPX are identical either way."
+            (step "3" "Pick a backend"
+               "Melange writes ES modules under _build when you run dune build @melange; bundle them with Vite or esbuild. js_of_ocaml links one self-contained script, no bundler needed; it lives in a second package, so pin reativa-jsoo from the same repo. Your views are identical either way."
                backend_panels)
             (step "4" "Write your first view"
-               "Mount into any element - here, <div id=\"app\"></div> in your index.html. Static views are created once; from there, inline signal reads make exact nodes reactive - like the hero demo at the top of this page."
+               "Mount into any element, here <div id=\"app\"></div> in your index.html. From there, an inline signal read makes a node reactive, like the demo at the top of this page."
                (code_panel_ml ~id:"hello" ~file:"app.mlx" ~ocaml:hello_code
                   ~reason:hello_code_re))
           </div>
         </section>
 
+        <section id="new" className="section">
+          (section_head "New in 2.0" "Components with a lifecycle, and tools to see inside"
+             "2.0 is a big release. Here is what it adds, in short.")
+          <div className="new-grid">
+            (new_item "Lazy, owned components"
+               "A component runs when it is mounted, under its own owner: every effect, computed and cleanup it creates goes away with it. View.on_mount, View.on_cleanup and element refs hook into that lifecycle.")
+            (new_item "Context"
+               "Pass a value to everything a component renders, regions, rows and portals included, without threading props.")
+            (new_item "Error boundaries and portals"
+               "Show a fallback when rendering or a later effect throws, with a reset. Render into another container while keeping your place in the tree.")
+            (new_item "Resources and suspense"
+               "Turn a promise from your backend into a Loading, Ready or Failed signal that refetches when its inputs change. Suspense shows a fallback in the meantime.")
+            (new_item "Templates, SVG and faster lists"
+               "The ppx compiles element trees to HTML templates, cloned per instance. SVG elements get their own namespace. Keyed lists move only the rows an update displaces.")
+            (new_item "Devtools and reativa-inspect"
+               "Trace writes, recomputes and effect runs, ask why a node changed, and drive your app from a terminal or an MCP client.")
+          </div>
+          <p className="new-foot">
+            ("Upgrading from 1.x? Components are now lazy and the public API is defined by interface files; ")
+            <a href="https://brnrdog.github.io/reativa/docs/migrating-to-2.md">("read the migration notes")</a>
+            (". Every docs page also has a plain-text version for coding agents, listed in ")
+            <a href="https://brnrdog.github.io/reativa/llms.txt">("llms.txt")</a>
+            (".")
+          </p>
+        </section>
+
+        <section id="fit" className="section">
+          (section_head "Honest notes" "Is reativa a good fit?"
+             "A straight answer, so you don't have to find out the hard way.")
+          <div className="fit">
+            <div className="fit-col">
+              <h3>("Reach for it when")</h3>
+              <ul className="fit-list">
+                <li>
+                  <strong>("You already write OCaml or ReasonML")</strong>
+                  (" and want the front end checked by the same compiler.")
+                </li>
+                <li>
+                  <strong>("Your UI changes in small, frequent ways:")</strong>
+                  (" live values, forms, long lists, where updating single nodes pays off.")
+                </li>
+                <li>
+                  <strong>("You want an API you can read in an afternoon.")</strong>
+                  (" Every module is described by its .mli file.")
+                </li>
+                <li>
+                  <strong>("You want to test state without a browser.")</strong>
+                  (" The signal graph runs natively under dune.")
+                </li>
+              </ul>
+            </div>
+            <div className="fit-col caveats">
+              <h3>("Keep in mind")</h3>
+              <ul className="fit-list">
+                <li>
+                  <strong>("It is young.")</strong>
+                  (" Expect far fewer ready-made components, guides and integrations than in the React or Solid worlds.")
+                </li>
+                <li>
+                  <strong>("It renders in the browser only.")</strong>
+                  (" There is no server-side rendering or hydration today.")
+                </li>
+                <li>
+                  <strong>("Inference is syntactic.")</strong>
+                  (" A ") <code>("Signal.get")</code>
+                  (" hidden inside a helper function is not detected; wrap that read with ")
+                  <code>("dynamic")</code> (" or a thunk.")
+                </li>
+                <li>
+                  <strong>("The API still moves.")</strong>
+                  (" 2.0 changed how components run; the migration notes cover what to update.")
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section id="api" className="section">
           (section_head "API reference" "The whole surface, at a glance"
-             "Five small modules under the Reativa namespace. The signal graph is plain OCaml; View and Router reach the browser through a pluggable backend - Melange or js_of_ocaml.")
+             "Everything lives under the Reativa namespace. The signal modules are plain OCaml; View, Router and Resource reach the browser through the backend you compile with.")
+          <div className="api-layout">
+            <nav className="api-index" aria_label="API modules">
+              <span className="api-index-label">("Modules")</span>
+              <a href="#api-signal">("Signal")</a>
+              <a href="#api-computed">("Computed")</a>
+              <a href="#api-effect">("Effect")</a>
+              <a href="#api-view">("View")</a>
+              <a href="#api-mlx">("Markup")</a>
+              <a href="#api-lifecycle">("Lifecycle")</a>
+              <a href="#api-context">("Context")</a>
+              <a href="#api-resource">("Resource")</a>
+              <a href="#api-devtools">("Devtools")</a>
+              <a href="#api-router">("Router")</a>
+            </nav>
+            <div className="api-groups">
+              (api_group ~id:"api-signal" ~name:"Signal"
+                 ~blurb:"Mutable reactive state - the root of the graph. Reads with get are tracked by whatever computed, effect or reactive view is currently running."
+                 [
+                   api_row
+                     "make : ?name:string -> ?equals:('a -> 'a -> bool) -> 'a -> 'a Signal.t"
+                     "Create a signal from an initial value. equals decides whether a write is a real change (default: physical equality).";
+                   api_row "get : 'a Signal.t -> 'a"
+                     "Read the current value and track it as a dependency of the running computed, effect or reactive view.";
+                   api_row "peek : 'a Signal.t -> 'a"
+                     "Read without creating a dependency. Use inside event handlers and effects for reads that should not re-trigger.";
+                   api_row "set : 'a Signal.t -> 'a -> unit"
+                     "Write a new value. Subscribers only re-run when equals says the value actually changed.";
+                   api_row "update : 'a Signal.t -> ('a -> 'a) -> unit"
+                     "Write by transforming the current value.";
+                   api_row "batch : (unit -> 'a) -> 'a"
+                     "Group several writes into one flush - dependents update once at the end instead of after every write.";
+                   api_row "untrack : (unit -> 'a) -> 'a"
+                     "Run a function with dependency tracking suspended.";
+                 ])
 
-          (api_group ~id:"api-signal" ~name:"Signal"
-             ~blurb:"Mutable reactive state - the root of the graph. Reads with get are tracked by whatever computed, effect or reactive view is currently running."
-             [
-               api_row
-                 "make : ?name:string -> ?equals:('a -> 'a -> bool) -> 'a -> 'a Signal.t"
-                 "Create a signal from an initial value. equals decides whether a write is a real change (default: physical equality).";
-               api_row "get : 'a Signal.t -> 'a"
-                 "Read the current value and track it as a dependency of the running computed, effect or reactive view.";
-               api_row "peek : 'a Signal.t -> 'a"
-                 "Read without creating a dependency. Use inside event handlers and effects for reads that should not re-trigger.";
-               api_row "set : 'a Signal.t -> 'a -> unit"
-                 "Write a new value. Subscribers only re-run when equals says the value actually changed.";
-               api_row "update : 'a Signal.t -> ('a -> 'a) -> unit"
-                 "Write by transforming the current value.";
-               api_row "batch : (unit -> 'a) -> 'a"
-                 "Group several writes into one flush - dependents update once at the end instead of after every write.";
-               api_row "untrack : (unit -> 'a) -> 'a"
-                 "Run a function with dependency tracking suspended.";
-             ])
+              (api_group ~id:"api-computed" ~name:"Computed"
+                 ~blurb:"Lazy derived signals. A computed tracks every Signal.get made while computing and refreshes when a dependency changes - reads and caching are glitch-free."
+                 [
+                   api_row
+                     "make : ?name:string -> ?equals:('a -> 'a -> bool) -> (unit -> 'a) -> 'a Signal.t"
+                     "Derive a read-only signal. Read it with Signal.get or Signal.peek like any other signal. Pass ~equals to stop downstream work when the derived value is unchanged.";
+                   api_row "dispose : 'a Signal.t -> unit"
+                     "Detach a computed from its dependencies; it will no longer update.";
+                 ])
 
-          (api_group ~id:"api-computed" ~name:"Computed"
-             ~blurb:"Lazy derived signals. A computed tracks every Signal.get made while computing and refreshes when a dependency changes - reads and caching are glitch-free."
-             [
-               api_row
-                 "make : ?name:string -> ?equals:('a -> 'a -> bool) -> (unit -> 'a) -> 'a Signal.t"
-                 "Derive a read-only signal. Read it with Signal.get or Signal.peek like any other signal. Pass ~equals to stop downstream work when the derived value is unchanged.";
-               api_row "dispose : 'a Signal.t -> unit"
-                 "Detach a computed from its dependencies; it will no longer update.";
-             ])
+              (api_group ~id:"api-effect" ~name:"Effect"
+                 ~blurb:"Tracked side effects. The body runs immediately, then re-runs whenever a signal it read changes. Return Some cleanup to run teardown before each re-run and on dispose."
+                 [
+                   api_row
+                     "run : ?name:string -> (unit -> (unit -> unit) option) -> unit"
+                     "Run a tracked effect for the lifetime of the page.";
+                   api_row
+                     "run_with_disposer : ?name:string -> (unit -> (unit -> unit) option) -> Effect.disposer"
+                     "Like run, but returns { dispose : unit -> unit } so the effect can be stopped manually.";
+                 ])
 
-          (api_group ~id:"api-effect" ~name:"Effect"
-             ~blurb:"Tracked side effects. The body runs immediately, then re-runs whenever a signal it read changes. Return Some cleanup to run teardown before each re-run and on dispose."
-             [
-               api_row
-                 "run : ?name:string -> (unit -> (unit -> unit) option) -> unit"
-                 "Run a tracked effect for the lifetime of the page.";
-               api_row
-                 "run_with_disposer : ?name:string -> (unit -> (unit -> unit) option) -> Effect.disposer"
-                 "Like run, but returns { dispose : unit -> unit } so the effect can be stopped manually.";
-             ])
+              (api_group ~id:"api-view" ~name:"View"
+                 ~blurb:"The DOM layer. A View.t describes real nodes; mounting creates them once and wires an effect for every reactive part. Use the JSX markup or the plain constructors - they build the same thing."
+                 [
+                   api_row "mount_by_id : string -> View.t -> unit"
+                     "Render a view into the element with the given id (View.mount takes a Dom.t container directly).";
+                   api_row "static / dynamic / signal"
+                     "Value wrappers for props and text: static values are set once; dynamic thunks and signal reads update in place. In JSX markup the PPX infers these - see the rules below.";
+                   api_row "text / int / float : 'a value -> View.t"
+                     "Reactive text leaves. Optional in JSX markup - bare literals and expressions render directly.";
+                   api_row "tracked : (unit -> View.t) -> View.t"
+                     "A region that rebuilds its whole subtree when any signal read while building it changes. Reach for it when the structure changes; prefer inline reads when only text or attributes do.";
+                   api_row "show : ?fallback:View.t -> (unit -> bool) -> View.t -> View.t"
+                     "Render a view while the condition holds, otherwise the fallback. Also available as <View.Show condition fallback>.";
+                   api_row
+                     "maybe : ?fallback:View.t -> (unit -> 'a option) -> ('a -> View.t) -> View.t"
+                     "Render from the Some branch of an option. Also available as <View.Maybe value render fallback />.";
+                   api_row "for_ : (unit -> 'a list) -> ('a -> View.t) -> View.t"
+                     "Map a reactive list to views, re-rendering the whole list on change. <View.ForEach items render /> without a key does the same.";
+                   api_row
+                     "for_with_key : (unit -> 'a list) -> key:('a -> string) -> ('a Signal.t -> View.t) -> View.t"
+                     "Keyed reconciliation: rows keep their DOM nodes and effects across updates; each row reads its latest item from a signal. In markup, pass key to <View.ForEach items key render />.";
+                   api_row "Attr / On"
+                     "Escape hatches for the constructor style: Attr.className, Attr.value, Attr.disabled, custom Attr.make - and On.click, On.input, On.keydown and friends.";
+                 ])
 
-          (api_group ~id:"api-view" ~name:"View"
-             ~blurb:"The DOM layer. A View.t describes real nodes; mounting creates them once and wires an effect for every reactive part. Use the JSX markup or the plain constructors - they build the same thing."
-             [
-               api_row "mount_by_id : string -> View.t -> unit"
-                 "Render a view into the element with the given id (View.mount takes a Dom.t container directly).";
-               api_row "static / dynamic / signal"
-                 "Value wrappers for props and text: static values are set once; dynamic thunks and signal reads update in place. In JSX markup the PPX infers these - see the rules below.";
-               api_row "text / int / float : 'a value -> View.t"
-                 "Reactive text leaves. Optional in JSX markup - bare literals and expressions render directly.";
-               api_row "tracked : (unit -> View.t) -> View.t"
-                 "A region that rebuilds its whole subtree when any signal read while building it changes. Reach for it when the structure changes; prefer inline reads when only text or attributes do.";
-               api_row "show : ?fallback:View.t -> (unit -> bool) -> View.t -> View.t"
-                 "Render a view while the condition holds, otherwise the fallback. Also available as <View.Show condition fallback>.";
-               api_row
-                 "maybe : ?fallback:View.t -> (unit -> 'a option) -> ('a -> View.t) -> View.t"
-                 "Render from the Some branch of an option. Also available as <View.Maybe value render fallback />.";
-               api_row "for_ : (unit -> 'a list) -> ('a -> View.t) -> View.t"
-                 "Map a reactive list to views, re-rendering the whole list on change. <View.ForEach items render /> without a key does the same.";
-               api_row
-                 "for_with_key : (unit -> 'a list) -> key:('a -> string) -> ('a Signal.t -> View.t) -> View.t"
-                 "Keyed reconciliation: rows keep their DOM nodes and effects across updates; each row reads its latest item from a signal. In markup, pass key to <View.ForEach items key render />.";
-               api_row "Attr / On"
-                 "Escape hatches for the constructor style: Attr.className, Attr.value, Attr.disabled, custom Attr.make - and On.click, On.input, On.keydown and friends.";
-             ])
+              <article className="api-group" id="api-mlx">
+                <h3><code>("JSX inference rules")</code></h3>
+                <p className="api-blurb">
+                  ("In .mlx and .re markup alike, props and children need no value wrappers - the PPX picks static or dynamic from the shape of the expression:")
+                </p>
+                <ul className="rules">
+                  <li>
+                    <strong>("Literals")</strong>
+                    (" - strings, ints and floats become static leaves, created once.")
+                  </li>
+                  <li>
+                    <strong>("Inline reads")</strong>
+                    (" - an eager Signal.get is auto-thunked and tracked; the exact node updates when the signal changes.")
+                  </li>
+                  <li>
+                    <strong>("Thunks")</strong>
+                    (" - (fun () -> ...) stays a dynamic value, tracked the same way.")
+                  </li>
+                  <li>
+                    <strong>("Signal.peek")</strong>
+                    (" - never counts as a read; peek-only expressions stay static.")
+                  </li>
+                  <li>
+                    <strong>("Nested funs")</strong>
+                    (" - reads inside event handlers and callbacks are left alone; handlers are never thunked.")
+                  </li>
+                  <li>
+                    <strong>("Anything else")</strong>
+                    (" - plain values render through View.child at runtime; already-built views pass through untouched.")
+                  </li>
+                </ul>
+                <p className="api-blurb">
+                  ("Capitalized tags are components: define component in a module and use the module name as a tag. Inference is syntax-based, so a read hidden behind a variable or helper is not detected - wrap those explicitly with static, dynamic or signal.")
+                </p>
+                (code_panel_ml ~id:"component" ~file:"greeting.mlx"
+                   ~ocaml:component_code ~reason:component_code_re)
+              </article>
 
-          <article className="api-group" id="api-mlx">
-            <h3><code>("JSX inference rules")</code></h3>
-            <p className="api-blurb">
-              ("In .mlx and .re markup alike, props and children need no value wrappers - the PPX picks static or dynamic from the shape of the expression:")
-            </p>
-            <ul className="rules">
-              <li>
-                <strong>("Literals")</strong>
-                (" - strings, ints and floats become static leaves, created once.")
-              </li>
-              <li>
-                <strong>("Inline reads")</strong>
-                (" - an eager Signal.get is auto-thunked and tracked; the exact node updates when the signal changes.")
-              </li>
-              <li>
-                <strong>("Thunks")</strong>
-                (" - (fun () -> ...) stays a dynamic value, tracked the same way.")
-              </li>
-              <li>
-                <strong>("Signal.peek")</strong>
-                (" - never counts as a read; peek-only expressions stay static.")
-              </li>
-              <li>
-                <strong>("Nested funs")</strong>
-                (" - reads inside event handlers and callbacks are left alone; handlers are never thunked.")
-              </li>
-              <li>
-                <strong>("Anything else")</strong>
-                (" - plain values render through View.child at runtime; already-built views pass through untouched.")
-              </li>
-            </ul>
-            <p className="api-blurb">
-              ("Capitalized tags are components: define component in a module and use the module name as a tag. Inference is syntax-based, so a read hidden behind a variable or helper is not detected - wrap those explicitly with static, dynamic or signal.")
-            </p>
-            (code_panel_ml ~id:"component" ~file:"greeting.mlx"
-               ~ocaml:component_code ~reason:component_code_re)
-          </article>
+              (api_group ~id:"api-lifecycle" ~name:"Lifecycle and refs"
+                 ~blurb:"New in 2.0. Components mount lazily under their own owner; these hook into that lifecycle."
+                 [
+                   api_row "View.on_mount : (unit -> unit) -> unit"
+                     "Run once the current insertion has finished and the component's nodes are in place.";
+                   api_row "View.on_cleanup : (unit -> unit) -> unit"
+                     "Run when the current component, row or region is disposed.";
+                   api_row "View.Ref.make : unit -> View.Ref.t"
+                     "An element reference, filled through the ref prop and read with View.Ref.current.";
+                   api_row "View.error_boundary / View.portal / View.suspense"
+                     "Fallback on errors (with reset), render into another container, show a fallback while resources load. Also as <View.ErrorBoundary>, <View.Portal> and <View.Suspense>.";
+                 ])
 
-          (api_group ~id:"api-lifecycle" ~name:"Lifecycle and refs"
-             ~blurb:"New in 2.0. Components mount lazily under their own owner; these hook into that lifecycle."
-             [
-               api_row "View.on_mount : (unit -> unit) -> unit"
-                 "Run once the current insertion has finished and the component's nodes are in place.";
-               api_row "View.on_cleanup : (unit -> unit) -> unit"
-                 "Run when the current component, row or region is disposed.";
-               api_row "View.Ref.make : unit -> View.Ref.t"
-                 "An element reference, filled through the ref prop and read with View.Ref.current.";
-               api_row "View.error_boundary / View.portal / View.suspense"
-                 "Fallback on errors (with reset), render into another container, show a fallback while resources load. Also as <View.ErrorBoundary>, <View.Portal> and <View.Suspense>.";
-             ])
+              (api_group ~id:"api-context" ~name:"Context"
+                 ~blurb:"New in 2.0. Values scoped to a subtree, carried by ownership rather than the DOM."
+                 [
+                   api_row "make : 'a -> 'a Context.t" "A context with a default.";
+                   api_row "provider : 'a Context.t -> 'a -> View.t -> View.t"
+                     "Render a view with a value provided (or <Context.Provider context value>).";
+                   api_row "use : 'a Context.t -> 'a" "The nearest provided value, read while rendering.";
+                 ])
 
-          (api_group ~id:"api-context" ~name:"Context"
-             ~blurb:"New in 2.0. Values scoped to a subtree, carried by ownership rather than the DOM."
-             [
-               api_row "make : 'a -> 'a Context.t" "A context with a default.";
-               api_row "provider : 'a Context.t -> 'a -> View.t -> View.t"
-                 "Render a view with a value provided (or <Context.Provider context value>).";
-               api_row "use : 'a Context.t -> 'a" "The nearest provided value, read while rendering.";
-             ])
+              (api_group ~id:"api-resource" ~name:"Resource"
+                 ~blurb:"New in 2.0. Asynchronous data as a signal, over each backend's own promises."
+                 [
+                   api_row "make : (unit -> 'a Promise.t) -> 'a Resource.t"
+                     "Fetch now and whenever a signal read before the promise changes; stale results are dropped.";
+                   api_row "state : 'a Resource.t -> 'a Resource.state"
+                     "Loading (with the previous value), Ready or Failed - tracked.";
+                   api_row "refetch / mutate" "Fetch again, or set the value locally.";
+                 ])
 
-          (api_group ~id:"api-resource" ~name:"Resource"
-             ~blurb:"New in 2.0. Asynchronous data as a signal, over each backend's own promises."
-             [
-               api_row "make : (unit -> 'a Promise.t) -> 'a Resource.t"
-                 "Fetch now and whenever a signal read before the promise changes; stale results are dropped.";
-               api_row "state : 'a Resource.t -> 'a Resource.state"
-                 "Loading (with the previous value), Ready or Failed - tracked.";
-               api_row "refetch / mutate" "Fetch again, or set the value locally.";
-             ])
+              (api_group ~id:"api-devtools" ~name:"Devtools"
+                 ~blurb:"New in 2.0. What the reactive graph does and why; costs nothing until installed."
+                 [
+                   api_row "install / expose" "Start tracking; publish a JSON API for reativa-inspect.";
+                   api_row "record : (unit -> unit) -> Devtools.trace"
+                     "The writes, recomputes and runs one interaction caused.";
+                   api_row "why : int -> Devtools.cause option" "Follow a run back to the signal write that caused it.";
+                 ])
 
-          (api_group ~id:"api-devtools" ~name:"Devtools"
-             ~blurb:"New in 2.0. What the reactive graph does and why; costs nothing until installed."
-             [
-               api_row "install / expose" "Start tracking; publish a JSON API for reativa-inspect.";
-               api_row "record : (unit -> unit) -> Devtools.trace"
-                 "The writes, recomputes and runs one interaction caused.";
-               api_row "why : int -> Devtools.cause option" "Follow a run back to the signal write that caused it.";
-             ])
+              (api_group ~id:"api-router" ~name:"Router"
+                 ~blurb:"Browser SPA navigation: a reactive location signal, history wrappers, link interception and pure route matching. Patterns support static segments, :params and a trailing * wildcard."
+                 [
+                   api_row "location : unit -> Router.location Signal.t"
+                     "The current browser location as a signal - pathname, search, hash, origin and optional history state. Reading it in a tracked scope subscribes to navigation.";
+                   api_row
+                     "navigate : ?replace:bool -> ?state:Router.state -> string -> unit -> unit"
+                     "Programmatic navigation via pushState (or replaceState with ~replace:true). back, forward and go wrap the history API.";
+                   api_row "param : Router.route_match -> string -> string option"
+                     "Read a :param captured by the matched route pattern.";
+                   api_row "match_path : string -> string -> Router.route_match option"
+                     "Pure matching of a pattern against a pathname - usable (and tested) natively.";
+                   api_row "is_active : ?exact:bool -> string -> bool"
+                     "Whether the current location matches an href - handy for nav styling.";
+                   api_row "state / state_value"
+                     "Encode a value as history state for navigate ~state, and decode it back from location.";
+                   api_row "<Router> <Route> <Link> <Redirect>"
+                     "The markup primitives: Router renders the first matching Route child; Route takes path and children or render; Link intercepts same-origin clicks; Redirect navigates on render.";
+                 ])
 
-          (api_group ~id:"api-router" ~name:"Router"
-             ~blurb:"Browser SPA navigation: a reactive location signal, history wrappers, link interception and pure route matching. Patterns support static segments, :params and a trailing * wildcard."
-             [
-               api_row "location : unit -> Router.location Signal.t"
-                 "The current browser location as a signal - pathname, search, hash, origin and optional history state. Reading it in a tracked scope subscribes to navigation.";
-               api_row
-                 "navigate : ?replace:bool -> ?state:Router.state -> string -> unit -> unit"
-                 "Programmatic navigation via pushState (or replaceState with ~replace:true). back, forward and go wrap the history API.";
-               api_row "param : Router.route_match -> string -> string option"
-                 "Read a :param captured by the matched route pattern.";
-               api_row "match_path : string -> string -> Router.route_match option"
-                 "Pure matching of a pattern against a pathname - usable (and tested) natively.";
-               api_row "is_active : ?exact:bool -> string -> bool"
-                 "Whether the current location matches an href - handy for nav styling.";
-               api_row "state / state_value"
-                 "Encode a value as history state for navigate ~state, and decode it back from location.";
-               api_row "<Router> <Route> <Link> <Redirect>"
-                 "The markup primitives: Router renders the first matching Route child; Route takes path and children or render; Link intercepts same-origin clicks; Redirect navigates on render.";
-             ])
-
-          <div className="router-example">
-            (code_panel_ml ~id:"router" ~file:"router.mlx" ~ocaml:router_code
-               ~reason:router_code_re)
-            <p className="api-note">
-              ("Routing needs a host that serves index.html for every path - run it locally with any SPA dev server. Constructor-style equivalents exist too: Router.route, Router.outlet, Router.link and Router.redirect.")
-            </p>
+              <div className="router-example">
+                (code_panel_ml ~id:"router" ~file:"router.mlx" ~ocaml:router_code
+                   ~reason:router_code_re)
+                <p className="api-note">
+                  ("Routing needs a host that serves index.html for every path - run it locally with any SPA dev server. Constructor-style equivalents exist too: Router.route, Router.outlet, Router.link and Router.redirect.")
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="cta">
           <div className="cta-card">
             <span className="cta-mark" />
-            <h2>("Give OCaml and ReasonML a reactive front end.")</h2>
+            <h2>("Give your OCaml a reactive front end.")</h2>
             <p>
-              ("A small core, no runtime magic, and the type safety you already expect from your compiler.")
+              ("Typed from the signal to the DOM node, and compiled by the tools you already use.")
             </p>
             <div className="cta-actions">
               <a className="btn primary" href="#start">("Get started")</a>
