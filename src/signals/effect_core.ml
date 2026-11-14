@@ -52,10 +52,23 @@ let make ?name ?target ~owned fn =
   end;
   (* Initial run under tracking to establish dependencies. [with_tracking]
      also restores the dependency cursor, which a node created inside this run
-     moves. *)
-  Scheduler.with_tracking node run_with_cleanup;
+     moves. While it runs, the effect is marked running: a write that would
+     re-run it (its own, or one it causes elsewhere) is deferred until the run
+     has returned, then honoured below. *)
+  Core.set_running node;
+  (match Scheduler.with_tracking node run_with_cleanup with
+   | () -> Core.clear_running node
+   | exception e ->
+     Core.clear_running node;
+     Core.clear_rerun node;
+     raise e);
   Core.clear_dirty node;
   node.level <- Scheduler.compute_level node;
+  if Core.wants_rerun node then begin
+    Core.clear_rerun node;
+    Scheduler.add_effect_to_pending node;
+    if not !Scheduler.flushing then Scheduler.flush ()
+  end;
   { dispose }
 
 let run_with_disposer ?name fn = make ?name ~owned:true fn

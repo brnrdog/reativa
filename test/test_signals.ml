@@ -340,23 +340,59 @@ let test_nested_creation () =
   Signal.set count 5;
   check_eq "computed keeps its dependency" (Signal.peek c) 5;
   (* An effect that reads, then writes, the same signal during its first run.
-     The write must not re-run the effect nested inside that first run: the
-     nested run re-marks the link, and pruning after the first run then drops
-     it, so the effect would never run again. *)
+     At top level the write flushes synchronously, while the first run is
+     still going. The effect must not re-run nested inside that first run
+     (the nested run re-marks the link and the first run's prune then drops
+     it): it re-runs once the first run has returned, and keeps the
+     dependency. *)
   let s = Signal.make 0 in
-  let runs = ref 0 in
+  let seen = ref [] in
   let d =
     Effect.run_with_disposer (fun () ->
-      incr runs;
       let v = Signal.get s in
+      seen := v :: !seen;
       if v < 1 then Signal.set s 1;
       None)
   in
-  check_eq "the write does not re-run the effect inside its own run" !runs 1;
-  check_eq "the write is applied" (Signal.peek s) 1;
-  let before = !runs in
+  check "re-runs after its first run, with the value it wrote" (List.rev !seen = [ 0; 1 ]);
   Signal.set s 5;
-  check_eq "the effect keeps its dependency on what it wrote" !runs (before + 1);
+  check "keeps its dependency on what it wrote" (List.rev !seen = [ 0; 1; 5 ]);
+  d.dispose ();
+  (* The same through another effect: A's first run writes [t], B reacts by
+     writing [s], which A read. A re-runs after its first run, not inside
+     it, and keeps its dependency on [s]. *)
+  let s = Signal.make 0 and t = Signal.make 0 in
+  let b =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get t in
+      if v > 0 then Signal.set s v;
+      None)
+  in
+  let a_seen = ref [] in
+  let a =
+    Effect.run_with_disposer (fun () ->
+      a_seen := Signal.get s :: !a_seen;
+      Signal.set t 1;
+      None)
+  in
+  check "an indirect write re-runs the first run once it returns" (List.rev !a_seen = [ 0; 1 ]);
+  Signal.set s 7;
+  check "and the dependency survives" (List.rev !a_seen = [ 0; 1; 7 ]);
+  a.dispose ();
+  b.dispose ();
+  (* Re-runs happen inside a flush, never nested: an effect that writes what
+     it read there runs again until the value settles, as on main. *)
+  let s = Signal.make 0 in
+  let rendered = ref [] in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get s in
+      if v > 10 then Signal.set s 10;
+      rendered := v :: !rendered;
+      None)
+  in
+  Signal.set s 15;
+  check "a re-run that clamps its own input converges" (List.rev !rendered = [ 0; 15; 10 ]);
   d.dispose ()
 
 let () =

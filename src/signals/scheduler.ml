@@ -17,16 +17,17 @@ let pending_effects : node list ref = ref []
 let pending_computeds : node list ref = ref []
 let flushing = ref false
 
-(* An effect never queues itself while it is running: a write it makes to a
-   signal it read is already visible to the rest of that run. Re-running it
-   from inside its own run (which happens when the write is not batched, as
-   in a first run at top level) would nest a second run whose tracking
-   version the outer run then prunes, losing the dependency. Computeds already
-   skip the running effect when they propagate (see [run_computed_cycle]). *)
-let is_running node = match !current_target with Some cur -> cur == node | None -> false
-
+(* An effect in its first run ([flag_running], set by Effect_core.make) is
+   not queued: at top level a write flushes synchronously, while that first
+   run is still on the stack, and running the effect again inside it would
+   nest a second run whose tracking version the first run's prune then
+   discards, losing the dependency. The request is kept ([flag_rerun]) and
+   honoured once the first run returns. Re-runs only ever happen inside a
+   flush, never nested, so they queue themselves normally and an effect that
+   writes what it read runs again until the value settles. *)
 let add_effect_to_pending node =
-  if not (is_pending node || is_running node) then begin
+  if is_running node then set_rerun node
+  else if not (is_pending node) then begin
     set_pending node;
     pending_effects := node :: !pending_effects
   end
