@@ -9,31 +9,19 @@ let code file ocaml reason = Code { file; ocaml; reason }
 let backends () =
   [
     P
-      "reativa compiles with either of OCaml's JavaScript compilers. The library, the markup and the ppx are the same; only three small modules underneath differ, and you choose by naming a library in dune.";
+      "reativa compiles with either of OCaml's JavaScript compilers. The library, the markup and the ppx are the same on both; only three small modules underneath differ, and you choose between them by naming a library in dune.";
     Raw (Examples.backend_panels ());
     H2 ("melange", "Melange");
-    Bullets
-      [
-        "`(libraries reativa)` selects it; it is the default.";
-        "Each module becomes an ES module under `_build`. Bundle the entry with Vite or esbuild, which also drop the parts of the library you do not use.";
-        "Bindings to JavaScript use Melange's attributes, like `[@@mel.send]`. Promises are `Js.Promise.t`.";
-        "This site is built with Melange and Vite.";
-      ];
+    P
+      "Melange is the default, selected by `(libraries reativa)`. Each module becomes an ES module under `_build`, and a bundler such as Vite or esbuild turns the entry into your app, dropping the parts of the library you do not use. Bindings to JavaScript use Melange's attributes, like `[@@mel.send]`, and promises are `Js.Promise.t`. This site is built with Melange and Vite.";
     H2 ("jsoo", "js_of_ocaml");
-    Bullets
-      [
-        "`(libraries reativa reativa-jsoo)` selects it. Pin `reativa-jsoo` from the same repository.";
-        "The program links into one self-contained `.bc.js` script: no bundler, no npm step.";
-        "Bindings to JavaScript use `Js_of_ocaml`. Promises are JavaScript promises.";
-      ];
+    P
+      "js_of_ocaml is selected by `(libraries reativa reativa-jsoo)`, with `reativa-jsoo` pinned from the same repository. Your program links into one self-contained `.bc.js` script, with no bundler and no npm step, and bindings go through `Js_of_ocaml`.";
     H2 ("differences", "What differs");
-    Bullets
-      [
-        "Only `Dom`, `History` and `Promise` are backend-specific. Everything else, from signals to the keyed list, is shared code.";
-        "js_of_ocaml represents `None`, `false` and `0` as the same JavaScript value, so bare `bool` and `option` children are unsupported on both backends. Use `View.Show` and `View.Maybe`.";
-        "The browser's stack is smaller than a native one; the library keeps hot paths tail-recursive, and your own deep recursion may need the same care under js_of_ocaml.";
-        "[Async data](/docs/learn/async-data) takes each backend's own promises.";
-      ];
+    P
+      "Only the `Dom`, `History` and `Promise` modules are backend-specific; everything else, from signals to the keyed list, is shared code. Supporting both has one visible consequence: js_of_ocaml represents `None`, `false` and `0` as the same JavaScript value, so bare `bool` and `option` children are unsupported on either backend, and `View.Show` and `View.Maybe` take their place.";
+    P
+      "The browser's stack is also smaller than a native one. The library keeps its hot paths tail-recursive, and deep recursion of your own may need the same care under js_of_ocaml. [Async data](/docs/learn/async-data) explains how each backend's promises are used.";
   ]
 
 (* ----- Testing ----- *)
@@ -88,23 +76,21 @@ let cost_re =
 let testing () =
   [
     P
-      "Most of what a UI decides lives in its state: what is derived from what, what a click changes. In reativa that is plain OCaml with no browser involved, so you can test it the way you test any OCaml code.";
+      "Most of what a UI decides lives in its state: what is derived from what, and what a click changes. In reativa that state is plain OCaml with no browser involved, so you can test it the way you test any other OCaml code.";
     H2 ("native", "Test state natively");
     P
-      "Signals, computeds and effects do not touch the DOM. A test that builds them and checks their values is an ordinary native executable:";
+      "Signals, computeds and effects never touch the DOM, so a test that builds them and checks their values is an ordinary native executable:";
     code "test_cart.ml" native_test_ml native_test_re;
     Plain { file = "test/dune"; lang = "dune"; source = native_dune };
     P
-      "Keep the logic of a feature in a module of signals and functions, and the markup in another: the first is tested natively, the second stays thin.";
+      "It helps to keep a feature's logic in a module of signals and functions and its markup in another, so that the first can be tested natively and the second stays thin.";
     H2 ("cost", "Assert what an interaction costs");
     P
-      "`Devtools.record` returns the writes, recomputes and effect runs one function caused. That turns a performance expectation into a test, for example that a write updates exactly one subscriber:";
+      "`Devtools.record` returns the writes, recomputes and effect runs that one function caused, which turns a performance expectation into a test, for example that a write updates exactly one subscriber:";
     code "test_cost.ml" cost_ml cost_re;
     H2 ("end-to-end", "Drive the compiled app");
     P
-      "For the DOM itself, `reativa-inspect run` loads your compiled app into jsdom, performs clicks, typing and key presses, and reports what each one changed. It exits with an error if the page raised one, so it fits in CI. See [Devtools and reativa-inspect](/docs/devtools).";
-    Note
-      "reativa's own test suite works the same way: the signal graph is tested natively, and the renderer is tested under jsdom on both backends, counting DOM operations.";
+      "For the DOM itself, `reativa-inspect run` loads your compiled app into jsdom, performs clicks, typing and key presses, and reports what each one changed. It exits with an error if the page raised one, so it fits in CI; [Devtools and reativa-inspect](/docs/devtools) covers it in full. reativa's own test suite works the same way, testing the signal graph natively and the renderer under jsdom on both backends.";
   ]
 
 (* ----- Devtools and reativa-inspect ----- *)
@@ -144,12 +130,12 @@ let panel_re = {|let unmount = Reativa_devtools.Panel.mount();|}
 let devtools () =
   [
     P
-      "Fine-grained updates are fast because little happens. Devtools show you exactly what that little is: every signal write, recompute and effect run, and for any DOM node, the chain of updates that made it show what it shows.";
+      "Fine-grained updates are fast because very little happens on each one. The devtools show you exactly what that little is: every signal write, recompute and effect run, and for any DOM node, the chain of updates that made it show what it shows.";
     H2 ("install", "Install");
     P
-      "Call `Devtools.install ()` before creating the signals you want to see; nodes created earlier are not tracked. Give signals a `~name` to read the reports. Until it is installed, the cost is one boolean test per update, and an app that never mentions `Devtools` does not ship it.";
+      "Call `Devtools.install ()` before creating the signals you want to see, since nodes created earlier are not tracked, and give signals a `~name` so the reports are readable. Until it is installed the cost is a single boolean test per update, and an app that never mentions `Devtools` does not ship it at all.";
     code "main.mlx" devtools_ml devtools_re;
-    H2 ("api", "Ask questions in code");
+    H2 ("api", "Asking questions in code");
     Terms
       [
         ("Devtools.record f", "The events and counts (writes, recomputes, runs) caused by running `f`.");
@@ -160,12 +146,12 @@ let devtools () =
       ];
     H2 ("panel", "The in-page panel");
     P
-      "The `reativa.devtools` library adds a panel to the page: live counts, the latest events, leaks, and an inspect mode that explains the element you click.";
+      "The `reativa.devtools` library adds a panel to the page with live counts, the latest events and leaks, and an inspect mode that explains the element you click.";
     code "dev.mlx" panel_ml panel_re;
     H2 ("inspect", "reativa-inspect");
     P
-      "`reativa-inspect` drives the compiled app headlessly. It loads the bundle into jsdom with an empty `<div id=\"app\">`, so the app must call `Devtools.expose ()` and mount there. For each action it reports the writes, recomputes and runs, and the DOM nodes that changed; `--why` explains an element; every report ends with the leak check.";
+      "`reativa-inspect` drives the compiled app headlessly. It loads the bundle into jsdom with an empty `<div id=\"app\">`, so the app must call `Devtools.expose ()` and mount there. For each action it reports the writes, recomputes and runs and the DOM nodes that changed, `--why` explains an element, and every report ends with a check for leaks.";
     Plain { file = "shell"; lang = "shell"; source = inspect_cli };
     P
-      "As an MCP server, the same tool lets a coding agent click through your app and check that a change did what it meant to, without a browser.";
+      "Run as an MCP server, the same tool lets a coding agent click through your app and confirm that a change did what it meant to, without a browser.";
   ]

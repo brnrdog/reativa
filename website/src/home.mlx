@@ -81,7 +81,7 @@ let hero_demo () =
         </div>
       </dl>
       <p className="hero-note">
-        ("The input and the greeting are the code above, running live. Each keystroke writes one signal and rewrites one text node; the view itself was built once, when the page loaded.")
+        ("The input and the greeting are the code above, running live: each keystroke writes one signal and rewrites one text node, while the view itself was built once, when the page loaded.")
       </p>
     </div>
   </div>
@@ -138,7 +138,7 @@ let page () =
           <span className="accent">("only what changed.")</span>
         </h1>
         <p className="lede">
-          ("reativa is a small UI library for OCaml and ReasonML. State lives in signals, views are real DOM nodes, and each component runs once. When a signal changes, the text, attribute or list row that reads it is updated, and nothing else. There is no virtual DOM to diff.")
+          ("reativa is a small UI library for OCaml and ReasonML. Your state lives in signals and your views are real DOM nodes, built once; when a signal changes, only the text, attributes and list rows that read it are updated, with no virtual DOM to diff.")
         </p>
         <div className="hero-actions">
           (Site.link ~className:"btn primary" "/docs/quick-start" [ text "Get started" ])
@@ -156,7 +156,7 @@ let page () =
 
     <section id="how" className="section">
       (Ui.section_head "How it works" "A graph of signals, wired straight to the DOM"
-         "Three ideas cover most of reativa. Once they click, the rest of the API reads like ordinary OCaml.")
+         "Three ideas cover most of reativa, and once they click, the rest of the API reads like ordinary OCaml.")
       <div className="how">
         <div className="how-copy">
           <ol className="how-steps">
@@ -190,16 +190,14 @@ let page () =
          "reativa takes the fine-grained model SolidJS made popular and fits it to OCaml: typed end to end, testable without a browser, and compiled by the tool you already use.")
       <div className="why-grid">
         <article className="why-card wide">
-          <span className="why-icon">("1x")</span>
           <h3>("Components run once")</h3>
           <p>
-            ("A component is a function that builds DOM nodes. It runs when it is mounted and never again. Later changes go straight to the nodes that read a signal, so there is no render cycle to optimise and nothing to memoise.")
+            ("A component is a function that builds DOM nodes, and it runs once, when it is mounted. Later changes go straight to the nodes that read a signal, so there is no render cycle to optimise and nothing to memoise.")
           </p>
           (Ui.mini_pair ~ocaml:once_code ~reason:once_code_re)
           (Ui.more_link "/docs/thinking-in-signals" "How components run")
         </article>
         <article className="why-card wide">
-          <span className="why-icon">("</>")</span>
           <h3>("The markup knows what is reactive")</h3>
           <p>
             ("In ") <code>(".mlx")</code> (" and ") <code>(".re")</code>
@@ -219,10 +217,9 @@ let page () =
           (Ui.more_link "/docs/learn/markup" "Markup and components")
         </article>
         <article className="why-card">
-          <span className="why-icon">("ml")</span>
           <h3>("OCaml or ReasonML")</h3>
           <p>
-            ("One library, one ppx, two syntaxes. Every snippet on this site comes in both; use the switch at the top.")
+            ("The same library and ppx serve both syntaxes, and every snippet on this site comes in both: use the switch at the top.")
           </p>
           <div className="mini-stack">
             <div>
@@ -236,10 +233,9 @@ let page () =
           </div>
         </article>
         <article className="why-card">
-          <span className="why-icon">("js")</span>
           <h3>("Melange or js_of_ocaml")</h3>
           <p>
-            ("Compile to ES modules with Melange and bundle with Vite, or to one self-contained script with js_of_ocaml. Your views stay the same; only the dune stanza changes.")
+            ("Compile to ES modules with Melange and bundle them with Vite, or to one self-contained script with js_of_ocaml. Your views stay the same and only the dune stanza changes.")
           </p>
           <ul className="chips">
             <li><strong>("Melange")</strong> ("ES modules")</li>
@@ -248,7 +244,6 @@ let page () =
           (Ui.more_link "/docs/backends" "Backends")
         </article>
         <article className="why-card">
-          <span className="why-icon">("ok")</span>
           <h3>("State you can test natively")</h3>
           <p>
             ("The signal graph is plain OCaml with no browser in sight, so ")
@@ -260,7 +255,6 @@ let page () =
         </article>
         <article className="why-card full">
           <div className="why-text">
-            <span className="why-icon">("?")</span>
             <h3>("Ask why something changed")</h3>
             <p>
               <code>("Reativa.Devtools")</code>
@@ -277,7 +271,7 @@ let page () =
 
     <section id="example" className="section">
       (Ui.section_head "Example" "A counter, running live"
-         "State is a signal, derived state is a computed, and the buttons are plain event handlers. The demo beside the code is that same program, running on this page.")
+         "State is a signal, derived state is a computed and the buttons are plain event handlers. The demo beside the code is that same program, running on this page.")
       <div className="example-panes">
         (Ui.code_ml ~id:"home-counter" ~file:"counter.mlx" ~ocaml:Examples.counter_code
            ~reason:Examples.counter_code_re)

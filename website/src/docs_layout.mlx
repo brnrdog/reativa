@@ -19,9 +19,12 @@ let () =
 
 let new_pill label = <span className="new-pill">(label)</span>
 
+(* Pages new in 2.0 carry a dot in the sidebar and a label on the page. *)
 let sidebar_link (page : Docs_index.page) =
   Site.nav_link ~className:"sidebar-link" page.path
-    (if page.is_new then [ text page.title; new_pill "New" ] else [ text page.title ])
+    (if page.is_new then
+       [ text page.title; <span className="new-dot" title="New in 2.0" /> ]
+     else [ text page.title ])
 
 let sidebar () =
   <aside className=(if Signal.get menu_open then "docs-sidebar is-open" else "docs-sidebar")>
@@ -75,15 +78,9 @@ let rail (page : Docs_index.page) headings =
     (match page.agent with
      | None -> View.empty
      | Some slug ->
-         <div className="rail-note">
-           <p className="rail-note-title">("For coding agents")</p>
-           <p>
-             ("The complete rules, edge cases and API for this topic, as Markdown: ")
-             <a href=(Site.agent_markdown slug)>(slug ^ ".md")</a>
-             (". All pages are listed in ")
-             <a href=(Site.base ^ "/llms.txt")>("llms.txt")</a>
-             (".")
-           </p>
+         <div className="rail-agent">
+           <span>("For coding agents")</span>
+           <a href=(Site.agent_markdown slug)>(slug ^ ".md")</a>
          </div>)
   </aside>
 

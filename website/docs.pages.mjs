@@ -75,7 +75,7 @@ export const docs = [
     label: "Reference",
     pages: [
       { title: "API reference", path: "/docs/api", body: "Docs_reference.api", lead: "Every module under the Reativa namespace, at a glance." },
-      { title: "Glossary", path: "/docs/glossary", body: "Docs_reference.glossary", lead: "The terms the rest of the docs use, and what each one means in reativa.", agent: "glossary" },
+      { title: "Glossary", path: "/docs/glossary", body: "Docs_reference.glossary", lead: "Short definitions of the terms the rest of the docs use.", agent: "glossary" },
     ],
   },
   {
