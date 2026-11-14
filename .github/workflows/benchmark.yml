@@ -52,7 +52,7 @@ jobs:
           node benchmarks/driver.mjs
           node benchmarks/dom-ops.mjs --json benchmarks/results/dom-ops.json > benchmarks/results/dom-ops.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmarks/results/
