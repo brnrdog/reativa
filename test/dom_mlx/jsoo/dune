@@ -1,5 +1,7 @@
 (copy_files# ../test_mlx.mlx)
 
+(copy_files# ../opened.mlx)
+
 (copy_files# ../main.ml)
 
 (copy_files# ../../dom/harness.ml)
