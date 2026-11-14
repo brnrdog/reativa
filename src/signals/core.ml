@@ -30,6 +30,11 @@ let flag_running = 4
    same flush); the scheduler skips it rather than running it. *)
 let flag_disposed = 8
 
+(* A request to re-run an effect that arrived during its first run. The
+   effect cannot run again inside that run (see [Scheduler.add_effect_to_pending]),
+   so the request waits here until the first run returns. *)
+let flag_rerun = 16
+
 (* Global tracking version: bumped once per compute/effect run so that
    dependencies tracked during the current run can be told apart from stale
    ones left over from a previous run. *)
@@ -155,6 +160,12 @@ let set_pending n = n.flags <- n.flags lor flag_pending
 let clear_pending n = n.flags <- n.flags land lnot flag_pending
 let is_disposed n = n.flags land flag_disposed <> 0
 let set_disposed n = n.flags <- n.flags lor flag_disposed
+let is_running n = n.flags land flag_running <> 0
+let set_running n = n.flags <- n.flags lor flag_running
+let clear_running n = n.flags <- n.flags land lnot flag_running
+let wants_rerun n = n.flags land flag_rerun <> 0
+let set_rerun n = n.flags <- n.flags lor flag_rerun
+let clear_rerun n = n.flags <- n.flags land lnot flag_rerun
 
 (* ----- link construction ----- *)
 
