@@ -58,6 +58,12 @@ external first_child : t -> t option = "firstChild"
 
 external remove : t -> unit = "remove" [@@mel.send]
 
+external last_child : t -> t option = "lastChild"
+  [@@mel.get] [@@mel.return nullable]
+
+external node_type : t -> int = "nodeType" [@@mel.get]
+let is_comment node = node_type node = 8
+
 (* Deep clone. *)
 external clone_node_ : t -> bool -> t = "cloneNode" [@@mel.send]
 let clone_node node = clone_node_ node true

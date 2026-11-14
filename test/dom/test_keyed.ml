@@ -141,6 +141,27 @@ let register () =
     Signal.set items [];
     equal_string "sibling kept" ~expected:"<ul><li>first</li><!----></ul>" (html c));
 
+  test "a row that starts with a region moves with the region's content" (fun () ->
+    let values = Hashtbl.create 2 in
+    Hashtbl.replace values "a" (Signal.make 1);
+    Hashtbl.replace values "b" (Signal.make 10);
+    let items = Signal.make [ "a"; "b" ] in
+    let c =
+      mount
+        (View.div
+           [
+             View.for_with_key (fun () -> Signal.get items) ~key:Fun.id (fun item ->
+               let v = Hashtbl.find values (Signal.peek item) in
+               View.fragment
+                 [ View.dyn (fun () -> View.text (View.static (string_of_int (Signal.get v)))); View.element "i" [] ]);
+           ])
+    in
+    Signal.set (Hashtbl.find values "a") 2;
+    Signal.set items [ "b"; "a" ];
+    equal_string "order and content" ~expected:"<div>10<!----><i></i>2<!----><i></i><!----></div>" (html c);
+    Signal.set items [ "a"; "b" ];
+    equal_string "and back" ~expected:"<div>2<!----><i></i>10<!----><i></i><!----></div>" (html c));
+
   suite "Leaves: skip equal writes";
   test "a class that does not change is not rewritten" (fun () ->
     let selected = Signal.make 0 in
