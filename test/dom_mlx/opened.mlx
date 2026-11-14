@@ -1,0 +1,8 @@
+(* A module with templates of its own, opened by test_mlx.mlx. Its hoisted
+   template bindings are exported (there is no interface), so they must not
+   shadow the ones test_mlx.mlx hoisted above its own [open Opened]. *)
+
+open Reativa.View.Mlx
+
+let banner = <h3 className="opened">("from Opened")</h3>
+let note = <em>("an unrelated skeleton")</em>
