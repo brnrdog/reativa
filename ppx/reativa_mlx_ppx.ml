@@ -813,6 +813,16 @@ let mapper =
       | _ -> expr
   end
 
+(* A template's markup gathers literal text and attributes, some of which may
+   have been written as {js|...|js} for their non-ASCII characters. Melange
+   reads a plain string literal byte by byte, so such markup is emitted as a
+   {js|...|js} literal too; to OCaml, and so to js_of_ocaml, that is still the
+   same UTF-8 string. *)
+let html_literal ~loc html =
+  if String.exists (fun c -> Char.code c >= 128) html then
+    Builder.pexp_constant ~loc (Pconst_string (html, loc, Some "js"))
+  else Builder.estring ~loc html
+
 let hoisted_bindings () =
   List.rev_map
     (fun (name, html) ->
@@ -820,7 +830,7 @@ let hoisted_bindings () =
       let binding =
         Builder.value_binding ~loc
           ~pat:(Builder.ppat_var ~loc (located ~loc name))
-          ~expr:(Builder.pexp_apply ~loc (reativa_ident ~loc "Template.make") [ (Nolabel, Builder.estring ~loc html) ])
+          ~expr:(Builder.pexp_apply ~loc (reativa_ident ~loc "Template.make") [ (Nolabel, html_literal ~loc html) ])
       in
       (* A file with an interface does not export these; never warn about them. *)
       let silence =
