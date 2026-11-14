@@ -380,6 +380,32 @@ let test_nested_creation () =
   check "and the dependency survives" (List.rev !a_seen = [ 0; 1; 7 ]);
   a.dispose ();
   b.dispose ();
+  (* The same through a computed with [~equals], which queues its effects only
+     after it recomputes: the first run's write still re-runs the effect
+     once that run returns. *)
+  let s = Signal.make 0 in
+  let c = Computed.make ~equals:( = ) (fun () -> Signal.get s * 2) in
+  let rendered = ref [] in
+  let d =
+    Effect.run_with_disposer (fun () ->
+      let v = Signal.get c in
+      rendered := v :: !rendered;
+      if v = 0 then Signal.set s 1;
+      None)
+  in
+  check "a write that reaches it through an ~equals computed re-runs it" (List.rev !rendered = [ 0; 2 ]);
+  Signal.set s 3;
+  check "and the dependency on the computed survives" (List.rev !rendered = [ 0; 2; 6 ]);
+  d.dispose ();
+  (* Reading a stale computed recomputes it inside the reading effect; that
+     must not count as a request to re-run the effect. *)
+  let s = Signal.make 1 in
+  let c = Computed.make ~equals:( = ) (fun () -> Signal.get s + 1) in
+  Signal.set s 2;
+  let runs = ref 0 in
+  let d = Effect.run_with_disposer (fun () -> ignore (Signal.get c); incr runs; None) in
+  check_eq "reading a stale computed in a first run does not re-run the effect" !runs 1;
+  d.dispose ();
   (* Re-runs happen inside a flush, never nested: an effect that writes what
      it read there runs again until the value settles, as on main. *)
   let s = Signal.make 0 in
