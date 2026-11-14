@@ -36,7 +36,7 @@ let render = function
   | Setup { file; lang; ocaml; reason } -> Ui.code_setup ~id:file ~file ~lang ~ocaml ~reason
   | Plain { file; lang; source } -> Ui.code_panel ~id:file ~file ~lang source
   | Note s -> <aside className="callout">(Ui.prose s)</aside>
-  | Caution s -> <aside className="callout caution">(Ui.prose s)</aside>
+  | Caution s -> <aside className="callout caution">(Ui.prose ("**Careful:** " ^ s))</aside>
   | Terms items ->
       View.element "dl"
         ~attrs:[ View.Attr.className (View.static "terms") ]
