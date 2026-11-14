@@ -73,3 +73,20 @@ let register () =
     let c = mount (View.Mlx.svg ~children:[ View.template tpl [] ] ()) in
     let rect = Option.get (Probe.query c "rect") in
     equal_string "namespace" ~expected:"http://www.w3.org/2000/svg" (Probe.string_property rect "namespaceURI"))
+
+  (* A region in a top-level child hole re-renders on its own: the instance
+     must report only its anchor, or a keyed row that moves (or a dispose)
+     would act on nodes the region already replaced. *)
+let register_regions () =
+  suite "Templates: regions in top-level holes";
+  let tpl = T.make {|<!----><i>x</i>|} in
+  let row n = View.template tpl [ T.child [ 0 ] (View.dyn (fun () -> View.text (View.static (string_of_int (Signal.get n))))) ] in
+  test "mount_disposable removes everything after the region re-rendered" (fun () ->
+    let n = Signal.make 1 in
+    let c = Probe.container () in
+    let dispose = View.mount_disposable c (row n) in
+    Signal.set n 2;
+    (match dispose () with
+     | () -> check "no error" true
+     | exception e -> check ("dispose raised " ^ Printexc.to_string e) false);
+    equal_string "empty" ~expected:"" (html c))

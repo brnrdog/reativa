@@ -342,6 +342,7 @@ let build_row into view_of key value signal =
     Signal.untrack (fun () -> insert_ref.contents into None (view_of ()) nodes));
   { key; value; signal; nodes = List.rev !nodes; owner; stamp = 0; index = -1 }
 
+
 (* Whether the rows (in order) and then the anchor are all of [parent]'s
    children. *)
 let owns_parent parent anchor rows =
@@ -645,7 +646,12 @@ and dynamic_region parent before acc f =
 
 (* A template instance: clone the skeleton, find every hole's node before
    touching any (filling a child hole shifts the indices after it), fill the
-   holes, then move the whole clone into place with one call. *)
+   holes, then move the whole clone into place with one call.
+
+   The instance's top-level nodes (pushed onto [acc]) are the skeleton's,
+   taken before any hole is filled, except that a top-level child hole stands
+   for what [insert] reports for its view: for a region, only its anchor, not
+   the nodes it happens to show now, which it replaces later. *)
 and insert_template parent before acc tpl holes =
   let svg = !in_svg in
   let fragment = Dom.clone_node (template_skeleton tpl svg) in
@@ -659,6 +665,13 @@ and insert_template parent before acc tpl holes =
       in
       resolve fragment path :: locate rest
   in
+  let rec children acc = function
+    | None -> List.rev acc
+    | Some node -> children (node :: acc) (Dom.next_sibling node)
+  in
+  let top = children [] (Dom.first_child fragment) in
+  (* top-level child holes: placeholder, and the nodes its view reported *)
+  let replaced = ref [] in
   let rec fill holes nodes =
     match (holes, nodes) with
     | hole :: holes, node :: nodes ->
@@ -670,19 +683,20 @@ and insert_template parent before acc tpl holes =
        | Hole_text (_, Reactive f) -> leaf_string ~target:(Obj.repr node, "text") (Dom.set_text_content node) f
        | Hole_child (_, hole_svg, view) ->
          let p = parent_of node fragment in
-         with_svg (svg || hole_svg) (fun () -> insert p (Some node) view (ref []));
+         let reported = ref [] in
+         with_svg (svg || hole_svg) (fun () -> insert p (Some node) view reported);
+         if Dom.is_same_node p fragment then replaced := (node, List.rev !reported) :: !replaced;
          Dom.remove node);
       fill holes nodes
     | _ -> ()
   in
   fill holes (locate holes);
-  let rec collect = function
-    | None -> ()
-    | Some node ->
-      acc := node :: !acc;
-      collect (Dom.next_sibling node)
-  in
-  collect (Dom.first_child fragment);
+  List.iter
+    (fun node ->
+      match List.find_opt (fun (placeholder, _) -> placeholder == node) !replaced with
+      | Some (_, nodes) -> List.iter (fun n -> acc := n :: !acc) nodes
+      | None -> acc := node :: !acc)
+    top;
   place parent before fragment
 
 (* An error boundary. The child renders under an owner whose parent carries
