@@ -18,8 +18,8 @@
     "demo:jsoo:serve": "node scripts/serve-demo.mjs --root examples/jsoo",
     "demo:jsoo:router:serve": "node scripts/serve-demo.mjs --root examples/jsoo/router",
     "playground": "opam exec -- dune build @melange && vite --config website/vite.config.mjs --open /reativa/playground/",
-    "docs:dev": "opam exec -- dune build @melange && vite --config website/vite.config.mjs",
-    "docs:build": "opam exec -- dune build @melange && vite build --config website/vite.config.mjs && node scripts/build-agent-docs.mjs",
+    "docs:dev": "node scripts/generate-docs-index.mjs && opam exec -- dune build @melange && vite --config website/vite.config.mjs",
+    "docs:build": "node scripts/generate-docs-index.mjs --check && opam exec -- dune build @melange && vite build --config website/vite.config.mjs && node scripts/build-agent-docs.mjs && node scripts/build-site-routes.mjs",
     "docs:preview": "vite preview --config website/vite.config.mjs",
     "prepare": "husky",
     "release": "semantic-release"

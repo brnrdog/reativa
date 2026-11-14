@@ -1,0 +1,124 @@
+(* The docs area: a sidebar of every page, the page itself, and an "On this
+   page" rail. The sidebar stays mounted while you move between docs pages;
+   only the article and the rail are rebuilt. *)
+
+open Reativa
+open Reativa.View.Mlx
+open Docs_index
+
+let text = Ui.text
+
+(* The sidebar is a drawer on small screens. *)
+let menu_open = Signal.make false
+
+let () =
+  Effect.run (fun () ->
+    ignore (Signal.get Site.route);
+    Signal.set menu_open false;
+    None)
+
+let new_pill label = <span className="new-pill">(label)</span>
+
+let sidebar_link (page : Docs_index.page) =
+  Site.nav_link ~className:"sidebar-link" page.path
+    (if page.is_new then [ text page.title; new_pill "New" ] else [ text page.title ])
+
+let sidebar () =
+  <aside className=(if Signal.get menu_open then "docs-sidebar is-open" else "docs-sidebar")>
+    <nav aria_label="Documentation">
+      (View.fragment
+         (List.map
+            (fun (label, pages) ->
+              <div className="sidebar-section">
+                <p className="sidebar-title">(label)</p>
+                (View.element "ul"
+                   (List.map (fun page -> View.element "li" [ sidebar_link page ]) pages))
+              </div>)
+            Docs_index.sections))
+    </nav>
+  </aside>
+
+(* The pages before and after this one, in sidebar order. *)
+let neighbors (page : Docs_index.page) =
+  let rec go prev = function
+    | [] -> (None, None)
+    | (p : Docs_index.page) :: rest when p.path = page.path ->
+        (prev, match rest with next :: _ -> Some next | [] -> None)
+    | p :: rest -> go (Some p) rest
+  in
+  go None Docs_index.pages
+
+let pager_link ~className ~label (page : Docs_index.page option) =
+  match page with
+  | None -> <span />
+  | Some page ->
+      Site.link ~className page.path
+        [
+          <span className="pager-label">(label)</span>;
+          <span className="pager-title">(page.title)</span>;
+        ]
+
+let rail (page : Docs_index.page) headings =
+  <aside className="docs-rail">
+    (match headings with
+     | [] -> View.empty
+     | _ ->
+         <nav className="toc" aria_label="On this page">
+           <p className="toc-title">("On this page")</p>
+           (View.element "ul"
+              (List.map
+                 (fun (id, title) ->
+                   View.element "li"
+                     [ View.element "a" ~attrs:[ View.Attr.href (View.static ("#" ^ id)) ] [ text title ] ])
+                 headings))
+         </nav>)
+    (match page.agent with
+     | None -> View.empty
+     | Some slug ->
+         <div className="rail-note">
+           <p className="rail-note-title">("For coding agents")</p>
+           <p>
+             ("The complete rules, edge cases and API for this topic, as Markdown: ")
+             <a href=(Site.agent_markdown slug)>(slug ^ ".md")</a>
+             (". All pages are listed in ")
+             <a href=(Site.base ^ "/llms.txt")>("llms.txt")</a>
+             (".")
+           </p>
+         </div>)
+  </aside>
+
+let article (page : Docs_index.page) =
+  let blocks = page.body () in
+  let prev, next = neighbors page in
+  <div className="docs-page">
+    <article className="docs-main">
+      <p className="docs-crumb">(page.section)</p>
+      <h1 className="docs-title">
+        (page.heading)
+        (if page.is_new then new_pill "New in 2.0" else View.empty)
+      </h1>
+      <p className="docs-lead">(page.lead)</p>
+      <div className="docs-content">(View.fragment (List.map Doc.render blocks))</div>
+      <nav className="pager" aria_label="Previous and next page">
+        (pager_link ~className:"pager-prev" ~label:"Previous" prev)
+        (pager_link ~className:"pager-next" ~label:"Next" next)
+      </nav>
+    </article>
+    (rail page (Doc.headings blocks))
+  </div>
+
+let view () =
+  <div className="docs">
+    <button
+      className="docs-menu-btn"
+      aria_label="Show the documentation menu"
+      onClick=(fun _ -> Signal.update menu_open not)
+    >
+      (if Signal.get menu_open then "Close menu" else "Docs menu")
+    </button>
+    (sidebar ())
+    (View.dyn (fun () ->
+       match Docs_index.find (Signal.get Site.route) with
+       | Some page -> article page
+       | None -> View.empty))
+  </div>

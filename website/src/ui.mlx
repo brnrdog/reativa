@@ -1,0 +1,159 @@
+(* Building blocks shared by every page: code panels, small snippets, section
+   headings, and inline text with code spans, emphasis and links. *)
+
+open Reativa
+open Reativa.View.Mlx
+
+(* ----- code panels ----- *)
+
+let code_panel ~id ~file ~lang source =
+  <figure className="code-panel">
+    <figcaption className="code-panel-bar">
+      <span className="code-file">(file)</span>
+      <button
+        className=(if Signal.get Site.copied = id then "copy-btn is-copied" else "copy-btn")
+        aria_label="Copy code to clipboard"
+        onClick=(fun _ -> Site.copy_code id source)
+      >
+        (if Signal.get Site.copied = id then "Copied!" else "Copy")
+      </button>
+    </figcaption>
+    <pre className=("code-body " ^ lang)><code>(source)</code></pre>
+  </figure>
+
+(* A code panel that carries both an OCaml and a ReasonML rendering of the same
+   thing. Both are mounted, so the highlighter in main.js colors each once;
+   the syntax signal only flips which one is shown (via CSS) and which one the
+   Copy button reads. [lang_ml] and [lang_re] pick the highlighter for each
+   side, [file_re] the filename shown for ReasonML. *)
+let code_panel_pair ~id ~file ~file_re ~lang_ml ~lang_re ~ocaml ~reason =
+  <figure
+    className=(if Signal.get Site.syntax = Site.Reason then "code-panel is-reason" else "code-panel")
+  >
+    <figcaption className="code-panel-bar">
+      <span className="code-file">
+        (if Signal.get Site.syntax = Site.Reason then file_re else file)
+      </span>
+      <button
+        className=(if Signal.get Site.copied = id then "copy-btn is-copied" else "copy-btn")
+        aria_label="Copy code to clipboard"
+        onClick=(fun _ ->
+          Site.copy_code id (if Signal.peek Site.syntax = Site.Reason then reason else ocaml))
+      >
+        (if Signal.get Site.copied = id then "Copied!" else "Copy")
+      </button>
+    </figcaption>
+    <pre className=("code-body syntax-ml " ^ lang_ml)><code>(ocaml)</code></pre>
+    <pre className=("code-body syntax-re " ^ lang_re)><code>(reason)</code></pre>
+  </figure>
+
+(* Two renderings of the same program: .mlx source against .re source. *)
+let code_ml ~id ~file ~ocaml ~reason =
+  code_panel_pair ~id ~file ~file_re:(Site.reason_file file) ~lang_ml:"ocaml"
+    ~lang_re:"reason" ~ocaml ~reason
+
+(* Setup that differs by syntax without being OCaml or ReasonML itself: the
+   same file, the same highlighter, two contents. *)
+let code_setup ~id ~file ~lang ~ocaml ~reason =
+  code_panel_pair ~id ~file ~file_re:file ~lang_ml:lang ~lang_re:lang ~ocaml ~reason
+
+(* A short snippet inside a card, in both syntaxes. *)
+let mini_pair ~ocaml ~reason =
+  <div
+    className=(if Signal.get Site.syntax = Site.Reason then "mini-pair is-reason" else "mini-pair")
+  >
+    <pre className="mini syntax-ml ocaml"><code>(ocaml)</code></pre>
+    <pre className="mini syntax-re reason"><code>(reason)</code></pre>
+  </div>
+
+(* ----- inline text ----- *)
+
+(* A tiny inline markup for prose: `code`, **bold** and [label](target). A
+   target starting with "/" is a route of this site (an in-app link); "#..."
+   is an anchor on the page; anything else is an outside link. *)
+
+let text s = View.text (View.static s)
+
+let anchor target children =
+  if String.length target > 0 && target.[0] = '/' then Site.link target children
+  else View.element "a" ~attrs:[ View.Attr.href (View.static target) ] children
+
+let index_from s i c = try Some (String.index_from s i c) with Not_found -> None
+
+let find_sub s i sub =
+  let n = String.length s and m = String.length sub in
+  let rec go j =
+    if j + m > n then None else if String.sub s j m = sub then Some j else go (j + 1)
+  in
+  go i
+
+let inline s =
+  let n = String.length s in
+  let out = ref [] and plain = Buffer.create 64 in
+  let flush () =
+    if Buffer.length plain > 0 then begin
+      out := text (Buffer.contents plain) :: !out;
+      Buffer.clear plain
+    end
+  in
+  let emit v =
+    flush ();
+    out := v :: !out
+  in
+  let rec go i =
+    if i >= n then ()
+    else
+      match s.[i] with
+      | '`' -> (
+          match index_from s (i + 1) '`' with
+          | Some j ->
+              emit (View.element "code" [ text (String.sub s (i + 1) (j - i - 1)) ]);
+              go (j + 1)
+          | None ->
+              Buffer.add_char plain '`';
+              go (i + 1))
+      | '*' when i + 1 < n && s.[i + 1] = '*' -> (
+          match find_sub s (i + 2) "**" with
+          | Some j ->
+              emit (View.element "strong" [ text (String.sub s (i + 2) (j - i - 2)) ]);
+              go (j + 2)
+          | None ->
+              Buffer.add_string plain "**";
+              go (i + 2))
+      | '[' -> (
+          match find_sub s (i + 1) "](" with
+          | Some j -> (
+              match index_from s (j + 2) ')' with
+              | Some k ->
+                  let label = String.sub s (i + 1) (j - i - 1) in
+                  let target = String.sub s (j + 2) (k - j - 2) in
+                  emit (anchor target [ text label ]);
+                  go (k + 1)
+              | None ->
+                  Buffer.add_char plain '[';
+                  go (i + 1))
+          | None ->
+              Buffer.add_char plain '[';
+              go (i + 1))
+      | c ->
+          Buffer.add_char plain c;
+          go (i + 1)
+  in
+  go 0;
+  flush ();
+  List.rev !out
+
+let prose ?(className = "") s =
+  View.element "p" ~attrs:[ View.Attr.className (View.static className) ] (inline s)
+
+(* ----- headings ----- *)
+
+let section_head kicker title lede =
+  <header className="section-head">
+    <p className="kicker">(kicker)</p>
+    <h2>(title)</h2>
+    <p className="lede">(lede)</p>
+  </header>
+
+(* A "Read more" style link; the arrow comes from CSS. *)
+let more_link path label = Site.link ~className:"more-link" path [ text label ]

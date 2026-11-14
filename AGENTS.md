@@ -30,6 +30,8 @@ It follows [xote](https://github.com/brnrdog/xote) (ReScript) closely; see
 | `node scripts/generate-mlx-props.mjs` | regenerate the element props (`--check` in CI) |
 | `npm --prefix benchmarks install && node benchmarks/build.mjs && node benchmarks/driver.mjs` | keyed-list benchmark (see `benchmarks/README.md`) |
 | `npm run docs:dev` / `docs:build` | the documentation site |
+| `node scripts/generate-docs-index.mjs` | regenerate `website/src/docs_index.ml` from `website/docs.pages.mjs` (`--check` in CI) |
+| `node scripts/smoke-site.mjs` | visit every route of the compiled site under jsdom (after `dune build @melange`) |
 
 js_of_ocaml targets are gated: set `REATIVA_JSOO=enabled` (as the npm scripts
 do) to build them.
@@ -52,7 +54,8 @@ test/                 native tests; test/dom (jsdom, plain OCaml); test/dom_mlx 
 inspect/              reativa-inspect: CLI + MCP server over Devtools (Node)
 benchmarks/           keyed-list benchmark vs xote and SolidJS
 demo/, examples/      the todo demo (Melange) and both demos on js_of_ocaml
-website/              documentation site (itself a reativa app) and agent docs
+website/              documentation site (itself a reativa app, routed by Router) and agent docs;
+                      pages are registered in website/docs.pages.mjs (see website/README.md)
 docs/                 plans, release process
 ```
 

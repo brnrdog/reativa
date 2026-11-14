@@ -1,0 +1,74 @@
+(* /examples: five small programs, one at a time, each next to its live demo.
+   Every article is mounted, so the highlighter colors them all at once; the
+   active tab only flips which article carries [is-active]. *)
+
+open Reativa
+open Reativa.View.Mlx
+
+let active = Signal.make "counter"
+
+let tab ~id label =
+  <button
+    className=(if Signal.get active = id then "example-tab is-active" else "example-tab")
+    aria_pressed=(if Signal.get active = id then "true" else "false")
+    onClick=(fun _ -> Signal.set active id)
+  >
+    (label)
+  </button>
+
+let example ~id ~title ~intro ~file ~code ~code_re demo =
+  <article
+    id=("example-" ^ id)
+    className=(if Signal.get active = id then "example is-active" else "example")
+  >
+    <div className="example-info">
+      <h2>(title)</h2>
+      (Ui.prose intro)
+    </div>
+    <div className="example-panes">
+      (Ui.code_ml ~id:("example-" ^ id) ~file ~ocaml:code ~reason:code_re)
+      <aside className="example-demo">
+        <span className="demo-tag">("Live demo")</span>
+        <div className="demo-stage">(demo)</div>
+      </aside>
+    </div>
+  </article>
+
+let page () =
+  <div className="page-wrap examples-page">
+    <header className="page-head">
+      <p className="kicker">("Examples")</p>
+      <h1>("Small programs, running live")</h1>
+      (Ui.prose ~className:"lede"
+         "Each tab is a complete program you can paste into an `.mlx` or `.re` file and compile. The demo beside it is that same code running on this page, because the whole site is a reativa app. The switch at the top shows every snippet in OCaml or ReasonML.")
+    </header>
+    <div className="example-tabs" aria_label="Examples">
+      (tab ~id:"counter" "Counter")
+      (tab ~id:"todos" "Todo list")
+      (tab ~id:"show" "Show & Maybe")
+      (tab ~id:"stopwatch" "Stopwatch")
+      (tab ~id:"weather" "Weather")
+    </div>
+    <div className="examples">
+      (example ~id:"counter" ~title:"Counter"
+         ~intro:"State is a `Signal`; derived state is a `Computed`. Reading either inside markup makes that exact text node reactive, and the buttons are plain event handlers. See [Signals](/docs/learn/signals) and [Computeds](/docs/learn/computeds)."
+         ~file:"counter.mlx" ~code:Examples.counter_code ~code_re:Examples.counter_code_re
+         (Examples.counter_demo ()))
+      (example ~id:"todos" ~title:"Todo list"
+         ~intro:"`View.ForEach` with a key reconciles the list: rows keep their DOM nodes when items are added, toggled or moved. The input is bound to a signal, so clearing the signal clears the field. See [Lists](/docs/learn/lists)."
+         ~file:"todos.mlx" ~code:Examples.todos_code ~code_re:Examples.todos_code_re
+         (Examples.todos_demo ()))
+      (example ~id:"show" ~title:"Conditional rendering"
+         ~intro:"`View.Show` switches on a boolean and `View.Maybe` on an option. Each is a small region, rebuilt when the signal its thunk reads changes. See [Rendering](/docs/learn/rendering)."
+         ~file:"conditional.mlx" ~code:Examples.show_code ~code_re:Examples.show_code_re
+         (Examples.show_demo ()))
+      (example ~id:"stopwatch" ~title:"Stopwatch"
+         ~intro:"An `Effect` re-runs when a signal it read changes, and can return a cleanup. Start and Pause flip a signal; the cleanup clears the old interval before the next run. See [Effects](/docs/learn/effects)."
+         ~file:"stopwatch.mlx" ~code:Examples.stopwatch_code
+         ~code_re:Examples.stopwatch_code_re (Examples.stopwatch_demo ()))
+      (example ~id:"weather" ~title:"Fetch the weather"
+         ~intro:"An async result is just another signal write. A variant signal tracks idle, loading, loaded and failed; the button fetches a random city from the free Open-Meteo API, and `View.tracked` rebuilds the region for each state. For promise-backed data with less code, see [Async data](/docs/learn/async-data)."
+         ~file:"weather.mlx" ~code:Examples.weather_code ~code_re:Examples.weather_code_re
+         (Examples.weather_demo ()))
+    </div>
+  </div>

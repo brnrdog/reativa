@@ -1,0 +1,222 @@
+(* Reference and project pages: API reference, Glossary, What's new. *)
+
+open Reativa
+open Reativa.View.Mlx
+open Doc
+
+(* ----- API reference ----- *)
+
+let api_row signature description =
+  <div className="api-row">
+    <dt><code>(signature)</code></dt>
+    <dd>(description)</dd>
+  </div>
+
+(* One module: a heading (listed under "On this page"), then its rows. *)
+let api_group ~id ~name ~blurb rows =
+  [
+    H2 (id, name);
+    Raw
+      (<div className="api-group">
+         <p className="api-blurb">(blurb)</p>
+         <dl className="api-rows">(View.fragment rows)</dl>
+       </div>);
+  ]
+
+let api () =
+  List.concat
+    [
+      [
+        P
+          "Everything lives under the `Reativa` namespace; `open Reativa` brings in the modules below. The signal modules are plain OCaml. View, Router and Resource reach the browser through the [backend](/docs/backends) you compile with. Each module's `.mli` file is the exact contract; this page is the short version.";
+      ];
+    (api_group ~id:"api-signal" ~name:"Signal"
+         ~blurb:"Mutable reactive state - the root of the graph. Reads with get are tracked by whatever computed, effect or reactive view is currently running."
+         [
+           api_row
+             "make : ?name:string -> ?equals:('a -> 'a -> bool) -> 'a -> 'a Signal.t"
+             "Create a signal from an initial value. equals decides whether a write is a real change (default: physical equality).";
+           api_row "get : 'a Signal.t -> 'a"
+             "Read the current value and track it as a dependency of the running computed, effect or reactive view.";
+           api_row "peek : 'a Signal.t -> 'a"
+             "Read without creating a dependency. Use inside event handlers and effects for reads that should not re-trigger.";
+           api_row "set : 'a Signal.t -> 'a -> unit"
+             "Write a new value. Subscribers only re-run when equals says the value actually changed.";
+           api_row "update : 'a Signal.t -> ('a -> 'a) -> unit"
+             "Write by transforming the current value.";
+           api_row "batch : (unit -> 'a) -> 'a"
+             "Group several writes into one flush - dependents update once at the end instead of after every write.";
+           api_row "untrack : (unit -> 'a) -> 'a"
+             "Run a function with dependency tracking suspended.";
+         ]);
+    (api_group ~id:"api-computed" ~name:"Computed"
+         ~blurb:"Lazy derived signals. A computed tracks every Signal.get made while computing and refreshes when a dependency changes - reads and caching are glitch-free."
+         [
+           api_row
+             "make : ?name:string -> ?equals:('a -> 'a -> bool) -> (unit -> 'a) -> 'a Signal.t"
+             "Derive a read-only signal. Read it with Signal.get or Signal.peek like any other signal. Pass ~equals to stop downstream work when the derived value is unchanged.";
+           api_row "dispose : 'a Signal.t -> unit"
+             "Detach a computed from its dependencies; it will no longer update.";
+         ]);
+    (api_group ~id:"api-effect" ~name:"Effect"
+         ~blurb:"Tracked side effects. The body runs immediately, then re-runs whenever a signal it read changes. Return Some cleanup to run teardown before each re-run and on dispose."
+         [
+           api_row
+             "run : ?name:string -> (unit -> (unit -> unit) option) -> unit"
+             "Run a tracked effect for the lifetime of the page.";
+           api_row
+             "run_with_disposer : ?name:string -> (unit -> (unit -> unit) option) -> Effect.disposer"
+             "Like run, but returns { dispose : unit -> unit } so the effect can be stopped manually.";
+         ]);
+    (api_group ~id:"api-view" ~name:"View"
+         ~blurb:"The DOM layer. A View.t describes real nodes; mounting creates them once and wires an effect for every reactive part. Use the JSX markup or the plain constructors - they build the same thing."
+         [
+           api_row "mount_by_id : string -> View.t -> unit"
+             "Render a view into the element with the given id (View.mount takes a Dom.t container directly).";
+           api_row "static / dynamic / signal"
+             "Value wrappers for props and text: static values are set once; dynamic thunks and signal reads update in place. In markup the ppx infers these; see Markup and components.";
+           api_row "text / int / float : 'a value -> View.t"
+             "Reactive text leaves. Optional in JSX markup - bare literals and expressions render directly.";
+           api_row "tracked : (unit -> View.t) -> View.t"
+             "A region that rebuilds its whole subtree when any signal read while building it changes. Reach for it when the structure changes; prefer inline reads when only text or attributes do.";
+           api_row "show : ?fallback:View.t -> (unit -> bool) -> View.t -> View.t"
+             "Render a view while the condition holds, otherwise the fallback. Also available as <View.Show condition fallback>.";
+           api_row
+             "maybe : ?fallback:View.t -> (unit -> 'a option) -> ('a -> View.t) -> View.t"
+             "Render from the Some branch of an option. Also available as <View.Maybe value render fallback />.";
+           api_row "for_ : (unit -> 'a list) -> ('a -> View.t) -> View.t"
+             "Map a reactive list to views, re-rendering the whole list on change. <View.ForEach items render /> without a key does the same.";
+           api_row
+             "for_with_key : (unit -> 'a list) -> key:('a -> string) -> ('a Signal.t -> View.t) -> View.t"
+             "Keyed reconciliation: rows keep their DOM nodes and effects across updates; each row reads its latest item from a signal. In markup, pass key to <View.ForEach items key render />.";
+           api_row "Attr / On"
+             "Escape hatches for the constructor style: Attr.className, Attr.value, Attr.disabled, custom Attr.make - and On.click, On.input, On.keydown and friends.";
+         ]);
+    (api_group ~id:"api-lifecycle" ~name:"Lifecycle and refs"
+         ~blurb:"New in 2.0. Components mount lazily under their own owner; these hook into that lifecycle."
+         [
+           api_row "View.on_mount : (unit -> unit) -> unit"
+             "Run once the current insertion has finished and the component's nodes are in place.";
+           api_row "View.on_cleanup : (unit -> unit) -> unit"
+             "Run when the current component, row or region is disposed.";
+           api_row "View.Ref.make : unit -> View.Ref.t"
+             "An element reference, filled through the ref prop and read with View.Ref.current.";
+           api_row "View.error_boundary / View.portal / View.suspense"
+             "Fallback on errors (with reset), render into another container, show a fallback while resources load. Also as <View.ErrorBoundary>, <View.Portal> and <View.Suspense>.";
+         ]);
+    (api_group ~id:"api-context" ~name:"Context"
+         ~blurb:"New in 2.0. Values scoped to a subtree, carried by ownership rather than the DOM."
+         [
+           api_row "make : 'a -> 'a Context.t" "A context with a default.";
+           api_row "provider : 'a Context.t -> 'a -> View.t -> View.t"
+             "Render a view with a value provided (or <Context.Provider context value>).";
+           api_row "use : 'a Context.t -> 'a" "The nearest provided value, read while rendering.";
+         ]);
+    (api_group ~id:"api-resource" ~name:"Resource"
+         ~blurb:"New in 2.0. Asynchronous data as a signal, over each backend's own promises."
+         [
+           api_row "make : (unit -> 'a Promise.t) -> 'a Resource.t"
+             "Fetch now and whenever a signal read before the promise changes; stale results are dropped.";
+           api_row "state : 'a Resource.t -> 'a Resource.state"
+             "Loading (with the previous value), Ready or Failed - tracked.";
+           api_row "refetch / mutate" "Fetch again, or set the value locally.";
+         ]);
+    (api_group ~id:"api-devtools" ~name:"Devtools"
+         ~blurb:"New in 2.0. What the reactive graph does and why; costs nothing until installed."
+         [
+           api_row "install / expose" "Start tracking; publish a JSON API for reativa-inspect.";
+           api_row "record : (unit -> unit) -> Devtools.trace"
+             "The writes, recomputes and runs one interaction caused.";
+           api_row "why : int -> Devtools.cause option" "Follow a run back to the signal write that caused it.";
+         ]);
+    (api_group ~id:"api-router" ~name:"Router"
+         ~blurb:"Browser SPA navigation: a reactive location signal, history wrappers, link interception and pure route matching. Patterns support static segments, :params and a trailing * wildcard."
+         [
+           api_row "location : unit -> Router.location Signal.t"
+             "The current browser location as a signal - pathname, search, hash, origin and optional history state. Reading it in a tracked scope subscribes to navigation.";
+           api_row
+             "navigate : ?replace:bool -> ?state:Router.state -> string -> unit -> unit"
+             "Programmatic navigation via pushState (or replaceState with ~replace:true). back, forward and go wrap the history API.";
+           api_row "param : Router.route_match -> string -> string option"
+             "Read a :param captured by the matched route pattern.";
+           api_row "match_path : string -> string -> Router.route_match option"
+             "Pure matching of a pattern against a pathname - usable (and tested) natively.";
+           api_row "is_active : ?exact:bool -> string -> bool"
+             "Whether the current location matches an href - handy for nav styling.";
+           api_row "state / state_value"
+             "Encode a value as history state for navigate ~state, and decode it back from location.";
+           api_row "<Router> <Route> <Link> <Redirect>"
+             "The markup primitives: Router renders the first matching Route child; Route takes path and children or render; Link intercepts same-origin clicks; Redirect navigates on render.";
+         ]);
+
+      [
+        H2 ("api-markup", "Markup");
+        P
+          "In `.mlx` and `.re` files, props and children need no value wrappers: the ppx decides what is static and what is tracked from the shape of each expression. The rules, components and escape hatches are in [Markup and components](/docs/learn/markup).";
+      ];
+    ]
+
+(* ----- Glossary ----- *)
+
+let glossary () =
+  [
+    P
+      "The terms the rest of the docs use, with their exact meaning in reativa. [Thinking in signals](/docs/thinking-in-signals) shows how they fit together.";
+    H2 ("state", "State");
+    Terms
+      [
+        ("Signal", "A mutable reactive value, `'a Signal.t`. `Signal.get` reads it and, inside a computed or effect, records a dependency; `Signal.peek` reads without recording.");
+        ("Computed", "A read-only signal derived from others with `Computed.make`. Lazy: it recomputes on the first read after a dependency changed, and detaches from its sources while nothing reads it.");
+        ("Effect", "A function re-run whenever a signal it read changes, with `Effect.run`. It may return a cleanup.");
+        ("Tracked read", "A `Signal.get` made while a computed or effect is running.");
+        ("Eager read", "A `Signal.get` evaluated right away in an expression, not inside a nested `fun`. The ppx turns eager reads in markup into tracked ones.");
+      ];
+    H2 ("views", "Views");
+    Terms
+      [
+        ("View", "A description of DOM nodes, `View.t`. Mounting builds the nodes once.");
+        ("Component", "A module with a `component` function, used as a tag (`<Card />`). Its body runs at mount time, untracked, under its own owner.");
+        ("Leaf", "A reactive text node or attribute; an effect writes it in place.");
+        ("Region", "Part of a view rebuilt wholesale when its reads change: `View.tracked`, `View.Show`, `View.Maybe`, a thunk child. Marked in the DOM by a comment.");
+        ("Keyed list", "`View.for_with_key` or `View.ForEach` with a `key`; rows are kept by key across updates.");
+        ("Template", "An HTML skeleton parsed once and cloned per instance; what the ppx compiles element trees to.");
+        ("Hole", "A dynamic part of a template: an attribute, event, text or child view.");
+      ];
+    H2 ("lifetimes", "Lifetimes and platform");
+    Terms
+      [
+        ("Owner", "A scope that disposes what was created under it: effects, computeds, cleanups and child owners. Components, effect runs, keyed rows, regions, boundaries, portals and mount roots each have one.");
+        ("Backend", "Melange or js_of_ocaml; it implements the `Dom`, `History` and `Promise` modules.");
+        ("Devtools", "`Reativa.Devtools`, an opt-in record of what the graph does. reativa-inspect is the command-line and MCP tool built on it.");
+      ];
+  ]
+
+(* ----- What's new in 2.0 ----- *)
+
+let whats_new () =
+  [
+    P
+      "2.0 is a big release. It brings reativa level with xote 7.2: components with a lifecycle, the tools to compose them, compiled templates, and devtools you can drive from a terminal or a coding agent.";
+    H2 ("added", "What it adds");
+    Bullets
+      [
+        "**Lazy, owned components.** A component runs when it is mounted, under its own owner, and everything it creates is cleaned up with it. `View.on_mount`, `View.on_cleanup` and refs hook into that. See [Lifecycle and refs](/docs/learn/lifecycle).";
+        "**Context.** Pass a value to everything a component renders without threading props. See [Context](/docs/learn/context).";
+        "**Error boundaries and portals.** Contain failures with a fallback and a reset; render into another container. See [Error boundaries and portals](/docs/learn/boundaries-and-portals).";
+        "**Resources and suspense.** Promise-backed data as a signal, with a fallback while it loads. See [Async data](/docs/learn/async-data).";
+        "**Compiled templates, SVG and a faster keyed list.** Element trees compile to HTML templates cloned per instance, SVG gets its namespace, and keyed lists move only the rows an update displaces.";
+        "**Devtools and reativa-inspect.** Trace every write, recompute and effect run, and drive your app from a terminal or an MCP client. See [Devtools](/docs/devtools).";
+      ];
+    H2 ("breaking", "Three changes that can break your code");
+    Numbered
+      [
+        "**Components are lazy.** A component used as a tag runs when the view is mounted, not when the view value is built, and a `Signal.get` in its body no longer subscribes the surrounding region. Read inline in the markup, or wrap the part that must rebuild in `View.tracked`. Work that relied on the body running at construction moves out of the component or into `View.on_mount`. Calling `Module.component ~props` directly is unchanged.";
+        "**The public API is what the `.mli` files declare.** `View.t` and `View.attr` are abstract (build them with `View` functions), a signal's record fields are hidden (use `Signal.peek` and `Signal.set`), and router and renderer internals are gone.";
+        "**Templates.** mlx element trees compile to templates. Behaviour is the same; the generated code no longer uses `View.Mlx`, so the ppx silences the unused-open warning on `open Reativa.View.Mlx`. Pass `-no-templates` to the ppx to compare.";
+      ];
+    H2 ("upgrade", "Upgrading");
+    P
+      "Build against the new release and fix the type errors from the second change. Then check the components whose bodies read signals: in the browser, or with `reativa-inspect --act` on the interaction that should update them.";
+    Note
+      "The migration notes are also published as Markdown for coding agents: [migrating-to-2.md](https://brnrdog.github.io/reativa/docs/migrating-to-2.md).";
+  ]
