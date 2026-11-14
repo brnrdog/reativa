@@ -588,11 +588,31 @@ let rec render_node b = function
 let hoisted : (string * string) list ref = ref []
 let hoisted_by_html : (string, string) Hashtbl.t = Hashtbl.create 16
 
+(* The hoisted bindings are ordinary top-level values, so a module without an
+   interface exports them, and opening it brings them into scope. Their names
+   carry the module's own name ("__reativa_template_card_0" in card.mlx), so
+   an [open Card] further down another file cannot shadow that file's. *)
+let unit_prefix = ref ""
+
+let prefix_of_file fname =
+  match Stdlib.Filename.basename fname with
+  | "" | "_none_" -> ""
+  | base ->
+      let name = Stdlib.Filename.remove_extension base in
+      Stdlib.String.map
+        (fun c ->
+          match c with
+          | 'a' .. 'z' | '0' .. '9' | '_' -> c
+          | 'A' .. 'Z' -> Stdlib.Char.lowercase_ascii c
+          | _ -> '_')
+        name
+      ^ "_"
+
 let hoist html =
   match Hashtbl.find_opt hoisted_by_html html with
   | Some name -> name
   | None ->
-      let name = Printf.sprintf "__reativa_template_%d" (List.length !hoisted) in
+      let name = Printf.sprintf "__reativa_template_%s%d" !unit_prefix (List.length !hoisted) in
       hoisted := (name, html) :: !hoisted;
       Hashtbl.replace hoisted_by_html html name;
       name
@@ -869,6 +889,8 @@ let silence_mlx_opens =
 
 let rewrite structure =
   collect_reactive_names structure;
+  unit_prefix :=
+    (match structure with item :: _ -> prefix_of_file item.pstr_loc.loc_start.pos_fname | [] -> "");
   hoisted := [];
   Hashtbl.reset hoisted_by_html;
   let structure = mapper#structure structure in

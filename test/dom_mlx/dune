@@ -6,7 +6,7 @@
 (melange.emit
  (target output)
  (alias dom-mlx-tests)
- (modules harness test_mlx main)
+ (modules harness opened test_mlx main)
  (libraries reativa reativa_probe_melange)
  (preprocess
   (pps reativa.mlx_ppx melange.ppx))

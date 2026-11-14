@@ -6,6 +6,10 @@ open Reativa
 open Reativa.View.Mlx
 open Harness
 
+(* Brings Opened's hoisted templates into scope; every template below would
+   render Opened's skeletons if their names could collide. *)
+open Opened
+
 module Badge = struct
   let component ~label = <span className="badge">(label)</span>
 end
@@ -21,6 +25,11 @@ let register () =
        escapes in those *)
     equal_string "markup"
       ~expected:({js|<p title="café">C:|js} ^ "\\dir " ^ {js|© 2.0 → ok</p>|js})
+      (html c));
+  test "an opened mlx module's templates do not shadow this file's" (fun () ->
+    let c = mount <div>(banner)<p className="own">("mine")</p>(note)</div> in
+    equal_string "markup"
+      ~expected:{|<div><h3 class="opened">from Opened</h3><p class="own">mine</p><em>an unrelated skeleton</em></div>|}
       (html c));
   test "literal toggles and ints" (fun () ->
     let c = mount <input type_="text" tabIndex=3 required=true disabled=false /> in
