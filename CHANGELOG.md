@@ -1,3 +1,13 @@
+## [2.0.1](https://github.com/brnrdog/reativa/compare/v2.0.0...v2.0.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **ppx:** keep non-ASCII text in compiled templates intact under Melange ([102dceb](https://github.com/brnrdog/reativa/commit/102dceb938c93f31b95ab4127b60481f29459edc))
+* **ppx:** name hoisted templates after their module ([f540e47](https://github.com/brnrdog/reativa/commit/f540e471a4e0fd097e84a856d946e5a47ab1c3e1))
+* **ppx:** no module prefix for code parsed without a file name ([4cbd312](https://github.com/brnrdog/reativa/commit/4cbd312a0d15334108916baf70e561cc12d37f98))
+* **ppx:** write non-ASCII template text as character references ([eb9f1c9](https://github.com/brnrdog/reativa/commit/eb9f1c9d6f2223dbe1956f53835c09819cf5b71e)), closes [#xE9](https://github.com/brnrdog/reativa/issues/xE9)
+
 # [2.0.0](https://github.com/brnrdog/reativa/compare/v1.2.0...v2.0.0) (2026-11-19)
 
 
